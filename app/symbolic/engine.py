@@ -6,11 +6,12 @@ engine.py — Symbolic Rule Engine
   1) การตัดสินใจเกิดที่นี่ 100% ไม่มีการเรียก LLM ในไฟล์นี้
   2) reasoning_chain สร้างจากกฎที่ถูกตรวจจริงเท่านั้น (faithful by construction)
   3) กฎอยู่ใน rules.json ไม่ hard-code เงื่อนไขลงในโค้ด
+  4) ไม่นำ confidence จาก LLM มาใช้ในการตัดสิน
 """
 
 import json
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List
 
 from app.schemas import (
     ActionType,
@@ -22,14 +23,15 @@ from app.schemas import (
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
+PILLARS = ("motive", "means", "opportunity", "corroboration")
+
 
 # ============================================================
 # CHECKERS — หนึ่งฟังก์ชันต่อหนึ่งชนิดของกฎ
-# แต่ละตัวคืน (ผ่านหรือไม่, เหตุผลเพิ่มเติม)
-# เพิ่มกฎชนิดใหม่ = เขียนฟังก์ชันใหม่ + ลงทะเบียนใน CHECKERS
+# คืน (ผ่านหรือไม่, รายละเอียดที่จะแสดงใน reasoning chain)
 # ============================================================
 
-def _action_is_known(cmd: ParsedCommand, state: GameState, world: dict, p: dict):
+def _action_is_known(cmd, state, world, p):
     if cmd.action in (ActionType.UNKNOWN, ActionType.AMBIGUOUS):
         return False, f"action={cmd.action.value}"
     return True, ""
@@ -38,8 +40,18 @@ def _action_is_known(cmd: ParsedCommand, state: GameState, world: dict, p: dict)
 def _target_exists(cmd, state, world, p):
     if cmd.target is None:
         return False, "ไม่ได้ระบุเป้าหมาย"
-    if cmd.target not in world["objects"]:
+    # ระบบนี้เล่นด้วยการพิมพ์ล้วน ไม่มีปุ่มให้กด "ดูรอบๆ ห้องนี้" จึงเป็นคำสั่งพื้นฐาน
+    # ที่ต้องใช้ได้ ดังนั้น examine จึงรับชื่อตู้รถเป็นเป้าหมายได้ด้วย
+    if cmd.target not in world["objects"] and cmd.target not in world["locations"]:
         return False, f"ไม่รู้จัก object id '{cmd.target}'"
+    return True, ""
+
+
+def _location_exists(cmd, state, world, p):
+    if cmd.target is None:
+        return False, "ไม่ได้ระบุจุดหมาย"
+    if cmd.target not in world["locations"]:
+        return False, f"ไม่รู้จัก location id '{cmd.target}'"
     return True, ""
 
 
@@ -48,6 +60,33 @@ def _suspect_exists(cmd, state, world, p):
         return False, "ไม่ได้ระบุบุคคล"
     if cmd.target not in world["suspects"]:
         return False, f"ไม่รู้จัก suspect id '{cmd.target}'"
+    return True, ""
+
+
+def _location_unlocked(cmd, state, world, p):
+    loc = world["locations"].get(cmd.target, {})
+    if not loc.get("locked", False):
+        return True, ""
+    required = loc.get("requires")
+    if required and required not in state.inventory:
+        return False, f"ต้องมี '{required}' จึงจะเข้าได้"
+    return True, f"ใช้ '{required}' เปิดทาง"
+
+
+def _in_same_location(cmd, state, world, p):
+    if cmd.target in world["locations"]:
+        # มองรอบๆ ได้เฉพาะตู้ที่ยืนอยู่ ตู้อื่นต้องเดินไปก่อน
+        if cmd.target != state.current_location:
+            return False, f"ต้องเดินไปที่ '{cmd.target}' ก่อนจึงจะมองเห็นได้"
+        return True, ""
+    obj = world["objects"].get(cmd.target, {})
+    where = obj.get("location")
+    if where is None:
+        return True, ""
+    if cmd.target in state.inventory:
+        return True, "อยู่ในครอบครองแล้ว"
+    if where != state.current_location:
+        return False, f"อยู่ที่ '{where}' แต่ผู้สืบสวนอยู่ที่ '{state.current_location}'"
     return True, ""
 
 
@@ -62,17 +101,36 @@ def _container_unlocked(cmd, state, world, p):
     obj = world["objects"].get(cmd.target, {})
     container = obj.get("hidden_in")
     if container and container not in state.unlocked_objects:
-        return False, f"ถูกซ่อนอยู่ใน '{container}' ซึ่งยังไม่ถูกเปิด"
+        return False, f"ซ่อนอยู่ใน '{container}' ซึ่งยังไม่ได้ตรวจสอบ"
     return True, ""
 
 
-def _has_required_key(cmd, state, world, p):
+def _evidence_prerequisites_met(cmd, state, world, p):
     obj = world["objects"].get(cmd.target, {})
-    required = obj.get("requires")
-    if required is None:
-        return True, "ไม่ต้องใช้อุปกรณ์"
-    if required not in state.inventory:
-        return False, f"ต้องมี '{required}' ในครอบครอง"
+    missing = [e for e in obj.get("requires_evidence", [])
+               if e not in state.discovered_evidence]
+    if missing:
+        return False, f"ยังขาดหลักฐานนำทาง: {', '.join(missing)}"
+    return True, ""
+
+
+def _testimony_prerequisite_met(cmd, state, world, p):
+    obj = world["objects"].get(cmd.target, {})
+    who = obj.get("requires_suspect")
+    if who and who not in state.interrogated_suspects:
+        return False, f"ต้องสอบปากคำ '{who}' ก่อน"
+    return True, ""
+
+
+def _suspect_available(cmd, state, world, p):
+    sus = world["suspects"].get(cmd.target, {})
+    missing = [e for e in sus.get("requires_evidence", [])
+               if e not in state.discovered_evidence]
+    if missing:
+        return False, f"ยังขาดหลักฐานตั้งประเด็น: {', '.join(missing)}"
+    prior = sus.get("requires_suspect")
+    if prior and prior not in state.interrogated_suspects:
+        return False, f"ต้องสอบปากคำ '{prior}' ก่อน"
     return True, ""
 
 
@@ -84,12 +142,33 @@ def _instrument_in_inventory(cmd, state, world, p):
     return True, ""
 
 
-def _min_evidence(cmd, state, world, p):
-    need = p.get("minimum", 3)
-    have = len(state.discovered_evidence)
-    if have < need:
-        return False, f"มีหลักฐาน {have} ชิ้น ต้องการอย่างน้อย {need} ชิ้น"
-    return True, f"มีหลักฐาน {have} ชิ้น"
+def _not_exculpated(cmd, state, world, p):
+    """ถ้าพบหลักฐานที่ยืนยันว่าบุคคลนี้ถูกบังคับ จะกล่าวหาไม่ได้"""
+    for ev_id in state.discovered_evidence:
+        ev = world["objects"].get(ev_id, {})
+        if ev.get("exculpates") == cmd.target:
+            return False, f"หลักฐาน '{ev_id}' ยืนยันว่าถูกบังคับ"
+    return True, ""
+
+
+def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, List[str]]:
+    found = {k: [] for k in PILLARS}
+    for ev_id in state.discovered_evidence:
+        ev = world["objects"].get(ev_id, {})
+        pillar = ev.get("supports", {}).get(target)
+        if pillar in found:
+            found[pillar].append(ev_id)
+    return found
+
+
+def _four_pillars(cmd, state, world, p):
+    required = p.get("required", list(PILLARS))
+    found = _collect_pillars(cmd.target, state, world)
+    missing = [k for k in required if not found[k]]
+    if missing:
+        return False, f"ขาดหลักฐานด้าน: {', '.join(missing)}"
+    summary = "; ".join(f"{k}={len(found[k])}" for k in required)
+    return True, summary
 
 
 def _within_time_limit(cmd, state, world, p):
@@ -102,12 +181,18 @@ def _within_time_limit(cmd, state, world, p):
 CHECKERS: Dict[str, Callable] = {
     "action_is_known": _action_is_known,
     "target_exists": _target_exists,
+    "location_exists": _location_exists,
     "suspect_exists": _suspect_exists,
+    "location_unlocked": _location_unlocked,
+    "in_same_location": _in_same_location,
     "target_is_takeable": _target_is_takeable,
     "container_unlocked": _container_unlocked,
-    "has_required_key": _has_required_key,
+    "evidence_prerequisites_met": _evidence_prerequisites_met,
+    "testimony_prerequisite_met": _testimony_prerequisite_met,
+    "suspect_available": _suspect_available,
     "instrument_in_inventory": _instrument_in_inventory,
-    "min_evidence": _min_evidence,
+    "not_exculpated": _not_exculpated,
+    "four_pillars": _four_pillars,
     "within_time_limit": _within_time_limit,
 }
 
@@ -123,12 +208,8 @@ class SymbolicEngine:
         self.world: dict = json.loads(story_path.read_text(encoding="utf-8"))
 
     def _applicable(self, action: ActionType) -> List[dict]:
-        out = []
-        for r in self.rules:
-            scope = r.get("applies_to", [])
-            if "*" in scope or action.value in scope:
-                out.append(r)
-        return out
+        return [r for r in self.rules
+                if "*" in r.get("applies_to", []) or action.value in r.get("applies_to", [])]
 
     def decide(self, cmd: ParsedCommand, state: GameState) -> Decision:
         chain: List[ReasoningStep] = []
@@ -139,9 +220,7 @@ class SymbolicEngine:
                 raise ValueError(f"ไม่พบ checker '{rule['check']}' ของกฎ {rule['id']}")
 
             passed, detail = checker(cmd, state, self.world, rule.get("params", {}))
-            desc = rule["description"]
-            if detail:
-                desc = f"{desc} ({detail})"
+            desc = f"{rule['description']} ({detail})" if detail else rule["description"]
             chain.append(ReasoningStep(rule_id=rule["id"], description=desc, passed=passed))
 
             # หยุดที่กฎแรกที่ไม่ผ่าน เพราะกฎถัดไปอาจสมมติว่ากฎก่อนหน้าผ่านแล้ว
@@ -156,48 +235,95 @@ class SymbolicEngine:
 
         return Decision(
             allowed=True,
-            message=self._success_message(cmd),
+            message=self._success_message(cmd, state),
             reasoning_chain=chain,
             violated_rule_id=None,
             state_changes=self._state_changes(cmd),
         )
 
-    # --- ผลที่เกิดเมื่อคำสั่งผ่าน ---
     def _state_changes(self, cmd: ParsedCommand) -> dict:
         obj = self.world["objects"].get(cmd.target, {})
+        if cmd.action == ActionType.MOVE:
+            return {"move_to": cmd.target}
         if cmd.action == ActionType.TAKE:
             changes = {"inventory_add": cmd.target}
             if obj.get("type") == "evidence":
                 changes["discovered_evidence_add"] = cmd.target
             return changes
-        if cmd.action == ActionType.EXAMINE and obj.get("type") == "evidence":
-            return {"discovered_evidence_add": cmd.target}
+        if cmd.action == ActionType.EXAMINE:
+            if cmd.target in self.world["locations"]:
+                return {}          # มองรอบๆ ไม่เปลี่ยนสถานะอะไร
+            changes = {"unlocked_add": cmd.target}
+            if obj.get("type") == "evidence":
+                changes["discovered_evidence_add"] = cmd.target
+            return changes
         if cmd.action == ActionType.UNLOCK:
             return {"unlocked_add": cmd.target}
         if cmd.action == ActionType.INTERROGATE:
-            return {"interrogated_add": cmd.target}
+            changes = {"interrogated_add": cmd.target}
+            granted = self.world["suspects"].get(cmd.target, {}).get("grants_object")
+            if granted:
+                changes["inventory_add"] = granted
+            return changes
         return {}
 
-    def _success_message(self, cmd: ParsedCommand) -> str:
-        name = (
-            self.world["objects"].get(cmd.target, {}).get("name_th")
-            or self.world["suspects"].get(cmd.target, {}).get("name_th")
-            or cmd.target
-        )
+    def look_around(self, loc_id: str, state: GameState) -> str:
+        """คำบรรยายตู้รถ พร้อมรายการสิ่งที่ 'มองเห็นได้ตอนนี้'
+
+        สิ่งที่ยังไม่ผ่านเงื่อนไข (ซ่อนอยู่ หรือยังไม่มีหลักฐานนำทาง) จะไม่ถูกแสดง
+        โดยถามจากกฎชุดเดียวกับที่ใช้ตัดสินจริง ไม่ใช่รายการที่เขียนมือแยกไว้
+        ไม่งั้นสิ่งที่เห็นกับสิ่งที่ทำได้จะไม่ตรงกัน
+        """
+        loc = self.world["locations"].get(loc_id, {})
+        lines = [loc.get("description", loc.get("name_th", loc_id))]
+
+        here = [oid for oid, o in self.world["objects"].items()
+                if o.get("location") == loc_id and oid not in state.inventory]
+        visible = [oid for oid in here if self.decide(
+            ParsedCommand(action=ActionType.EXAMINE, target=oid, raw_text="", confidence=0.0),
+            state,
+        ).allowed]
+
+        if visible:
+            names = "\n".join(f"  - {self.world['objects'][oid].get('name_th', oid)}"
+                              for oid in visible)
+            lines.append(f"สิ่งที่สังเกตเห็นได้ตอนนี้:\n{names}")
+        else:
+            lines.append("ตอนนี้ยังไม่มีอะไรในตู้นี้ที่น่าตรวจสอบเพิ่ม")
+        return "\n".join(lines)
+
+    def _success_message(self, cmd: ParsedCommand, state: GameState) -> str:
+        obj = self.world["objects"].get(cmd.target, {})
+        sus = self.world["suspects"].get(cmd.target, {})
+        loc = self.world["locations"].get(cmd.target, {})
+        name = obj.get("name_th") or sus.get("name_th") or loc.get("name_th") or cmd.target
+
+        # ระบบพิมพ์ล้วน ผู้เล่นรู้จักโลกได้จากข้อความที่ตอบกลับเท่านั้น
+        # จึงต้องคืนเนื้อความจริงจาก story.json ไม่ใช่ประโยคยืนยันลอยๆ
+        if cmd.action == ActionType.EXAMINE:
+            if cmd.target in self.world["locations"]:
+                return self.look_around(cmd.target, state)
+            return obj.get("description") or f"ตรวจสอบ{name}อย่างละเอียด แต่ไม่พบอะไรเพิ่มเติม"
+        if cmd.action == ActionType.INTERROGATE:
+            return sus.get("testimony") or f"สอบปากคำ {name} แต่ไม่ได้ข้อมูลเพิ่ม"
+        if cmd.action == ActionType.MOVE:
+            return self.look_around(cmd.target, state.model_copy(update={"current_location": cmd.target}))
+
         templates = {
-            ActionType.EXAMINE: f"ตรวจสอบ{name}เรียบร้อย",
-            ActionType.TAKE: f"เก็บ{name}ไว้แล้ว",
-            ActionType.UNLOCK: f"ปลดล็อก{name}สำเร็จ",
-            ActionType.USE: f"ใช้งานกับ{name}สำเร็จ",
-            ActionType.MOVE: f"เคลื่อนย้ายไปยัง{name}",
-            ActionType.INTERROGATE: f"สอบปากคำ{name}เรียบร้อย",
-            ActionType.ACCUSE: f"ยื่นข้อกล่าวหาต่อ{name}",
+            ActionType.TAKE: f"เก็บ{name}ไว้เป็นหลักฐาน",
+            ActionType.UNLOCK: f"เปิด{name}ได้แล้ว",
+            ActionType.USE: f"ใช้งานกับ{name}",
+            ActionType.ACCUSE: f"ตั้งข้อกล่าวหาต่อ {name}",
         }
         return templates.get(cmd.action, "ดำเนินการเรียบร้อย")
 
+    # ใช้สำหรับ UI และการวิเคราะห์ผล ไม่ใช่ส่วนของการตัดสิน
+    def pillar_status(self, target: str, state: GameState) -> Dict[str, List[str]]:
+        return _collect_pillars(target, state, self.world)
+
 
 def apply_changes(state: GameState, changes: dict) -> GameState:
-    """คืน state ใหม่ ไม่แก้ของเดิม เพื่อให้ทดลองซ้ำได้"""
+    """คืน state ใหม่ ไม่แก้ของเดิม เพื่อให้ยิงคำสั่งชุดเดิมซ้ำได้ผลเหมือนกัน"""
     s = state.model_copy(deep=True)
     mapping = {
         "inventory_add": s.inventory,
@@ -209,5 +335,10 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
         v = changes.get(key)
         if v and v not in lst:
             lst.append(v)
+    dest = changes.get("move_to")
+    if dest:
+        s.current_location = dest
+        if dest not in s.visited_locations:
+            s.visited_locations.append(dest)
     s.turn_count += 1
     return s

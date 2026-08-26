@@ -33,7 +33,6 @@ from app.schemas import (
     ExperimentLog,
     GameState,
     ParsedCommand,
-    ReasoningStep,
     SystemMode,
 )
 from app.symbolic.engine import SymbolicEngine, apply_changes
@@ -74,45 +73,7 @@ engine = SymbolicEngine()
 #       ต่างกันแค่ว่ามันไม่ถูกบังคับให้ทำตาม)
 # ============================================================
 
-try:
-    from app.neural.gemini_client import interpret, decide_autonomously
-    NEURAL_READY = True
-except ImportError:
-    NEURAL_READY = False
-
-    def interpret(text: str, state: GameState) -> ParsedCommand:
-        """MOCK ชั่วคราว — ให้ระบบเดินได้ก่อนที่ Neural Layer จะเสร็จ
-
-        รับรูปแบบ 'action target [instrument]' ตรงๆ เช่น 'unlock cabinet_03'
-        ลบฟังก์ชันนี้ทิ้งได้เมื่อของจริงพร้อม
-        """
-        parts = text.strip().split()
-        try:
-            action = ActionType(parts[0].lower())
-        except (ValueError, IndexError):
-            return ParsedCommand(action=ActionType.UNKNOWN, raw_text=text, confidence=0.0)
-        return ParsedCommand(
-            action=action,
-            target=parts[1] if len(parts) > 1 else None,
-            instrument=parts[2] if len(parts) > 2 else None,
-            raw_text=text,
-            confidence=1.0,
-        )
-
-    def decide_autonomously(text, state, parsed) -> Decision:
-        """MOCK ชั่วคราว — อนุญาตทุกอย่าง
-
-        จงใจให้หลวมเพื่อให้เห็นภาพว่าโหมด A ต่างจาก B อย่างไร
-        ห้ามใช้ค่านี้ในการทดลองจริงเด็ดขาด
-        """
-        return Decision(
-            allowed=True,
-            message="(mock) อนุมัติโดย Neural Layer",
-            reasoning_chain=[
-                ReasoningStep(rule_id="LLM_SELF", description="LLM ตัดสินด้วยตนเอง", passed=True)
-            ],
-            state_changes={},
-        )
+from app.neural.gemini_client import interpret, decide_autonomously, llm_online
 
 
 # ============================================================
@@ -123,7 +84,7 @@ except ImportError:
 def health():
     return {
         "status": "ok",
-        "neural_ready": NEURAL_READY,
+        "llm_online": llm_online(),   # False = Neural Layer กำลังเดินด้วย fallback heuristic
         "rules_loaded": len(engine.rules),
         "objects_loaded": len(engine.world["objects"]),
     }
@@ -131,16 +92,31 @@ def health():
 
 @app.get("/scene")
 def scene():
-    """ให้ frontend และ Neural Layer ดึงทะเบียนวัตถุจากแหล่งเดียวกัน
+    """ให้ frontend และ Neural Layer ดึงทะเบียน id จากแหล่งเดียวกัน
 
-    เพื่อนควรใช้ endpoint นี้ (หรืออ่าน story.json ตรงๆ) สร้างรายการ id
-    ใส่ prompt แทนการพิมพ์มือ — กัน id ไม่ตรงกันระหว่างสองฝั่ง
+    ใช้ endpoint นี้ (หรืออ่าน story.json ตรงๆ) สร้างรายการ id
+    แทนการพิมพ์มือ — กัน id ไม่ตรงกันระหว่างสองฝั่ง
     """
+    w = engine.world
     return {
-        "objects": {k: v.get("name_th") for k, v in engine.world["objects"].items()},
-        "suspects": {k: v.get("name_th") for k, v in engine.world["suspects"].items()},
+        "title": w.get("title"),
+        "briefing": w.get("briefing"),
+        "time_limit_seconds": w.get("time_limit_seconds"),
+        "locations": {k: v.get("name_th") for k, v in w["locations"].items()},
+        "objects": {k: v.get("name_th") for k, v in w["objects"].items()},
+        "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
         "actions": [a.value for a in ActionType],
+        "initial_state": GameState().model_dump(),
     }
+
+
+@app.post("/pillars")
+def pillars(state: GameState):
+    """ความคืบหน้าสี่เสาหลักของผู้ต้องสงสัยทุกคน — ใช้วาดแถบความคืบหน้าใน frontend
+
+    เป็นการอ่านสถานะเท่านั้น ไม่เกี่ยวกับการตัดสิน
+    """
+    return {sid: engine.pillar_status(sid, state) for sid in engine.world["suspects"]}
 
 
 @app.post("/command", response_model=CommandResponse)
