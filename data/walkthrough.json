@@ -1,0 +1,132 @@
+{
+  "note": "เส้นทางเฉลยฉบับทางการ ใช้สองที่: เทสกันเกมตัน และเป็นจุดตั้งต้น (checkpoint) ของคำสั่งในการทดลอง",
+  "steps": [
+    [
+      "move",
+      "service_pantry"
+    ],
+    [
+      "examine",
+      "crime_scene_record"
+    ],
+    [
+      "examine",
+      "elias_button"
+    ],
+    [
+      "examine",
+      "cassian_notebook"
+    ],
+    [
+      "examine",
+      "latch_scratches"
+    ],
+    [
+      "examine",
+      "supply_hatch"
+    ],
+    [
+      "examine",
+      "copper_wire"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
+      "examine",
+      "elias_ticket"
+    ],
+    [
+      "examine",
+      "bellwether_documents"
+    ],
+    [
+      "examine",
+      "project_nocturne_file"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "wine_receipt_2316"
+    ],
+    [
+      "interrogate",
+      "mara_voss"
+    ],
+    [
+      "move",
+      "conductor_office"
+    ],
+    [
+      "examine",
+      "manifest_altered"
+    ],
+    [
+      "examine",
+      "master_key_record"
+    ],
+    [
+      "move",
+      "electrical_compartment"
+    ],
+    [
+      "examine",
+      "fuse_panel"
+    ],
+    [
+      "examine",
+      "removed_fuse"
+    ],
+    [
+      "examine",
+      "blackout_log_46s"
+    ],
+    [
+      "examine",
+      "oil_footprints"
+    ],
+    [
+      "interrogate",
+      "ilya_renn"
+    ],
+    [
+      "examine",
+      "threat_letter"
+    ],
+    [
+      "examine",
+      "gideon_seal"
+    ],
+    [
+      "interrogate",
+      "liora_venn"
+    ],
+    [
+      "interrogate",
+      "elias_venn"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
+      "examine",
+      "elias_testimony"
+    ]
+  ],
+  "checkpoints": {
+    "เริ่มเกม": 0,
+    "ถึงจุดเกิดเหตุ": 1,
+    "สำรวจจุดเกิดเหตุครบ": 7,
+    "ถึงตู้สัมภาระ": 8,
+    "ได้กุญแจพนักงาน": 14,
+    "อยู่ห้องพนักงานควบคุมรถ": 17,
+    "อยู่ห้องระบบไฟฟ้า": 22,
+    "สอบปากคำอิลยาแล้ว": 25,
+    "ครบสี่เสา": 29
+  }
+}

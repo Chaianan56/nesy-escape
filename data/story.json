@@ -3,6 +3,7 @@
   "title": "นอกเทิร์นเอกซ์เพรส: ผู้โดยสารคนที่แปด",
   "date": "1938-11-14",
   "time_limit_seconds": 3600,
+  "seconds_per_turn": 60,
   "locations": {
     "passenger_car": {
       "name_th": "ตู้โดยสาร",

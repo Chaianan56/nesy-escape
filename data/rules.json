@@ -120,7 +120,7 @@
       "description": "การกระทำต้องอยู่ภายในกรอบเวลาของการสืบสวน",
       "applies_to": ["*"],
       "check": "within_time_limit",
-      "params": { "limit_seconds": 3600 },
+      "params": {},
       "message_fail": "หมดเวลาการสืบสวนแล้ว"
     }
   ]

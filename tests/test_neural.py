@@ -82,36 +82,53 @@ def test_rules_injection_prompt_builder():
 
 # ---------- Fallback parser (ไม่ต้องใช้ API Key) ----------
 
+def fallback(text: str, state: GameState = None) -> ParsedCommand:
+    """เรียกตัวสำรองตรงๆ
+
+    ห้ามเรียกผ่าน interpret() เพราะมันจะใช้ LLM ก่อนถ้าต่อได้ ทำให้เทสเปลี่ยนผล
+    ตามว่าโควตาเหลือหรือไม่ ซึ่งเคยทำให้เทสชุดนี้ตกแบบสุ่มมาแล้ว
+    """
+    from app.neural.gemini_client import _fallback_parse
+    state = state or GameState()
+    return _fallback_parse(text, preprocess_text(text).normalized_text, state)
+
+
 @pytest.mark.parametrize("text, action, target", [
     ("examine crime_scene_record", ActionType.EXAMINE, "crime_scene_record"),
     ("move service_pantry", ActionType.MOVE, "service_pantry"),
     ("ตรวจดูบันทึกสภาพจุดเกิดเหตุ", ActionType.EXAMINE, "crime_scene_record"),
     ("เดินไปที่ตู้เสบียง", ActionType.MOVE, "dining_car"),
-    ("หยิบสมุดบันทึกของ Cassian Reed", ActionType.TAKE, "cassian_notebook"),
-    ("ขอสอบปากคำ Mara Voss หน่อย", ActionType.INTERROGATE, "mara_voss"),
-    ("กล่าวหา Gideon Hart", ActionType.ACCUSE, "gideon_hart"),
+    ("หยิบสมุดบันทึกของแคสเซียน รีด", ActionType.TAKE, "cassian_notebook"),
+    ("ขอสอบปากคำมารา วอสส์หน่อย", ActionType.INTERROGATE, "mara_voss"),
+    ("กล่าวหากิเดียน ฮาร์ต", ActionType.ACCUSE, "gideon_hart"),
 ])
 def test_fallback_parses_action_and_grounds_target(text, action, target):
-    cmd = interpret(text, GameState())
+    cmd = fallback(text)
     assert cmd.action == action
     assert cmd.target == target
     assert cmd.raw_text == text
 
 
 def test_fallback_marks_command_without_target_as_ambiguous():
-    cmd = interpret("เปิดมันหน่อย", GameState())
+    cmd = fallback("เปิดมันหน่อย")
     assert cmd.action == ActionType.AMBIGUOUS
     assert cmd.alternatives
 
 
 def test_fallback_marks_out_of_scope_as_unknown():
-    cmd = interpret("ร้องเพลงให้ฟังหน่อย", GameState())
+    cmd = fallback("ร้องเพลงให้ฟังหน่อย")
     assert cmd.action == ActionType.UNKNOWN
+
+
+def test_fallback_treats_look_around_as_examining_the_current_car():
+    cmd = fallback("ดูรอบๆ", GameState(current_location="luggage_van"))
+    assert cmd.action == ActionType.EXAMINE
+    assert cmd.target == "luggage_van"
 
 
 def test_move_never_grounds_to_a_non_location():
     """'ไป' + ชื่อวัตถุ ต้องไม่ทำให้ move ชี้ไปที่วัตถุ เพราะ engine รับเฉพาะ location"""
-    cmd = interpret("เดินไปที่ตู้เสบียง", GameState())
+    cmd = fallback("เดินไปที่ตู้เสบียง")
     assert cmd.target in STORY_DATA["locations"]
 
 
