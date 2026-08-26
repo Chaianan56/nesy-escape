@@ -8,6 +8,7 @@ gemini_client.py — โค้ดหลักส่วนประสานง�
 - มีระบบ Fallback ในกรณีที่ไม่ได้ใส่ API Key หรือ API ล้มเหลว เพื่อไม่ให้ระบบล่ม
 """
 
+import json
 import os
 import logging
 from typing import Optional
@@ -61,11 +62,11 @@ def get_genai_client():
     return _client_instance
 
 
-def interpret(text: str, state: GameState) -> ParsedCommand:
+def interpret(text: str, state: GameState, scene_context: Optional[dict] = None) -> ParsedCommand:
     """แกะความหมายจากข้อความภาษาธรรมชาติของผู้เล่น ให้กลายเป็น ParsedCommand
 
     Args:
-        text (str): ข้อความป้อนเข้าจากผู้เล่น เช่น "ลองใช้ keycard_A เปิด cabinet_03 ดูหน่อย"
+        text (str): ข้อความป้อนเข้าจากผู้เล่น
         state (GameState): สถานะเกมปัจจุบัน
 
     Returns:
@@ -116,7 +117,7 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
         target=parts[1] if len(parts) > 1 else None,
         instrument=parts[2] if len(parts) > 2 else None,
         raw_text=text,
-        confidence=0.95,
+        confidence=0.5,
     )
 
 
@@ -136,6 +137,11 @@ def decide_autonomously(text: str, state: GameState, parsed: ParsedCommand) -> D
 
     if client is not None:
         try:
+            rules_str = (
+                json.dumps(rules_context, ensure_ascii=False)
+                if rules_context
+                else "[]"
+            )
             prompt_content = (
                 f"ข้อความดิบ: {text}\n"
                 f"ParsedCommand: {parsed.model_dump_json()}\n"
