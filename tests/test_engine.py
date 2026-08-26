@@ -6,8 +6,9 @@ test_engine.py — ทดสอบ Symbolic Engine โดยไม่ต้อ�
 
 import pytest
 
+from app.scenario import CHECKPOINTS, STEPS, checkpoint
 from app.schemas import ActionType, ParsedCommand, GameState
-from app.symbolic.engine import SymbolicEngine, apply_changes
+from app.symbolic.engine import SECONDS_PER_TURN, SymbolicEngine, apply_changes
 
 
 @pytest.fixture
@@ -20,37 +21,8 @@ def cmd(action, target=None, instrument=None, text="(mock)"):
                          raw_text=text, confidence=1.0)
 
 
-FULL_WALKTHROUGH = [
-    (ActionType.MOVE, "service_pantry"),
-    (ActionType.EXAMINE, "crime_scene_record"),
-    (ActionType.EXAMINE, "elias_button"),
-    (ActionType.EXAMINE, "cassian_notebook"),
-    (ActionType.EXAMINE, "latch_scratches"),
-    (ActionType.EXAMINE, "supply_hatch"),
-    (ActionType.EXAMINE, "copper_wire"),
-    (ActionType.MOVE, "luggage_van"),
-    (ActionType.EXAMINE, "elias_ticket"),
-    (ActionType.EXAMINE, "bellwether_documents"),
-    (ActionType.EXAMINE, "project_nocturne_file"),
-    (ActionType.MOVE, "dining_car"),
-    (ActionType.EXAMINE, "wine_receipt_2316"),
-    (ActionType.INTERROGATE, "mara_voss"),
-    (ActionType.MOVE, "conductor_office"),
-    (ActionType.EXAMINE, "manifest_altered"),
-    (ActionType.EXAMINE, "master_key_record"),
-    (ActionType.MOVE, "electrical_compartment"),
-    (ActionType.EXAMINE, "fuse_panel"),
-    (ActionType.EXAMINE, "removed_fuse"),
-    (ActionType.EXAMINE, "blackout_log_46s"),
-    (ActionType.EXAMINE, "oil_footprints"),
-    (ActionType.INTERROGATE, "ilya_renn"),
-    (ActionType.EXAMINE, "threat_letter"),
-    (ActionType.EXAMINE, "gideon_seal"),
-    (ActionType.INTERROGATE, "liora_venn"),
-    (ActionType.INTERROGATE, "elias_venn"),
-    (ActionType.MOVE, "luggage_van"),
-    (ActionType.EXAMINE, "elias_testimony"),
-]
+# เส้นทางเฉลยอยู่ใน data/walkthrough.json ที่เดียว การทดลองก็อ่านไฟล์เดียวกันนี้
+FULL_WALKTHROUGH = [(ActionType(a), t) for a, t in STEPS]
 
 
 def run_walkthrough(engine, steps=None) -> GameState:
@@ -147,6 +119,52 @@ def test_time_limit_enforced(engine):
     d = engine.decide(cmd(ActionType.MOVE, "dining_car"), s)
     assert not d.allowed
     assert d.violated_rule_id == "R014_TIME_LIMIT"
+
+
+# ---------- เวลาในเกม ----------
+
+def test_time_advances_every_turn(engine):
+    """ถ้าเวลาไม่เดิน R014_TIME_LIMIT จะเป็นกฎที่ไม่มีวันทำงานตอนเล่นจริง"""
+    s = GameState()
+    assert s.elapsed_seconds == 0
+    s = apply_changes(s, engine.decide(cmd(ActionType.MOVE, "dining_car"), s).state_changes)
+    assert s.elapsed_seconds == SECONDS_PER_TURN
+    s = apply_changes(s, engine.decide(cmd(ActionType.MOVE, "passenger_car"), s).state_changes)
+    assert s.elapsed_seconds == SECONDS_PER_TURN * 2
+
+
+def test_running_out_of_time_eventually_denies_everything(engine):
+    """เดินวนไปมาจนหมดเวลา ต้องถูกปฏิเสธจริง ไม่ใช่เดินได้ไม่สิ้นสุด"""
+    limit = engine.world["time_limit_seconds"]
+    s = GameState(elapsed_seconds=limit)          # ใช้ครบพอดี ยังทำได้อีกหนึ่งตา
+    assert engine.decide(cmd(ActionType.MOVE, "dining_car"), s).allowed
+    s = apply_changes(s, {"move_to": "dining_car"})
+    d = engine.decide(cmd(ActionType.MOVE, "passenger_car"), s)
+    assert not d.allowed
+    assert d.violated_rule_id == "R014_TIME_LIMIT"
+
+
+def test_time_limit_comes_from_the_scene_not_a_hardcoded_number(engine):
+    """ต้องมีแหล่งเดียว ถ้าแก้ story.json แล้วกฎยังใช้ค่าเดิม กฎกับฉากจะไม่ตรงกัน"""
+    world = dict(engine.world, time_limit_seconds=100)
+    e = SymbolicEngine()
+    e.world = world
+    assert not e.decide(cmd(ActionType.MOVE, "dining_car"), GameState(elapsed_seconds=200)).allowed
+    assert e.decide(cmd(ActionType.MOVE, "dining_car"), GameState(elapsed_seconds=50)).allowed
+
+
+def test_solution_path_fits_inside_the_time_limit(engine):
+    """เกมต้องชนะได้จริงภายในเวลาที่ให้ และต้องเหลือที่ให้สำรวจผิดทางบ้าง
+
+    ถ้าใครลด time_limit_seconds หรือเพิ่ม seconds_per_turn จนเส้นทางเฉลยไม่พอเวลา
+    เกมจะกลายเป็นชนะไม่ได้ เทสนี้กันไว้
+    """
+    s = run_walkthrough(engine)
+    limit = engine.world["time_limit_seconds"]
+    assert s.elapsed_seconds < limit, "เดินตามเฉลยแล้วยังหมดเวลา — เกมชนะไม่ได้"
+    assert engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), s).allowed
+    slack = (limit - s.elapsed_seconds) / SECONDS_PER_TURN
+    assert slack >= 10, f"เหลือให้ลองผิดลองถูกแค่ {slack:.0f} ตา น้อยเกินไป"
 
 
 # ---------- เนื้อเรื่อง: เกมนี้พิมพ์ล้วน ข้อความตอบกลับคือช่องทางเดียวที่ผู้เล่นรู้จักโลก ----------

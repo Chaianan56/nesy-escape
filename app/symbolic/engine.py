@@ -172,7 +172,9 @@ def _four_pillars(cmd, state, world, p):
 
 
 def _within_time_limit(cmd, state, world, p):
-    limit = p.get("limit_seconds", 3600)
+    # กรอบเวลาเป็นสมบัติของฉาก จึงอยู่ใน story.json ที่เดียว
+    # params ใน rules.json ใช้ override ได้ถ้าอยากทดลองค่าอื่นโดยไม่แตะฉาก
+    limit = p.get("limit_seconds") or world.get("time_limit_seconds", 3600)
     if state.elapsed_seconds > limit:
         return False, f"ใช้เวลาไปแล้ว {state.elapsed_seconds} วินาที"
     return True, ""
@@ -322,8 +324,20 @@ class SymbolicEngine:
         return _collect_pillars(target, state, self.world)
 
 
+_STORY = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
+
+# เวลาที่หมดไปต่อหนึ่งตา — ปรับที่ story.json ไม่ปรับในโค้ด
+# ponytail: คิดเท่ากันทุก action ถ้าอยากให้เดินข้ามตู้แพงกว่าตรวจของ ค่อยทำเป็น dict ต่อ action
+SECONDS_PER_TURN: int = _STORY.get("seconds_per_turn", 60)
+
+
 def apply_changes(state: GameState, changes: dict) -> GameState:
-    """คืน state ใหม่ ไม่แก้ของเดิม เพื่อให้ยิงคำสั่งชุดเดิมซ้ำได้ผลเหมือนกัน"""
+    """คืน state ใหม่ ไม่แก้ของเดิม เพื่อให้ยิงคำสั่งชุดเดิมซ้ำได้ผลเหมือนกัน
+
+    เวลาเดินทุกตาโดยไม่ขึ้นกับว่าใครเป็นผู้ตัดสิน จงใจให้อยู่ตรงนี้ไม่ใช่ใน state_changes
+    เพราะถ้าปล่อยให้คำตัดสินเป็นตัวกำหนด โหมด A (LLM ตัดสินเอง) จะคุมเวลาของตัวเองได้
+    แล้วสองโหมดจะเดินด้วยนาฬิกาคนละเรือน เทียบกันไม่ได้
+    """
     s = state.model_copy(deep=True)
     mapping = {
         "inventory_add": s.inventory,
@@ -341,4 +355,5 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
         if dest not in s.visited_locations:
             s.visited_locations.append(dest)
     s.turn_count += 1
+    s.elapsed_seconds += SECONDS_PER_TURN
     return s
