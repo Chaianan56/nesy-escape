@@ -1,0 +1,57 @@
+{
+  "scene_id": "nexus_lab",
+  "time_limit_seconds": 3600,
+  "objects": {
+    "door_main": {
+      "name_th": "ประตูหลัก",
+      "type": "door",
+      "locked": true,
+      "requires": "keycard_admin"
+    },
+    "cabinet_03": {
+      "name_th": "ตู้เก็บเอกสารหมายเลข 3",
+      "type": "container",
+      "locked": true,
+      "requires": "keycard_A"
+    },
+    "terminal_01": {
+      "name_th": "เครื่องคอมพิวเตอร์หลัก",
+      "type": "device",
+      "locked": false
+    },
+    "keycard_A": {
+      "name_th": "คีย์การ์ดระดับ A",
+      "type": "item",
+      "takeable": true
+    },
+    "keycard_admin": {
+      "name_th": "คีย์การ์ดผู้ดูแลระบบ",
+      "type": "item",
+      "takeable": true,
+      "hidden_in": "cabinet_03"
+    },
+    "evidence_01": {
+      "name_th": "บันทึกการเข้าออกห้องแล็บ",
+      "type": "evidence",
+      "takeable": true
+    },
+    "evidence_02": {
+      "name_th": "ไฟล์ log ที่ถูกลบ",
+      "type": "evidence",
+      "takeable": true,
+      "hidden_in": "terminal_01"
+    },
+    "evidence_03": {
+      "name_th": "แก้วกาแฟที่ยังอุ่น",
+      "type": "evidence",
+      "takeable": true
+    }
+  },
+  "suspects": {
+    "suspect_01": { "name_th": "ดร.วิรัช", "role": "หัวหน้าโครงการ" },
+    "suspect_02": { "name_th": "นักวิจัยพรทิพย์", "role": "นักวิจัยอาวุโส" },
+    "suspect_03": { "name_th": "เจ้าหน้าที่สมชาย", "role": "รปภ.กะดึก" },
+    "suspect_04": { "name_th": "อนันต์", "role": "ผู้รับเหมาไอที" }
+  },
+  "culprit": "suspect_02"
+}

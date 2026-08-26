@@ -1,1 +1,78 @@
-{}
+{
+  "version": "0.1",
+  "note": "กฎถูกตรวจตามลำดับใน array นี้ หยุดที่กฎแรกที่ไม่ผ่าน",
+  "rules": [
+    {
+      "id": "R000_KNOWN_ACTION",
+      "description": "คำสั่งต้องตีความได้และอยู่ในขอบเขตของเกม",
+      "applies_to": ["*"],
+      "check": "action_is_known",
+      "params": {},
+      "message_fail": "ระบบไม่เข้าใจคำสั่งนี้ หรือคำสั่งอยู่นอกขอบเขตของสถานการณ์"
+    },
+    {
+      "id": "R001_TARGET_EXISTS",
+      "description": "เป้าหมายของคำสั่งต้องมีอยู่จริงในฉาก",
+      "applies_to": ["examine", "take", "use", "unlock", "move"],
+      "check": "target_exists",
+      "params": {},
+      "message_fail": "ไม่พบสิ่งที่ระบุไว้ในห้องนี้"
+    },
+    {
+      "id": "R002_SUSPECT_EXISTS",
+      "description": "ผู้ถูกสอบปากคำหรือถูกกล่าวหาต้องเป็นผู้ต้องสงสัยในคดี",
+      "applies_to": ["interrogate", "accuse"],
+      "check": "suspect_exists",
+      "params": {},
+      "message_fail": "บุคคลดังกล่าวไม่อยู่ในรายชื่อผู้ต้องสงสัยของคดีนี้"
+    },
+    {
+      "id": "R003_TAKEABLE",
+      "description": "หยิบได้เฉพาะวัตถุที่กำหนดว่าหยิบได้",
+      "applies_to": ["take"],
+      "check": "target_is_takeable",
+      "params": {},
+      "message_fail": "วัตถุนี้ไม่สามารถหยิบติดตัวไปได้"
+    },
+    {
+      "id": "R004_NOT_HIDDEN",
+      "description": "วัตถุที่ซ่อนอยู่ในภาชนะ ต้องเปิดภาชนะนั้นก่อนจึงจะเข้าถึงได้",
+      "applies_to": ["examine", "take", "use"],
+      "check": "container_unlocked",
+      "params": {},
+      "message_fail": "ยังไม่พบวัตถุนี้ เนื่องจากยังไม่ได้เปิดสิ่งที่บรรจุอยู่"
+    },
+    {
+      "id": "R005_UNLOCK_NEEDS_KEY",
+      "description": "การปลดล็อกต้องมีอุปกรณ์ที่ถูกต้องอยู่ในครอบครอง",
+      "applies_to": ["unlock"],
+      "check": "has_required_key",
+      "params": {},
+      "message_fail": "ไม่มีอุปกรณ์ที่จำเป็นสำหรับการปลดล็อกอยู่ในครอบครอง"
+    },
+    {
+      "id": "R006_INSTRUMENT_OWNED",
+      "description": "สิ่งที่นำมาใช้ต้องอยู่ในครอบครองก่อน",
+      "applies_to": ["use"],
+      "check": "instrument_in_inventory",
+      "params": {},
+      "message_fail": "ไม่มีสิ่งที่ระบุอยู่ในครอบครอง"
+    },
+    {
+      "id": "R007_ACCUSE_EVIDENCE",
+      "description": "การกล่าวหาต้องมีหลักฐานสนับสนุนอย่างน้อยตามจำนวนที่กำหนด",
+      "applies_to": ["accuse"],
+      "check": "min_evidence",
+      "params": { "minimum": 3 },
+      "message_fail": "หลักฐานที่รวบรวมได้ยังไม่เพียงพอต่อการกล่าวหา"
+    },
+    {
+      "id": "R008_TIME_LIMIT",
+      "description": "การกระทำต้องอยู่ภายในกรอบเวลาที่กำหนด",
+      "applies_to": ["*"],
+      "check": "within_time_limit",
+      "params": { "limit_seconds": 3600 },
+      "message_fail": "หมดเวลาปฏิบัติการแล้ว"
+    }
+  ]
+}
