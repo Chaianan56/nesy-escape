@@ -144,6 +144,53 @@ def test_running_out_of_time_eventually_denies_everything(engine):
     assert d.violated_rule_id == "R014_TIME_LIMIT"
 
 
+def test_running_out_of_time_is_reported_for_every_action(engine):
+    """หมดเวลาต้องเป็นเหตุผลที่ถูกรายงานเสมอ ไม่ว่าคำสั่งนั้นจะผิดกฎอื่นอยู่แล้วหรือไม่
+
+    เอนจินหยุดที่กฎแรกที่ไม่ผ่าน ถ้า R014 อยู่ท้ายลิสต์ คำสั่งอย่าง accuse
+    จะตกที่ R012/R013 ก่อนเสมอ แล้วผู้เล่นจะไม่มีวันรู้ว่าจริงๆ แล้วหมดเวลาไปแล้ว
+    """
+    s = GameState(elapsed_seconds=99999)
+    for action, target in [(ActionType.MOVE, "dining_car"),
+                           (ActionType.EXAMINE, "crime_scene_record"),
+                           (ActionType.INTERROGATE, "mara_voss"),
+                           (ActionType.ACCUSE, "gideon_hart"),
+                           (ActionType.ACCUSE, "ilya_renn")]:
+        d = engine.decide(cmd(action, target), s)
+        assert not d.allowed
+        assert d.violated_rule_id == "R014_TIME_LIMIT", (
+            f"{action.value} {target} ควรรายงานว่าหมดเวลา แต่ตกที่ {d.violated_rule_id}"
+        )
+
+
+def test_time_rule_is_checked_before_the_specific_ones(engine):
+    """ล็อกลำดับไว้ กันคนย้าย R014 กลับไปท้ายลิสต์แล้วบั๊กเดิมกลับมา"""
+    order = [r["id"] for r in engine.rules]
+    assert order.index("R014_TIME_LIMIT") < order.index("R013_ACCUSE_FOUR_PILLARS")
+    assert order.index("R014_TIME_LIMIT") < order.index("R012_NO_ACCUSE_COERCED")
+    assert order.index("R000_KNOWN_ACTION") < order.index("R014_TIME_LIMIT")
+
+
+def test_out_of_time_is_a_real_ending_not_a_stuck_game(engine):
+    """หมดเวลาต้องบอกได้ว่าเกมจบ ไม่ใช่ปล่อยให้ผู้เล่นเจอคำสั่งถูกปฏิเสธไปเรื่อยๆ"""
+    assert not engine.is_out_of_time(GameState())
+    limit = engine.world["time_limit_seconds"]
+    assert not engine.is_out_of_time(GameState(elapsed_seconds=limit))
+    assert engine.is_out_of_time(GameState(elapsed_seconds=limit + 1))
+    assert engine.ending_message(GameState(elapsed_seconds=limit + 1)).strip()
+
+
+def test_clock_agrees_with_the_rule_that_denies_commands(engine):
+    """ถ้า UI บอกว่ายังมีเวลาแต่กฎปฏิเสธ (หรือกลับกัน) ผู้เล่นจะงงว่าเกิดอะไรขึ้น"""
+    limit = engine.world["time_limit_seconds"]
+    for sec in (0, limit - 1, limit, limit + 1, limit + 500):
+        s = GameState(elapsed_seconds=sec)
+        denied = engine.decide(cmd(ActionType.MOVE, "dining_car"), s).violated_rule_id
+        assert engine.is_out_of_time(s) == (denied == "R014_TIME_LIMIT"), (
+            f"ที่ {sec} วินาที นาฬิกากับกฎไม่ตรงกัน"
+        )
+
+
 def test_time_limit_comes_from_the_scene_not_a_hardcoded_number(engine):
     """ต้องมีแหล่งเดียว ถ้าแก้ story.json แล้วกฎยังใช้ค่าเดิม กฎกับฉากจะไม่ตรงกัน"""
     world = dict(engine.world, time_limit_seconds=100)

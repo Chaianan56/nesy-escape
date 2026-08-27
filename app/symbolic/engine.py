@@ -323,6 +323,31 @@ class SymbolicEngine:
     def pillar_status(self, target: str, state: GameState) -> Dict[str, List[str]]:
         return _collect_pillars(target, state, self.world)
 
+    def seconds_left(self, state: GameState) -> int:
+        """เวลาที่เหลือ ติดลบได้ถ้าเลยกำหนดไปแล้ว
+
+        กรอบเวลามีอยู่ในกฎตั้งแต่แรก แต่ไม่มีใครเห็น ผู้เล่นจึงไม่รู้สึกถึงมันเลย
+        จนกระทั่งถูกปฏิเสธทุกคำสั่งแบบไม่มีปี่มีขลุ่ย
+        """
+        return self.world.get("time_limit_seconds", 3600) - state.elapsed_seconds
+
+    def is_out_of_time(self, state: GameState) -> bool:
+        """หมดเวลาแล้วหรือยัง — ใช้ตัดสินว่าเกมจบ ไม่ใช่ตัดสินว่าคำสั่งผ่านไหม
+
+        เงื่อนไขตรงกับ _within_time_limit เพื่อไม่ให้ UI กับกฎบอกคนละอย่าง
+        """
+        return self.seconds_left(state) < 0
+
+    def ending_message(self, state: GameState) -> str:
+        """ข้อความปิดเกมกรณีหมดเวลา — คดีค้าง ไม่ใช่แพ้แบบตอบผิด"""
+        v = self.world.get("victim", {})
+        return (
+            f"รถไฟเทียบชานชาลาปลายทาง ผู้โดยสารทยอยลงจากขบวนไปทีละคน\n"
+            f"  คุณยังรวบรวมหลักฐานได้ไม่พอจะตั้งข้อกล่าวหาใคร "
+            f"คดีของ{v.get('name_th', 'ผู้ตาย')}จึงถูกปิดไว้ในชื่อ 'ยังไม่ทราบสาเหตุ'\n"
+            f"  คนที่ลงมือลงจากรถไปพร้อมกับคนอื่น"
+        )
+
 
 _STORY = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
 
