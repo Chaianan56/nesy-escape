@@ -30,7 +30,6 @@ from app.schemas import (
     CommandRequest,
     CommandResponse,
     Decision,
-    ExperimentLog,
     GameState,
     ParsedCommand,
     SystemMode,
@@ -145,21 +144,29 @@ def handle_command(req: CommandRequest):
 
 
 # ============================================================
-# LOGGING — ทุกคำสั่งต้องถูกบันทึกเพื่อนำไปวิเคราะห์ด้วย pandas
+# LOGGING — บันทึกการเล่นสด ไม่ใช่ข้อมูลการทดลอง
+#
+# ⚠️ ห้ามใช้ ExperimentLog กับการเล่นสดเด็ดขาด
+#    ExperimentLog บังคับให้มี expected_allowed ซึ่งเป็น ground truth ที่ label
+#    ไว้ล่วงหน้า การเล่นสดไม่มีสิ่งนั้น เดิมโค้ดนี้เติมด้วย decision.allowed
+#    ซึ่งแปลว่า "คำตอบที่ถูกต้องคือคำตอบที่ระบบตอบมา" ทุกแถวจึงถูก 100% เสมอ
+#    ถ้ามีใครเผลอเอาไฟล์นี้ไปรวมกับผลการทดลอง ตัวเลขในเปเปอร์จะเพี้ยนทันที
+#
+#    ข้อมูลการทดลองมาจาก run_experiment.py เท่านั้น และออกที่ไฟล์คนละชื่อกัน
 # ============================================================
 
 def _write_log(req: CommandRequest, parsed: ParsedCommand,
                decision: Decision, latency_ms: int) -> None:
-    entry = ExperimentLog(
-        command_id=str(uuid.uuid4())[:8],
-        group="live",          # ตอนรันชุดทดสอบให้แทนที่ด้วย A/B/C/D
-        mode=req.mode,
-        raw_text=req.text,
-        parsed=parsed,
-        decision=decision,
-        expected_allowed=decision.allowed,  # live ยังไม่มี ground truth
-        latency_ms=latency_ms,
-    )
-    fname = LOG_DIR / f"{datetime.now():%Y%m%d}_mode_{req.mode.value}.jsonl"
+    entry = {
+        "command_id": str(uuid.uuid4())[:8],
+        "logged_at": datetime.now().isoformat(timespec="seconds"),
+        "source": "live_play",          # กันสับสนกับ log ของการทดลอง
+        "mode": req.mode.value,
+        "raw_text": req.text,
+        "parsed": parsed.model_dump(),
+        "decision": decision.model_dump(),
+        "latency_ms": latency_ms,
+    }
+    fname = LOG_DIR / f"{datetime.now():%Y%m%d}_play_mode_{req.mode.value}.jsonl"
     with fname.open("a", encoding="utf-8") as f:
-        f.write(entry.model_dump_json() + "\n")
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
