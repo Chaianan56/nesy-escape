@@ -1,57 +1,98 @@
 {
-  "version": "0.1",
+  "version": "0.2",
+  "scene": "nocturne_express",
   "note": "กฎถูกตรวจตามลำดับใน array นี้ หยุดที่กฎแรกที่ไม่ผ่าน",
   "rules": [
     {
       "id": "R000_KNOWN_ACTION",
-      "description": "คำสั่งต้องตีความได้และอยู่ในขอบเขตของเกม",
+      "description": "คำสั่งต้องตีความได้และอยู่ในขอบเขตของสถานการณ์",
       "applies_to": ["*"],
       "check": "action_is_known",
       "params": {},
-      "message_fail": "ระบบไม่เข้าใจคำสั่งนี้ หรือคำสั่งอยู่นอกขอบเขตของสถานการณ์"
+      "message_fail": "ระบบไม่เข้าใจคำสั่งนี้ หรือคำสั่งอยู่นอกขอบเขตของการสืบสวน"
     },
     {
       "id": "R001_TARGET_EXISTS",
-      "description": "เป้าหมายของคำสั่งต้องมีอยู่จริงในฉาก",
-      "applies_to": ["examine", "take", "use", "unlock", "move"],
+      "description": "เป้าหมายของคำสั่งต้องมีอยู่จริงบนขบวนรถ",
+      "applies_to": ["examine", "take", "use", "unlock"],
       "check": "target_exists",
       "params": {},
-      "message_fail": "ไม่พบสิ่งที่ระบุไว้ในห้องนี้"
+      "message_fail": "ไม่พบสิ่งที่ระบุบนขบวนรถนี้"
     },
     {
-      "id": "R002_SUSPECT_EXISTS",
-      "description": "ผู้ถูกสอบปากคำหรือถูกกล่าวหาต้องเป็นผู้ต้องสงสัยในคดี",
+      "id": "R002_LOCATION_EXISTS",
+      "description": "จุดหมายของการเคลื่อนที่ต้องเป็นตู้รถที่มีอยู่จริง",
+      "applies_to": ["move"],
+      "check": "location_exists",
+      "params": {},
+      "message_fail": "ไม่พบตู้รถที่ระบุ"
+    },
+    {
+      "id": "R003_SUSPECT_EXISTS",
+      "description": "ผู้ถูกสอบปากคำหรือถูกกล่าวหาต้องเป็นบุคคลบนขบวนรถ",
       "applies_to": ["interrogate", "accuse"],
       "check": "suspect_exists",
       "params": {},
-      "message_fail": "บุคคลดังกล่าวไม่อยู่ในรายชื่อผู้ต้องสงสัยของคดีนี้"
+      "message_fail": "บุคคลดังกล่าวไม่อยู่ในรายชื่อผู้เกี่ยวข้องกับคดีนี้"
     },
     {
-      "id": "R003_TAKEABLE",
-      "description": "หยิบได้เฉพาะวัตถุที่กำหนดว่าหยิบได้",
+      "id": "R004_LOCATION_ACCESS",
+      "description": "ตู้รถที่ล็อกอยู่ต้องมีกุญแจที่ถูกต้องจึงจะเข้าได้",
+      "applies_to": ["move"],
+      "check": "location_unlocked",
+      "params": {},
+      "message_fail": "ตู้รถนี้ถูกล็อก ต้องมีกุญแจที่ถูกต้องก่อน"
+    },
+    {
+      "id": "R005_SAME_LOCATION",
+      "description": "ต้องอยู่ในตู้รถเดียวกับสิ่งที่ต้องการเข้าถึง",
+      "applies_to": ["examine", "take", "use"],
+      "check": "in_same_location",
+      "params": {},
+      "message_fail": "สิ่งที่ระบุไม่ได้อยู่ในตู้รถนี้"
+    },
+    {
+      "id": "R006_TAKEABLE",
+      "description": "เก็บได้เฉพาะสิ่งที่เคลื่อนย้ายได้",
       "applies_to": ["take"],
       "check": "target_is_takeable",
       "params": {},
-      "message_fail": "วัตถุนี้ไม่สามารถหยิบติดตัวไปได้"
+      "message_fail": "สิ่งนี้ไม่สามารถเก็บติดตัวไปได้"
     },
     {
-      "id": "R004_NOT_HIDDEN",
-      "description": "วัตถุที่ซ่อนอยู่ในภาชนะ ต้องเปิดภาชนะนั้นก่อนจึงจะเข้าถึงได้",
+      "id": "R007_CONTAINER_OPENED",
+      "description": "สิ่งที่ซ่อนอยู่ต้องเปิดที่ซ่อนก่อนจึงจะเข้าถึงได้",
       "applies_to": ["examine", "take", "use"],
       "check": "container_unlocked",
       "params": {},
-      "message_fail": "ยังไม่พบวัตถุนี้ เนื่องจากยังไม่ได้เปิดสิ่งที่บรรจุอยู่"
+      "message_fail": "ยังไม่พบสิ่งนี้ เนื่องจากยังไม่ได้ตรวจสอบจุดที่ซ่อนอยู่"
     },
     {
-      "id": "R005_UNLOCK_NEEDS_KEY",
-      "description": "การปลดล็อกต้องมีอุปกรณ์ที่ถูกต้องอยู่ในครอบครอง",
-      "applies_to": ["unlock"],
-      "check": "has_required_key",
+      "id": "R008_EVIDENCE_PREREQ",
+      "description": "หลักฐานบางชิ้นจะเข้าถึงได้ก็ต่อเมื่อพบหลักฐานที่นำไปสู่มันก่อน",
+      "applies_to": ["examine", "take"],
+      "check": "evidence_prerequisites_met",
       "params": {},
-      "message_fail": "ไม่มีอุปกรณ์ที่จำเป็นสำหรับการปลดล็อกอยู่ในครอบครอง"
+      "message_fail": "ยังไม่มีเหตุอันควรให้ตรวจสอบสิ่งนี้ ต้องพบหลักฐานที่เกี่ยวข้องก่อน"
     },
     {
-      "id": "R006_INSTRUMENT_OWNED",
+      "id": "R009_TESTIMONY_PREREQ",
+      "description": "หลักฐานที่ได้จากคำให้การ ต้องสอบปากคำบุคคลนั้นก่อน",
+      "applies_to": ["examine", "take"],
+      "check": "testimony_prerequisite_met",
+      "params": {},
+      "message_fail": "ยังไม่ได้รับข้อมูลนี้ ต้องสอบปากคำบุคคลที่เกี่ยวข้องก่อน"
+    },
+    {
+      "id": "R010_INTERROGATE_PREREQ",
+      "description": "การสอบปากคำต้องมีหลักฐานเพียงพอที่จะตั้งคำถามได้",
+      "applies_to": ["interrogate"],
+      "check": "suspect_available",
+      "params": {},
+      "message_fail": "ยังไม่มีประเด็นเพียงพอที่จะสอบปากคำบุคคลนี้"
+    },
+    {
+      "id": "R011_INSTRUMENT_OWNED",
       "description": "สิ่งที่นำมาใช้ต้องอยู่ในครอบครองก่อน",
       "applies_to": ["use"],
       "check": "instrument_in_inventory",
@@ -59,20 +100,28 @@
       "message_fail": "ไม่มีสิ่งที่ระบุอยู่ในครอบครอง"
     },
     {
-      "id": "R007_ACCUSE_EVIDENCE",
-      "description": "การกล่าวหาต้องมีหลักฐานสนับสนุนอย่างน้อยตามจำนวนที่กำหนด",
+      "id": "R012_NO_ACCUSE_COERCED",
+      "description": "ห้ามกล่าวหาบุคคลที่มีหลักฐานยืนยันว่าถูกบังคับ",
       "applies_to": ["accuse"],
-      "check": "min_evidence",
-      "params": { "minimum": 3 },
-      "message_fail": "หลักฐานที่รวบรวมได้ยังไม่เพียงพอต่อการกล่าวหา"
+      "check": "not_exculpated",
+      "params": {},
+      "message_fail": "มีหลักฐานยืนยันว่าบุคคลนี้ถูกบังคับให้กระทำ จึงไม่อาจถือเป็นผู้ลงมือ"
     },
     {
-      "id": "R008_TIME_LIMIT",
-      "description": "การกระทำต้องอยู่ภายในกรอบเวลาที่กำหนด",
+      "id": "R013_ACCUSE_FOUR_PILLARS",
+      "description": "การกล่าวหาต้องมีหลักฐานครบทั้งสี่ด้าน คือ แรงจูงใจ วิธีการ โอกาส และหลักฐานสนับสนุน",
+      "applies_to": ["accuse"],
+      "check": "four_pillars",
+      "params": { "required": ["motive", "means", "opportunity", "corroboration"] },
+      "message_fail": "หลักฐานยังไม่ครบทั้งสี่ด้าน ไม่อาจตั้งข้อกล่าวหาได้"
+    },
+    {
+      "id": "R014_TIME_LIMIT",
+      "description": "การกระทำต้องอยู่ภายในกรอบเวลาของการสืบสวน",
       "applies_to": ["*"],
       "check": "within_time_limit",
-      "params": { "limit_seconds": 3600 },
-      "message_fail": "หมดเวลาปฏิบัติการแล้ว"
+      "params": {},
+      "message_fail": "หมดเวลาการสืบสวนแล้ว"
     }
   ]
 }
