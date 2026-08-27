@@ -114,40 +114,55 @@ print(f"\n{world['briefing']}\n")
 print(engine.look_around(state.current_location, state))
 show_help()
 
+# คิวของขั้นตอนที่รอทำ — เกิดจากประโยคพ่วง เช่น "ไปห้องเก็บกระเป๋าและตรวจสอบศพ"
+# ทุกขั้นในคิวยังผ่าน engine.decide ทีละอันเหมือนคำสั่งเดี่ยว
+# หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน = 1 บรรทัด log เหมือนเดิม
+queue = []
+
 while True:
-    try:
-        text = input(f"[{th_name(state.current_location)}] > ").strip()
-    except (EOFError, KeyboardInterrupt):
-        break
-    if not text:
-        continue
-    if text in ("/ออก", "/quit", "/q"):
-        break
-    if text in ("/สถานะ", "/state"):
-        show_state()
-        continue
-    if text in ("/หลักฐาน", "/pillars"):
-        show_pillars()
-        continue
-    if text in ("/ช่วย", "/help", "/?"):
-        show_help()
-        continue
-
-    parsed = interpret(text, state)
-
-    # คำสั่งพ่วงหลายขั้น (เช่น "ไปที่จุดเกิดเหตุแล้วดูบันทึก") จะถูกตีความเป็น ambiguous
-    # พร้อมลิสต์ขั้นตอน — ระบบตัดสินได้ทีละคำสั่ง จึงให้ผู้เล่นเลือกว่าจะเอาขั้นไหนก่อน
-    # แต่ละครั้งที่เลือกยังนับเป็นหนึ่งคำสั่งหนึ่งคำตัดสินเหมือนเดิม
-    choices = [a for a in (parsed.alternatives or []) if parse_alt(a)]
-    if parsed.action in (ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
-        print("\n  คำสั่งนี้ทำได้หลายอย่าง จะเอาข้อไหนก่อน")
-        for i, alt in enumerate(choices, 1):
-            print(f"    {i}. {describe_alt(alt)}")
-        pick = input("  เลือกหมายเลข (หรือ Enter เพื่อพิมพ์ใหม่) > ").strip()
-        if not pick.isdigit() or not 1 <= int(pick) <= len(choices):
-            print()
+    if queue:
+        parsed = queue.pop(0)
+        print(f"  ขั้นต่อไป: {ACTION_TH.get(parsed.action, parsed.action.value)}{th_name(parsed.target)}")
+    else:
+        try:
+            text = input(f"[{th_name(state.current_location)}] > ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not text:
             continue
-        parsed = parse_alt(choices[int(pick) - 1])
+        if text in ("/ออก", "/quit", "/q"):
+            break
+        if text in ("/สถานะ", "/state"):
+            show_state()
+            continue
+        if text in ("/หลักฐาน", "/pillars"):
+            show_pillars()
+            continue
+        if text in ("/ช่วย", "/help", "/?"):
+            show_help()
+            continue
+
+        parsed = interpret(text, state)
+
+        # ประโยคพ่วงหลายขั้นถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
+        # ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งสองอย่าง" หรือ "เลือกอย่างใดอย่างหนึ่ง"
+        # จึงไม่เดา — ให้ผู้เล่นบอกเอง เพราะเขารู้ว่าตัวเองหมายถึงอะไร
+        choices = [a for a in (parsed.alternatives or []) if parse_alt(a)]
+        if parsed.action in (ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
+            print(f"\n  คำสั่งนี้แตกได้ {len(choices)} ขั้น")
+            for i, alt in enumerate(choices, 1):
+                print(f"    {i}. {describe_alt(alt)}")
+            pick = input("  [Enter = ทำทั้งหมดตามลำดับ / เลข = เอาข้อเดียว / n = ยกเลิก] > ").strip()
+            print()
+            if pick in ("n", "N"):
+                continue
+            if pick.isdigit():
+                if not 1 <= int(pick) <= len(choices):
+                    continue
+                parsed = parse_alt(choices[int(pick) - 1])
+            else:
+                queue = [parse_alt(a) for a in choices]
+                parsed = queue.pop(0)
 
     decision = engine.decide(parsed, state)
 
@@ -166,4 +181,8 @@ while True:
         if parsed.action == ActionType.ACCUSE:
             print(f"\n  === คดีปิดแล้ว — ผู้ลงมือคือ{th_name(parsed.target)} ===")
             break
+    elif queue:
+        # ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
+        print(f"  (ยกเลิกอีก {len(queue)} ขั้นที่รออยู่ เพราะขั้นนี้ทำไม่ได้)")
+        queue.clear()
     print()
