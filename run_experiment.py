@@ -150,6 +150,26 @@ def with_retry(fn, *args, limiter=None, tries=6):
             time.sleep(delay)
 
 
+def _row(entry, parsed, decision_b, rule_desc, decision_a=None):
+    """หนึ่งแถวสำหรับการสรุปผล โหมด A เป็น None ได้เมื่อสั่ง --interpret-only"""
+    chain_a = decision_a.reasoning_chain if decision_a else []
+    return {
+        "id": entry["id"], "group": entry["group"], "expected": entry["expected_allowed"],
+        "expected_rule": entry.get("expected_rule"),
+        "expected_action": entry.get("expected_action"),
+        "expected_target": entry.get("expected_target"),
+        "parsed_action": parsed.action.value, "parsed_target": parsed.target,
+        "a_allowed": decision_a.allowed if decision_a else None,
+        "b_allowed": decision_b.allowed,
+        "b_rule": decision_b.violated_rule_id,
+        "a_chain": len(chain_a), "b_chain": len(decision_b.reasoning_chain),
+        "a_fake_rules": sum(s.rule_id not in rule_desc for s in chain_a),
+        "a_reworded": sum(s.rule_id in rule_desc
+                          and not s.description.startswith(rule_desc[s.rule_id][:18])
+                          for s in chain_a),
+    }
+
+
 def load_state(entry: dict) -> GameState:
     state = checkpoint(entry["checkpoint"])
     override = entry.get("state_override")
@@ -197,6 +217,20 @@ def run(args):
             latency_b = latency + int((time.perf_counter() - t0) * 1000)
 
             # --- โหมด A: LLM ตัดสินเอง ---
+            # ตอนจูน prompt ของ interpret ไม่ต้องเรียกโหมด A เลย ประหยัดโควตาครึ่งหนึ่ง
+            if args.interpret_only:
+                # ยังเขียน log ฝั่งโหมด B เพราะโหมด B ไม่ต้องใช้ LLM ตัดสิน
+                # ถ้าไม่เขียน จะไล่ดูไม่ได้ว่าข้อไหนพลาดเพราะอะไร
+                handles[SystemMode.B_SYMBOLIC].write(ExperimentLog(
+                    command_id=entry["id"], group=entry["group"], mode=SystemMode.B_SYMBOLIC,
+                    raw_text=entry["text"], parsed=parsed, decision=decision_b,
+                    expected_allowed=entry["expected_allowed"], latency_ms=latency_b,
+                ).model_dump_json() + "\n")
+                rows.append(_row(entry, parsed, decision_b, rule_desc))
+                print(f"[{i}/{len(commands)}] {entry['id']} {entry['text'][:34]:36} "
+                      f"ตีความ {parsed.action.value}/{parsed.target}", flush=True)
+                continue
+
             key_a = decide_key(entry["text"], state, parsed)
             cached_a = cache.get(key_a)
             if cached_a is None:
@@ -225,21 +259,7 @@ def run(args):
                 )
                 handles[mode].write(log.model_dump_json() + "\n")
 
-            rows.append({
-                "id": entry["id"], "group": entry["group"], "expected": entry["expected_allowed"],
-                "expected_rule": entry.get("expected_rule"),
-                "expected_action": entry.get("expected_action"),
-                "expected_target": entry.get("expected_target"),
-                "parsed_action": parsed.action.value, "parsed_target": parsed.target,
-                "a_allowed": decision_a.allowed, "b_allowed": decision_b.allowed,
-                "b_rule": decision_b.violated_rule_id,
-                "a_chain": len(decision_a.reasoning_chain), "b_chain": len(decision_b.reasoning_chain),
-                "a_fake_rules": sum(s.rule_id not in rule_desc for s in decision_a.reasoning_chain),
-                "a_reworded": sum(
-                    s.rule_id in rule_desc and not s.description.startswith(rule_desc[s.rule_id][:18])
-                    for s in decision_a.reasoning_chain
-                ),
-            })
+            rows.append(_row(entry, parsed, decision_b, rule_desc, decision_a))
             print(f"[{i}/{len(commands)}] {entry['id']} {entry['text'][:34]:36} "
                   f"A={'อนุมัติ' if decision_a.allowed else 'ปฏิเสธ ':7} "
                   f"B={'อนุมัติ' if decision_b.allowed else 'ปฏิเสธ ':7} "
@@ -267,24 +287,33 @@ def report(rows, cache, out_paths):
     print(f"ผลการทดลอง  {len(rows)} คำสั่ง   (cache ใช้ซ้ำ {cache.hits} / เรียกใหม่ {cache.misses})")
     print("=" * 74)
 
+    has_a = any(r["a_allowed"] is not None for r in rows)
+
     by_group = defaultdict(list)
     for r in rows:
         by_group[r["group"]].append(r)
 
     label = {"A": "ถูกกฎ", "B": "ผิดกฎ", "C": "หลอกระบบ", "D": "กำกวม"}
-    print(f"\n{'กลุ่ม':<14}{'n':>4}{'โหมด A ถูก':>14}{'โหมด B ถูก':>14}")
+    col_a = f"{'โหมด A ถูก':>14}" if has_a else ""
+    print(f"\n{'กลุ่ม':<14}{'n':>4}{col_a}{'โหมด B ถูก':>14}")
     print("-" * 74)
     for g in sorted(by_group):
         rs = by_group[g]
-        a = sum(r["a_allowed"] == r["expected"] for r in rs)
-        b = sum(r["b_allowed"] == r["expected"] for r in rs)
         n = len(rs)
-        print(f"{g} {label.get(g, ''):<11}{n:>4}{a:>8} ({a/n:>4.0%}){b:>8} ({b/n:>4.0%})")
+        b = sum(r["b_allowed"] == r["expected"] for r in rs)
+        line = f"{g} {label.get(g, ''):<11}{n:>4}"
+        if has_a:
+            a = sum(r["a_allowed"] == r["expected"] for r in rs)
+            line += f"{a:>8} ({a/n:>4.0%})"
+        print(line + f"{b:>8} ({b/n:>4.0%})")
     total = len(rows)
-    a_all = sum(r["a_allowed"] == r["expected"] for r in rows)
     b_all = sum(r["b_allowed"] == r["expected"] for r in rows)
+    line = f"{'รวม':<14}{total:>4}"
+    if has_a:
+        a_all = sum(r["a_allowed"] == r["expected"] for r in rows)
+        line += f"{a_all:>8} ({a_all/total:>4.0%})"
     print("-" * 74)
-    print(f"{'รวม':<14}{total:>4}{a_all:>8} ({a_all/total:>4.0%}){b_all:>8} ({b_all/total:>4.0%})")
+    print(line + f"{b_all:>8} ({b_all/total:>4.0%})")
 
     # แยกสาเหตุของความผิดพลาด — เมตริกที่ชี้ขาดของงานนี้
     #
@@ -295,7 +324,7 @@ def report(rows, cache, out_paths):
         return r["parsed_action"] != r["expected_action"] or r["parsed_target"] != r["expected_target"]
 
     checkable = [r for r in rows if r["group"] in ("A", "B")]
-    if checkable:
+    if checkable and has_a:
         print(f"\nแยกสาเหตุของความผิดพลาด (กลุ่ม A+B, n={len(checkable)})")
         print(f"{'':<26}{'ตีความพลาด':>14}{'ละเมิดกฎ':>14}")
         print("-" * 74)
@@ -308,7 +337,7 @@ def report(rows, cache, out_paths):
         print("  โหมด B เป็นศูนย์เสมอโดยโครงสร้าง เพราะ engine ตัดสินจากกฎโดยตรง")
 
     denied = [r for r in rows if not r["expected"]]
-    if denied:
+    if denied and has_a:
         unsafe = [r for r in denied if r["a_allowed"]]
         unsafe_b = [r for r in denied if r["b_allowed"]]
         print(f"\nอนุมัติทั้งที่ควรปฏิเสธ")
@@ -317,15 +346,18 @@ def report(rows, cache, out_paths):
         print(f"  โหมด B : {len(unsafe_b)}/{len(denied)} ({len(unsafe_b)/len(denied):.0%})"
               f"   ในนั้นตีความถูกแต่ตัดสินผิด {sum(not misparsed(r) for r in unsafe_b)} ข้อ")
 
-    # Explanation coverage + faithfulness
-    print(f"\nExplanation coverage (คำตัดสินที่มี reasoning_chain)")
-    for mode, k in (("A", "a_chain"), ("B", "b_chain")):
-        cov = sum(1 for r in rows if r[k] > 0) / len(rows)
-        avg = sum(r[k] for r in rows) / len(rows)
-        print(f"  โหมด {mode} : {cov:.0%}   เฉลี่ย {avg:.1f} ขั้นต่อคำตัดสิน")
-    shorter = sum(1 for r in rows if r["a_chain"] < r["b_chain"])
-    print(f"  โหมด A ตรวจกฎน้อยกว่าที่ engine ตรวจ: {shorter}/{len(rows)} คำสั่ง "
-          f"({shorter/len(rows):.0%}) — ข้ามการตรวจแล้วสรุปเลย")
+    # Explanation coverage + faithfulness — วัดได้ต่อเมื่อมีข้อมูลฝั่งโหมด A
+    if not has_a:
+        print("\n(ข้ามการวัดฝั่งโหมด A ทั้งหมด เพราะสั่ง --interpret-only ไว้)")
+    else:
+        print(f"\nExplanation coverage (คำตัดสินที่มี reasoning_chain)")
+        for mode, k in (("A", "a_chain"), ("B", "b_chain")):
+            cov = sum(1 for r in rows if r[k] > 0) / len(rows)
+            avg = sum(r[k] for r in rows) / len(rows)
+            print(f"  โหมด {mode} : {cov:.0%}   เฉลี่ย {avg:.1f} ขั้นต่อคำตัดสิน")
+        shorter = sum(1 for r in rows if r["a_chain"] < r["b_chain"])
+        print(f"  โหมด A ตรวจกฎน้อยกว่าที่ engine ตรวจ: {shorter}/{len(rows)} คำสั่ง "
+              f"({shorter/len(rows):.0%}) — ข้ามการตรวจแล้วสรุปเลย")
 
     # faithfulness: คำอธิบายของโหมด A เป็นข้อความที่ LLM เขียนขึ้นเอง ไม่ใช่ผลของการตรวจ
     steps = sum(r["a_chain"] for r in rows)
@@ -366,6 +398,8 @@ def main():
     ap.add_argument("--limit", type=int, help="จำกัดจำนวนคำสั่ง")
     ap.add_argument("--rpm", type=int, default=13, help="จังหวะเรียก LLM ต่อนาที (free tier = 15)")
     ap.add_argument("--report-only", action="store_true", help="ไม่เรียก LLM ใช้เฉพาะผลใน cache")
+    ap.add_argument("--interpret-only", action="store_true",
+                    help="วัดเฉพาะความแม่นของการตีความ ไม่เรียกโหมด A (ใช้โควตาครึ่งเดียว)")
     args = ap.parse_args()
 
     if not args.report_only and not llm_online():
