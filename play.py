@@ -66,8 +66,14 @@ def show_help():
     print("\n  คำสั่งระบบ:  /สถานะ  /หลักฐาน  /ช่วย  /ออก\n")
 
 
+def clock() -> str:
+    left = max(0, engine.seconds_left(state))
+    return f"{left // 60:02d}:{left % 60:02d}"
+
+
 def show_state():
-    print(f"\n  อยู่ที่      : {th_name(state.current_location)}")
+    print(f"\n  เวลาที่เหลือ : {clock()} นาที")
+    print(f"  อยู่ที่      : {th_name(state.current_location)}")
     print(f"  ของติดตัว   : {', '.join(th_name(i) for i in state.inventory) or '(ไม่มี)'}")
     print(f"  หลักฐานที่พบ: {len(state.discovered_evidence)} ชิ้น")
     for e in state.discovered_evidence:
@@ -120,12 +126,18 @@ show_help()
 queue = []
 
 while True:
+    # เกมจบเพราะหมดเวลา ต้องเช็คก่อนรับคำสั่งถัดไป ไม่งั้นผู้เล่นจะเจอแต่คำสั่งถูกปฏิเสธ
+    # ไปเรื่อยๆ โดยไม่มีอะไรบอกว่าจบแล้ว
+    if engine.is_out_of_time(state):
+        print(f"\n  === หมดเวลา ===\n  {engine.ending_message(state)}\n")
+        break
+
     if queue:
         parsed = queue.pop(0)
         print(f"  ขั้นต่อไป: {ACTION_TH.get(parsed.action, parsed.action.value)}{th_name(parsed.target)}")
     else:
         try:
-            text = input(f"[{th_name(state.current_location)}] > ").strip()
+            text = input(f"[{clock()} | {th_name(state.current_location)}] > ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         if not text:
