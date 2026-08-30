@@ -44,26 +44,49 @@ STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-
 SYSTEM_INTERPRET_PROMPT = build_interpret_system_prompt(STORY_DATA)
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
-_client_instance: Optional[object] = None
+_clients_cache: Optional[list] = None
 
 class NeuralUnavailable(RuntimeError):
     """Exception แจ้งเตือนเมื่อเรียกใช้งาน LLM ไม่สำเร็จ"""
 
 
-def get_genai_client():
-    """สร้างหรือคืนค่า Singleton Client ของ Gemini API"""
-    global _client_instance
+def _is_quota_error(e: Exception) -> bool:
+    """โควตาหมดของคีย์นี้หรือเปล่า ถ้าใช่ค่อยคุ้มที่จะเปลี่ยนไปคีย์อื่น"""
+    text = str(e)
+    return "RESOURCE_EXHAUSTED" in text or "429" in text
+
+
+def _clients() -> list:
+    """คืนไคลเอนต์ของทุกคีย์ตามลำดับที่เขียนไว้
+
+    ใส่คีย์สำรองได้โดยคั่นด้วยจุลภาคในตัวแปร GEMINI_API_KEY ตัวเดิม
+    เช่น  GEMINI_API_KEY=AIzaคีย์หลัก,AIzaคีย์สำรอง
+    ตั้งตัวแปรชื่ออื่นเพิ่มไม่มีผล เพราะไม่มีโค้ดตรงไหนอ่าน
+
+    โควตาฟรีนับต่อโปรเจกต์ ไม่ใช่ต่อคีย์ คีย์สำรองจึงต้องมาจากโปรเจกต์อื่นถึงจะได้โควตาเพิ่ม
+    """
+    global _clients_cache
     if not GENAI_AVAILABLE:
-        return None
-    if _client_instance is None:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if api_key:
-            _client_instance = genai.Client(api_key=api_key)
-    return _client_instance
+        return []
+    if _clients_cache is None:
+        _clients_cache = [
+            genai.Client(api_key=key)
+            for key in (k.strip() for k in os.getenv("GEMINI_API_KEY", "").split(","))
+            if key
+        ]
+    return _clients_cache
+
+
+def get_genai_client():
+    """คืนไคลเอนต์ตัวแรก ใช้ตรวจว่าตั้งคีย์ไว้แล้วหรือยัง"""
+    clients = _clients()
+    return clients[0] if clients else None
+
 
 def llm_online() -> bool:
     """ตรวจสอบว่า Gemini API Key พร้อมใช้งานหรือไม่"""
     return get_genai_client() is not None
+
 
 def interpret(text: str, state: GameState) -> ParsedCommand:
     """แกะความหมายจากข้อความภาษาธรรมชาติของผู้เล่น ให้กลายเป็น ParsedCommand
@@ -75,34 +98,42 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     Returns:
         ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, instrument, confidence)
     """
-    client = get_genai_client()
-    if client is None:
+    clients = _clients()
+    if not clients:
         raise NeuralUnavailable("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
 
-    try:
-        # ประกอบ Prompt พร้อมบริบทตำแหน่งของผู้เล่น ไอเทมในกระเป๋า และหลักฐานที่พบ
-        prompt_content = (
-            f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
-            f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
-            f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
-            f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}"
-        )
+    # ประกอบ Prompt พร้อมบริบทตำแหน่งของผู้เล่น ไอเทมในกระเป๋า และหลักฐานที่พบ
+    prompt_content = (
+        f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
+        f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
+        f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
+        f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}"
+    )
 
-        # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
-        response = client.models.generate_content(
-            model=DEFAULT_MODEL,
-            contents=prompt_content,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_INTERPRET_PROMPT,
-                response_mime_type="application/json",
-                response_schema=ParsedCommand,
-                temperature=0.0,
-            ),
-        )
-        if response.text:
+    # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
+    # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
+    last_error: Optional[Exception] = None
+    for client in clients:
+        try:
+            # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
+            response = client.models.generate_content(
+                model=DEFAULT_MODEL,
+                contents=prompt_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INTERPRET_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=ParsedCommand,
+                    temperature=0.0,
+                ),
+            )
+            if not response.text:
+                raise RuntimeError("Gemini API คืนคำตอบว่าง")
             parsed_result = ParsedCommand.model_validate_json(response.text)
             parsed_result.raw_text = text
             return parsed_result
-        raise NeuralUnavailable("Gemini API คืนคำตอบว่าง")
-    except Exception as e:
-        raise NeuralUnavailable(f"เรียก Gemini API ล้มเหลว: {e}")
+        except Exception as e:
+            last_error = e
+            if not _is_quota_error(e):
+                break
+    raise NeuralUnavailable(
+        f"เรียก Gemini API ล้มเหลว (ลองแล้ว {len(clients)} คีย์): {last_error}")
