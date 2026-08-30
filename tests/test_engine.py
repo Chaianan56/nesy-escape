@@ -363,3 +363,37 @@ def test_interrogating_mara_grants_crew_key(engine):
     assert d.allowed
     s = apply_changes(GameState(), d.state_changes)
     assert "crew_key" in s.inventory
+
+
+def test_winning_gives_a_closing_argument_built_from_real_evidence(engine):
+    """ตอนจบต้องอ้างหลักฐานที่ผู้เล่นหามาได้จริง ไม่ใช่ข้อความสำเร็จรูป
+
+    หลักการเดียวกับ reasoning_chain คือคำอธิบายต้องมาจากสิ่งที่เกิดขึ้นจริง
+    ถ้าเป็นข้อความเขียนรอไว้ ผู้เล่นที่เก็บหลักฐานคนละชุดจะได้ตอนจบเหมือนกัน
+    ซึ่งขัดกับข้ออ้างของงานนี้เอง
+    """
+    s = run_walkthrough(engine)
+    msg = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), s).message
+
+    assert engine.world["suspects"]["gideon_hart"]["name_th"] in msg
+    for pillar in ("แรงจูงใจ", "วิธีการ", "โอกาส", "หลักฐานสนับสนุน"):
+        assert pillar in msg
+
+    # ทุกชิ้นที่ถูกอ้างต้องอยู่ใน discovered_evidence จริง
+    found = engine.pillar_status("gideon_hart", s)
+    for ids in found.values():
+        for eid in ids:
+            assert eid in s.discovered_evidence
+            assert engine.world["objects"][eid]["name_th"] in msg
+
+
+def test_closing_argument_changes_with_the_evidence_collected(engine):
+    """เก็บหลักฐานคนละชุด คำแถลงต้องไม่เหมือนกัน"""
+    full = run_walkthrough(engine)
+    fewer = full.model_copy(update={
+        "discovered_evidence": [e for e in full.discovered_evidence if e != "gideon_seal"]
+    })
+    a = engine.closing_argument("gideon_hart", full)
+    b = engine.closing_argument("gideon_hart", fewer)
+    assert a != b
+    assert engine.world["objects"]["gideon_seal"]["name_th"] not in b

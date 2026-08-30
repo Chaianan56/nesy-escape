@@ -310,14 +310,45 @@ class SymbolicEngine:
             return sus.get("testimony") or f"สอบปากคำ {name} แต่ไม่ได้ข้อมูลเพิ่ม"
         if cmd.action == ActionType.MOVE:
             return self.look_around(cmd.target, state.model_copy(update={"current_location": cmd.target}))
+        if cmd.action == ActionType.ACCUSE:
+            return self.closing_argument(cmd.target, state)
 
         templates = {
             ActionType.TAKE: f"เก็บ{name}ไว้เป็นหลักฐาน",
             ActionType.UNLOCK: f"เปิด{name}ได้แล้ว",
             ActionType.USE: f"ใช้งานกับ{name}",
-            ActionType.ACCUSE: f"ตั้งข้อกล่าวหาต่อ {name}",
         }
         return templates.get(cmd.action, "ดำเนินการเรียบร้อย")
+
+    def closing_argument(self, suspect_id: str, state: GameState) -> str:
+        """คำแถลงปิดคดี ประกอบขึ้นจากหลักฐานที่ผู้เล่นหามาได้จริง
+
+        ไม่ใช่ข้อความสำเร็จรูป ทุกบรรทัดอ้างชิ้นหลักฐานที่อยู่ใน discovered_evidence
+        จริงๆ ถ้าผู้เล่นเก็บหลักฐานคนละชุด คำแถลงก็ออกมาคนละแบบ
+        หลักการเดียวกับ reasoning_chain คือคำอธิบายต้องมาจากสิ่งที่เกิดขึ้นจริง
+        ไม่ใช่ข้อความที่เขียนรอไว้
+        """
+        sus = self.world["suspects"].get(suspect_id, {})
+        found = _collect_pillars(suspect_id, state, self.world)
+        label = {
+            "motive": "แรงจูงใจ",
+            "means": "วิธีการ",
+            "opportunity": "โอกาส",
+            "corroboration": "หลักฐานสนับสนุน",
+        }
+
+        lines = [f"คุณเรียกทุกคนมารวมกันที่ตู้เสบียง แล้วชี้ไปที่{sus.get('name_th', suspect_id)}", ""]
+        for pillar in PILLARS:
+            names = [self.world["objects"][e].get("name_th", e) for e in found[pillar]]
+            lines.append(f"  {label[pillar]}")
+            for n in names:
+                lines.append(f"    - {n}")
+        lines.append("")
+        lines.append(f"รวมหลักฐาน {sum(len(v) for v in found.values())} ชิ้น ครบทั้งสี่ด้าน "
+                     f"ใช้เวลาไป {state.elapsed_seconds // 60} นาที จาก "
+                     f"{self.world.get('time_limit_seconds', 3600) // 60} นาที")
+        lines.append("คดีปิดลงก่อนรถไฟเทียบชานชาลา")
+        return "\n".join(lines)
 
     # ใช้สำหรับ UI และการวิเคราะห์ผล ไม่ใช่ส่วนของการตัดสิน
     def pillar_status(self, target: str, state: GameState) -> Dict[str, List[str]]:
