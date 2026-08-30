@@ -6,7 +6,7 @@ test_engine.py — ทดสอบ Symbolic Engine โดยไม่ต้อ�
 
 import pytest
 
-from app.scenario import CHECKPOINTS, STEPS, checkpoint
+from app.walkthrough import STEPS
 from app.schemas import ActionType, ParsedCommand, GameState
 from app.symbolic.engine import SECONDS_PER_TURN, SymbolicEngine, apply_changes
 
