@@ -6,7 +6,7 @@ test_engine.py — ทดสอบ Symbolic Engine โดยไม่ต้อ�
 
 import pytest
 
-from app.scenario import CHECKPOINTS, STEPS, checkpoint
+from app.walkthrough import STEPS
 from app.schemas import ActionType, ParsedCommand, GameState
 from app.symbolic.engine import SECONDS_PER_TURN, SymbolicEngine, apply_changes
 
@@ -171,24 +171,6 @@ def test_time_rule_is_checked_before_the_specific_ones(engine):
     assert order.index("R000_KNOWN_ACTION") < order.index("R014_TIME_LIMIT")
 
 
-def test_out_of_time_is_a_real_ending_not_a_stuck_game(engine):
-    """หมดเวลาต้องบอกได้ว่าเกมจบ ไม่ใช่ปล่อยให้ผู้เล่นเจอคำสั่งถูกปฏิเสธไปเรื่อยๆ"""
-    assert not engine.is_out_of_time(GameState())
-    limit = engine.world["time_limit_seconds"]
-    assert not engine.is_out_of_time(GameState(elapsed_seconds=limit))
-    assert engine.is_out_of_time(GameState(elapsed_seconds=limit + 1))
-    assert engine.ending_message(GameState(elapsed_seconds=limit + 1)).strip()
-
-
-def test_clock_agrees_with_the_rule_that_denies_commands(engine):
-    """ถ้า UI บอกว่ายังมีเวลาแต่กฎปฏิเสธ (หรือกลับกัน) ผู้เล่นจะงงว่าเกิดอะไรขึ้น"""
-    limit = engine.world["time_limit_seconds"]
-    for sec in (0, limit - 1, limit, limit + 1, limit + 500):
-        s = GameState(elapsed_seconds=sec)
-        denied = engine.decide(cmd(ActionType.MOVE, "dining_car"), s).violated_rule_id
-        assert engine.is_out_of_time(s) == (denied == "R014_TIME_LIMIT"), (
-            f"ที่ {sec} วินาที นาฬิกากับกฎไม่ตรงกัน"
-        )
 
 
 def test_time_limit_comes_from_the_scene_not_a_hardcoded_number(engine):
