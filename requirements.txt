@@ -1,4 +1,4 @@
-# ต้องมี — ระบบไม่เดินถ้าขาด
+# Core Dependencies
 fastapi==0.141.1
 uvicorn==0.52.4
 pydantic==2.13.4
@@ -6,10 +6,5 @@ python-dotenv==1.2.3
 pytest==9.1.1
 httpx==0.28.1
 
-# Neural Layer — ถ้าไม่ติดตั้ง/ไม่มี GEMINI_API_KEY ระบบจะใช้ fallback parser แทน
+# Neural Layer (Google GenAI SDK)
 google-genai==2.20.0
-
-# Preprocessor — optional ทั้งคู่ preprocessor.py มี fallback ในตัว
-pythainlp==5.1.2
-# spacy==3.8.7            # ภาษาอังกฤษเท่านั้น ต้องโหลดโมเดลเพิ่ม:
-# python -m spacy download en_core_web_sm
