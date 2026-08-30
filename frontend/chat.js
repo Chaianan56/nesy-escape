@@ -1,65 +1,157 @@
 /**
- * NeSy-Escape: FE-1 Chat & Reasoning Chain Controller (Minimal & Clean)
+ * NeSy-Escape: FE-1 Chat & Reasoning Chain Controller
+ * 
+ * ข้อกำหนดทางวิชาการ:
+ * 1. ห้ามสร้าง reasoning chain ปลอม (No post-hoc rationalization) — ถ้าเซิร์ฟเวอร์ต่อไม่ได้ ให้แจ้งความจริง
+ * 2. ดึง initial_state (ครบ 8 ฟิลด์) และ briefing จาก GET /scene เสมอ ไม่ hardcode ทับ story.json
+ * 3. ล็อกช่องพิมพ์ (disabled) และแสดง loading ระหว่างรอ LLM เพื่อกัน request ซ้อนและ gameState เพี้ยน
+ * 4. ปุ่มสลับโหมด A/B ระบุชัดเจนว่าโหมด A คือ Baseline (เปรียบเทียบ) และโหมด B คือ NeSy Engine (เสนอแนะ)
  */
 
-let currentMode = "B";
-let gameState = {
-  current_location: "passenger_car",
-  inventory: [],
-  discovered_evidence: [],
-  elapsed_seconds: 0
-};
+const API_BASE = "http://127.0.0.1:8000";
 
-// 1. Initial Story Message on Load
+let currentMode = "B"; // 'B' = NeSy Engine (Proposed), 'A' = Baseline LLM
+let gameState = null;  // จะถูกโหลดจาก GET /scene -> initial_state (ครบ 8 ฟิลด์)
+
+// 1. โหลดข้อมูลเริ่มต้นจาก GET /scene เมื่อเปิดหน้าเว็บ
 window.addEventListener("DOMContentLoaded", () => {
-  renderSystem({
-    allowed: true,
-    message: "คืนวันที่ 14 พฤศจิกายน 1938 บนขบวนนอกเทิร์นเอกซ์เพรส\nเวลา 23:17 ไฟดับลง 46 วินาที เมื่อไฟกลับมา แคสเซียน รีด ถูกพบเสียชีวิตในห้องเก็บของบริการ โดยประตูลงกลอนจากด้านในแน่นหนา\n\nคุณคือผู้สืบสวน พิมพ์คำสั่งเป็นภาษาไทยเพื่อเริ่มไขคดี เช่น 'ไปที่จุดเกิดเหตุ', 'ตรวจดูบันทึกสภาพจุดเกิดเหตุ'",
-    reasoning_chain: [
-      { rule_id: "R000_KNOWN_ACTION", description: "คำสั่งต้องตีความได้และอยู่ในขอบเขตของสถานการณ์", passed: true },
-      { rule_id: "R014_TIME_LIMIT", description: "การกระทำต้องอยู่ภายในกรอบเวลาของการสืบสวน", passed: true }
-    ]
-  });
+  initGame();
 });
 
-// 2. Mode Selector (Mode B: NeSy vs Mode A: Baseline)
-function setMode(mode) {
-  currentMode = mode;
-  document.getElementById("btnB").className = mode === "B" ? "active" : "";
-  document.getElementById("btnA").className = mode === "A" ? "active" : "";
-}
-
-// 3. Send Message Handler
-async function sendMessage(e) {
-  e.preventDefault();
-  const input = document.getElementById("chatInput");
-  const text = input.value.trim();
-  if (!text) return;
-
-  input.value = "";
-  renderUser(text);
+async function initGame() {
+  const feed = document.getElementById("chatFeed");
+  feed.innerHTML = `
+    <div class="msg-loading" id="initLoading">
+      <div class="spinner"></div>
+      <span>กำลังเชื่อมต่อกับ backend และโหลดข้อมูลสถานการณ์ (GET /scene)...</span>
+    </div>
+  `;
 
   try {
-    // Call FastAPI Backend
-    const res = await fetch("http://127.0.0.1:8000/command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, mode: currentMode, state: gameState })
-    });
-
+    const res = await fetch(`${API_BASE}/scene`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const sceneData = await res.json();
 
-    if (data.new_state) gameState = data.new_state;
-    renderSystem(data.decision);
+    // ดึง initial_state ครบ 8 ฟิลด์จาก Pydantic
+    gameState = sceneData.initial_state;
+
+    // เคลียร์ loading และแสดง briefing จาก story.json จริง
+    feed.innerHTML = "";
+    renderSystem({
+      allowed: true,
+      message: sceneData.briefing || "เริ่มการสืบสวนบนขบวนรถไฟนอกเทิร์นเอกซ์เพรส",
+      reasoning_chain: []
+    }, { action: "system_briefing" });
 
   } catch (err) {
-    // Graceful Fallback if backend is offline during demo
-    renderSystem(mockFallback(text));
+    feed.innerHTML = `
+      <div class="msg-error">
+        <strong>⚠️ ไม่สามารถเชื่อมต่อกับ backend (${API_BASE}) ได้</strong><br>
+        กรุณาตรวจสอบว่าเซิร์ฟเวอร์เปิดอยู่ (คำสั่ง: <code>uvicorn app.main:app --reload</code>)<br>
+        <button onclick="initGame()">🔄 ลองเชื่อมต่อใหม่อีกครั้ง</button>
+      </div>
+    `;
   }
 }
 
-// 4. Render User Message
+// 2. สลับโหมดการทดลอง (โหมด B = Proposed / โหมด A = Baseline)
+function setMode(mode) {
+  currentMode = mode;
+  const btnB = document.getElementById("btnB");
+  const btnA = document.getElementById("btnA");
+
+  if (mode === "B") {
+    btnB.className = "active";
+    btnA.className = "";
+  } else {
+    btnB.className = "";
+    btnA.className = "mode-a-active";
+  }
+}
+
+// 3. จัดการการส่งคำสั่ง (มีระบบล็อกช่องพิมพ์ + Loading ป้องกัน gameState เพี้ยน)
+async function sendMessage(e) {
+  e.preventDefault();
+  const input = document.getElementById("chatInput");
+  const btn = document.getElementById("sendBtn");
+  const btnText = document.getElementById("sendBtnText");
+  const text = input.value.trim();
+
+  if (!text) return;
+
+  // ล็อกช่องพิมพ์และปุ่มส่งทันที กันกด Enter รัวๆ ขณะรอ LLM
+  input.disabled = true;
+  btn.disabled = true;
+  btnText.textContent = "...";
+
+  // แสดงข้อความของผู้เล่น
+  renderUser(text);
+  input.value = "";
+
+  // แสดงสถานะ Loading ในแชท
+  const feed = document.getElementById("chatFeed");
+  const loadingDiv = document.createElement("div");
+  loadingDiv.className = "msg-loading";
+  loadingDiv.id = "activeLoading";
+  loadingDiv.innerHTML = `
+    <div class="spinner"></div>
+    <span>${currentMode === "B" ? "NeSy Engine กำลังตีความและตรวจกฎ..." : "โหมด A (Baseline LLM) กำลังประมวลผล..."}</span>
+  `;
+  feed.appendChild(loadingDiv);
+  feed.scrollTop = feed.scrollHeight;
+
+  try {
+    // ถ้ายังไม่มี gameState ให้พยายามดึงจาก /scene ก่อน
+    if (!gameState) {
+      const sRes = await fetch(`${API_BASE}/scene`);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        gameState = sData.initial_state;
+      }
+    }
+
+    // เรียก API จริง POST /command
+    const res = await fetch(`${API_BASE}/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: text,
+        mode: currentMode,
+        state: gameState
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    const data = await res.json();
+
+    // อัปเดต GameState เมื่อ backend ส่ง new_state กลับมา
+    if (data.new_state) {
+      gameState = data.new_state;
+    }
+
+    // ลบ Loading และแสดงผลการตัดสินจริงจากระบบ
+    removeLoading();
+    renderSystem(data.decision, data.parsed);
+
+  } catch (err) {
+    // เซิร์ฟเวอร์ขัดข้อง: แจ้งความจริง ไม่ปลอมเหตุผล
+    removeLoading();
+    renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
+  } finally {
+    // ปลดล็อกช่องพิมพ์คืนให้ผู้เล่นเสมอ
+    input.disabled = false;
+    btn.disabled = false;
+    btnText.textContent = "ส่ง";
+    input.focus();
+  }
+}
+
+function removeLoading() {
+  const loading = document.getElementById("activeLoading");
+  if (loading) loading.remove();
+}
+
+// 4. แสดงผลกล่องข้อความของผู้เล่น
 function renderUser(text) {
   const feed = document.getElementById("chatFeed");
   const div = document.createElement("div");
@@ -69,8 +161,8 @@ function renderUser(text) {
   feed.scrollTop = feed.scrollHeight;
 }
 
-// 5. Render System Story Message + Reasoning Chain (FE-1 Specification)
-function renderSystem(decision) {
+// 5. แสดงผลการตัดสินและ Reasoning Chain ตามสเปก FE-1
+function renderSystem(decision, parsed = null) {
   const feed = document.getElementById("chatFeed");
   const card = document.createElement("div");
   card.className = `msg-system ${decision.allowed ? "" : "denied"}`;
@@ -80,25 +172,27 @@ function renderSystem(decision) {
     ? `<span class="badge allowed">✓ อนุมัติ (ALLOWED)</span>`
     : `<span class="badge denied">✗ ปฏิเสธ (DENIED)</span>`;
 
-  // FE-1: Reasoning Chain Presentation
+  const modeLabel = currentMode === "B" ? "โหมด B (NeSy Engine)" : "โหมด A (Baseline LLM)";
+
+  // ส่วนแสดง Reasoning Chain (หัวใจของงานวิจัย)
   let reasoningHtml = "";
   if (steps.length > 0) {
     if (decision.allowed) {
-      // ผ่าน: พับเก็บไว้ ไม่บังเนื้อเรื่อง (ใช้ native <details>)
+      // ผ่าน: พับเก็บไว้ ไม่แย่งซีนเนื้อเรื่อง (ผู้เล่นกดขยายได้)
       reasoningHtml = `
         <details class="reasoning-details">
-          <summary>🔍 ดูการตรวจกฎ (ผ่านครบ ${steps.length} ขั้น)</summary>
+          <summary>🔍 ดูการตรวจกฎ (${steps.length} ขั้นผ่าน)</summary>
           <div class="rule-table">${renderRules(steps)}</div>
         </details>
       `;
     } else {
       // ไม่ผ่าน: โชว์ขั้นที่ไม่ผ่านออกมาทันที!
-      const failed = steps.find(s => !s.passed) || { rule_id: "RULE_FAIL", description: decision.message };
+      const failed = steps.find(s => !s.passed) || { rule_id: decision.violated_rule_id || "RULE_FAILED", description: decision.message };
       const passed = steps.filter(s => s.passed);
 
       reasoningHtml = `
         <div class="fail-alert">
-          <strong>✗ ไม่ผ่านกฎ: ${failed.rule_id}</strong> — ${escapeHtml(failed.description)}
+          <strong>✗ ไม่ผ่านกฎ: ${escapeHtml(failed.rule_id)}</strong> — ${escapeHtml(failed.description)}
         </div>
         ${passed.length > 0 ? `
           <details class="reasoning-details">
@@ -111,7 +205,10 @@ function renderSystem(decision) {
   }
 
   card.innerHTML = `
-    ${statusBadge}
+    <div class="card-header-bar">
+      ${statusBadge}
+      <span class="mode-tag">${modeLabel}</span>
+    </div>
     <div class="story-text">${escapeHtml(decision.message)}</div>
     ${reasoningHtml}
   `;
@@ -120,56 +217,33 @@ function renderSystem(decision) {
   feed.scrollTop = feed.scrollHeight;
 }
 
-// Helper: Render Rule Rows
+// 6. แสดงข้อความแจ้งเตือนข้อผิดพลาดการเชื่อมต่อ
+function renderError(message) {
+  const feed = document.getElementById("chatFeed");
+  const div = document.createElement("div");
+  div.className = "msg-error";
+  div.innerHTML = `
+    <div>${escapeHtml(message)}</div>
+  `;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+// ฟังก์ชันย่อย: แสดงแถวกฎ
 function renderRules(steps) {
   return steps.map(s => `
     <div class="rule-row">
       <span class="rule-status ${s.passed ? 'pass' : 'fail'}">${s.passed ? 'ผ่าน' : 'ไม่ผ่าน'}</span>
-      <span class="rule-id">${s.rule_id.split('_')[0]}</span>
+      <span class="rule-id">${escapeHtml(s.rule_id.split('_')[0])}</span>
       <span>${escapeHtml(s.description)}</span>
     </div>
   `).join("");
 }
 
-// Helper: Escape HTML
+// ป้องกัน XSS
 function escapeHtml(t) {
   if (!t) return "";
-  const d = document.createElement("div");
-  d.textContent = t;
-  return d.innerHTML;
-}
-
-// 6. Compact Offline Fallback (Under 30 lines)
-function mockFallback(text) {
-  const q = text.toLowerCase();
-  if (q.includes("จุดเกิดเหตุ") || q.includes("ห้องเก็บของ")) {
-    gameState.current_location = "service_pantry";
-    return {
-      allowed: true,
-      message: "คุณเดินมายังห้องเก็บของบริการ (จุดเกิดเหตุ) ร่างของแคสเซียน รีด ถูกคลุมผ้าไว้ ประตูลงกลอนจากด้านในแน่นหนา มีกลิ่นสนิมเหล็กคละคลุ้ง",
-      reasoning_chain: [
-        { rule_id: "R000_KNOWN_ACTION", description: "คำสั่งต้องตีความได้และอยู่ในขอบเขตของสถานการณ์", passed: true },
-        { rule_id: "R014_TIME_LIMIT", description: "การกระทำต้องอยู่ภายในกรอบเวลาของการสืบสวน", passed: true },
-        { rule_id: "R002_LOCATION_EXISTS", description: "จุดหมายของการเคลื่อนที่ต้องเป็นตู้รถที่มีอยู่จริง", passed: true }
-      ]
-    };
-  }
-  if (q.includes("บันทึก") || q.includes("สมุด")) {
-    return {
-      allowed: true,
-      message: "บันทึกสภาพจุดเกิดเหตุระบุว่า: ประตูลงกลอนจากด้านใน เวลาเสียชีวิตคือ 23:17 ซึ่งตรงกับช่วงเวลาที่ไฟดับ 46 วินาทีพอดี",
-      reasoning_chain: [
-        { rule_id: "R000_KNOWN_ACTION", description: "คำสั่งต้องตีความได้และอยู่ในขอบเขตของสถานการณ์", passed: true },
-        { rule_id: "R001_TARGET_EXISTS", description: "เป้าหมายของคำสั่งต้องมีอยู่จริงบนขบวนรถ", passed: true }
-      ]
-    };
-  }
-  return {
-    allowed: false,
-    message: "ไม่สามารถดำเนินการได้ในเวลานี้ สิ่งที่คุณระบุอาจไม่อยู่ในจุดที่คุณยืนอยู่ หรืออยู่นอกขอบเขต",
-    reasoning_chain: [
-      { rule_id: "R000_KNOWN_ACTION", description: "คำสั่งต้องตีความได้และอยู่ในขอบเขตของสถานการณ์", passed: true },
-      { rule_id: "R005_SAME_LOCATION", description: "ต้องอยู่ในตู้รถเดียวกับสิ่งที่ต้องการเข้าถึง", passed: false }
-    ]
-  };
+  const div = document.createElement("div");
+  div.textContent = t;
+  return div.innerHTML;
 }

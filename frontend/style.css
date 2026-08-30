@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NeSy-Escape: FE-1 Lightweight Stylesheet (Alliance Theme)
+   NeSy-Escape: FE-1 Stylesheet (Alliance Modern Light Theme)
    Teal (#36c0d3) | Dark Navy (#1e2638) | Light Gray (#f0f3f8) | White (#fff)
    ========================================================================== */
 
@@ -62,6 +62,13 @@ body {
 .modes button.active {
   background: #36c0d3;
   color: #ffffff;
+  box-shadow: 0 1px 4px rgba(54, 192, 211, 0.3);
+}
+
+.modes button.mode-a-active {
+  background: #6366f1;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
 }
 
 /* Chat Layout */
@@ -82,6 +89,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scroll-behavior: smooth;
 }
 
 /* Chat Rows */
@@ -90,7 +98,7 @@ body {
   background: #1e293b;
   color: #ffffff;
   padding: 10px 16px;
-  border-radius: 12px 12px 2px 12px;
+  border-radius: 14px 14px 2px 14px;
   font-size: 14px;
   max-width: 75%;
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
@@ -100,7 +108,7 @@ body {
   align-self: flex-start;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px 12px 12px 2px;
+  border-radius: 14px 14px 14px 2px;
   padding: 16px 18px;
   max-width: 90%;
   box-shadow: 0 3px 10px rgba(0,0,0,0.04);
@@ -116,15 +124,22 @@ body {
 /* Story Narrative (decision.message) */
 .story-text {
   font-size: 14.5px;
-  line-height: 1.7;
+  line-height: 1.75;
   color: #0f172a;
   white-space: pre-line;
 }
 
-/* Tag */
+/* Tags */
+.card-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 6px;
+}
+
 .badge {
   display: inline-block;
-  align-self: flex-start;
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
@@ -133,6 +148,16 @@ body {
 
 .badge.allowed { background: #ecfccb; color: #3f6212; border: 1px solid #a3e635; }
 .badge.denied { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+.mode-tag {
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
 
 /* Reasoning Chain (FE-1: native details collapsible) */
 .reasoning-details {
@@ -173,6 +198,7 @@ body {
   padding: 1px 5px;
   border-radius: 3px;
   font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
 }
 
 .rule-status.pass { background: #dcfce7; color: #15803d; }
@@ -195,6 +221,67 @@ body {
   color: #991b1b;
 }
 
+/* Connection Error Card */
+.msg-error {
+  align-self: center;
+  width: 100%;
+  max-width: 90%;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-left: 4px solid #f43f5e;
+  border-radius: 8px;
+  padding: 14px 18px;
+  color: #9f1239;
+  font-size: 13.5px;
+  line-height: 1.6;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.08);
+}
+
+.msg-error button {
+  margin-top: 8px;
+  background: #e11d48;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.msg-error button:hover {
+  background: #be123c;
+}
+
+/* Loading State in Chat */
+.msg-loading {
+  align-self: flex-start;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #64748b;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #36c0d3;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Bottom Input Bar */
 .chat-input-bar {
   background: #ffffff;
@@ -213,9 +300,16 @@ body {
   font-size: 14px;
   font-family: inherit;
   outline: none;
+  transition: 0.2s;
 }
 
 .chat-input-bar input:focus { border-color: #36c0d3; }
+
+.chat-input-bar input:disabled {
+  background: #f1f5f9;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
 
 .chat-input-bar button {
   background: #36c0d3;
@@ -226,6 +320,16 @@ body {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  transition: 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.chat-input-bar button:hover { background: #2ba2b3; }
+.chat-input-bar button:hover:not(:disabled) { background: #2ba2b3; }
+
+.chat-input-bar button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}

@@ -12,19 +12,28 @@
   <!-- Header: Alliance Theme (Teal + White) -->
   <header class="navbar">
     <div class="brand">🚂 NeSy-Escape</div>
+    
     <div class="modes">
-      <button id="btnB" class="active" onclick="setMode('B')">โหมด B (NeSy Engine)</button>
-      <button id="btnA" onclick="setMode('A')">โหมด A (Baseline LLM)</button>
+      <button id="btnB" class="active" onclick="setMode('B')" title="โหมดที่นำเสนอ: ประมวลผลผ่าน Symbolic Engine ตรวจกฎ 15 ข้อ">
+        ⚖️ โหมด B (NeSy Engine)
+      </button>
+      <button id="btnA" onclick="setMode('A')" title="โหมดเปรียบเทียบ (Baseline): ใช้ LLM ตัดสินเดี่ยว ไม่มีเอนจินกฎ">
+        🤖 โหมด A (Baseline LLM - เปรียบเทียบ)
+      </button>
     </div>
   </header>
 
   <!-- FE-1 Chat Main Area -->
   <main class="chat-container">
-    <div id="chatFeed" class="chat-feed"></div>
+    <div id="chatFeed" class="chat-feed">
+      <!-- ข้อความแชทจะถูกโหลดเข้ามาที่นี่ -->
+    </div>
 
     <form onsubmit="sendMessage(event)" class="chat-input-bar">
       <input id="chatInput" type="text" placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย..." autocomplete="off" />
-      <button type="submit" id="sendBtn">ส่ง</button>
+      <button type="submit" id="sendBtn">
+        <span id="sendBtnText">ส่ง</span>
+      </button>
     </form>
   </main>
 
