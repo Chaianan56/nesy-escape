@@ -1,6 +1,6 @@
 /* ==========================================================================
-   NeSy-Escape: FE-1 Stylesheet (Alliance Modern Light Theme)
-   Teal (#36c0d3) | Dark Navy (#1e2638) | Light Gray (#f0f3f8) | White (#fff)
+   NeSy-Escape: Complete Stylesheet (Alliance Modern Light Theme)
+   FE-1 (Chat & Reasoning Chain) | FE-3 (Clock) | FE-4 (Four Pillars Tracker)
    ========================================================================== */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,7 +15,7 @@ body {
   overflow: hidden;
 }
 
-/* Navbar */
+/* ================= NAVBAR ================= */
 .navbar {
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
@@ -23,21 +23,95 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-right: 20px;
+  padding-right: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  position: relative;
+  z-index: 30;
 }
 
 .brand {
   background: #36c0d3;
   color: #ffffff;
   height: 100%;
-  padding: 0 20px;
+  padding: 0 18px;
   display: flex;
   align-items: center;
   font-size: 15px;
   font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
+.nav-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* FE-3: Clock Widget */
+.clock-widget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.clock-widget.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.clock-widget.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* FE-4: Pillars Button */
+.pillars-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.pillars-btn:hover {
+  border-color: #36c0d3;
+  color: #36c0d3;
+}
+
+.pillars-badge {
+  background: #36c0d3;
+  color: #ffffff;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Mode Switches */
 .modes {
   display: flex;
   background: #f1f5f9;
@@ -71,7 +145,102 @@ body {
   box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
 }
 
-/* Chat Layout */
+/* ================= FE-4: PILLARS PANEL ================= */
+.pillars-panel {
+  background: #ffffff;
+  border-bottom: 2px solid #36c0d3;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  padding: 14px 20px;
+  position: relative;
+  z-index: 20;
+  max-height: 48vh;
+  overflow-y: auto;
+}
+
+.pillars-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.pillars-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.close-btn:hover { color: #0f172a; }
+
+.pillars-desc {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.suspect-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.suspect-card.target {
+  border-color: #36c0d3;
+  background: #f0fdfa;
+}
+
+.suspect-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suspect-count {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #36c0d3;
+}
+
+.pillar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 3px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.pillar-item:last-child { border-bottom: none; }
+
+.pillar-item .status {
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pillar-item .status.yes { color: #16a34a; }
+.pillar-item .status.no { color: #94a3b8; }
+
+/* ================= CHAT LAYOUT ================= */
 .chat-container {
   flex: 1;
   max-width: 860px;
@@ -85,7 +254,7 @@ body {
 .chat-feed {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -110,7 +279,7 @@ body {
   border: 1px solid #e2e8f0;
   border-radius: 14px 14px 14px 2px;
   padding: 16px 18px;
-  max-width: 90%;
+  max-width: 92%;
   box-shadow: 0 3px 10px rgba(0,0,0,0.04);
   display: flex;
   flex-direction: column;
@@ -121,7 +290,12 @@ body {
   border-left: 4px solid #ef4444;
 }
 
-/* Story Narrative (decision.message) */
+.msg-system.room-look {
+  border-left: 4px solid #36c0d3;
+  background: #fbfdfd;
+}
+
+/* Story Narrative */
 .story-text {
   font-size: 14.5px;
   line-height: 1.75;
@@ -129,7 +303,6 @@ body {
   white-space: pre-line;
 }
 
-/* Tags */
 .card-header-bar {
   display: flex;
   align-items: center;
@@ -148,6 +321,7 @@ body {
 
 .badge.allowed { background: #ecfccb; color: #3f6212; border: 1px solid #a3e635; }
 .badge.denied { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.badge.info { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
 
 .mode-tag {
   font-size: 10.5px;
@@ -157,6 +331,32 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid #e2e8f0;
+}
+
+/* Onboarding Hints inside Briefing Card */
+.hints-box {
+  margin-top: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.hints-title {
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #475569;
 }
 
 /* Reasoning Chain (FE-1: native details collapsible) */
@@ -210,7 +410,7 @@ body {
   color: #36c0d3;
 }
 
-/* Denied Alert (FE-1: show failed rule immediately) */
+/* Denied Alert */
 .fail-alert {
   background: #fef2f2;
   border: 1px solid #fca5a5;
@@ -221,7 +421,7 @@ body {
   color: #991b1b;
 }
 
-/* Connection Error Card */
+/* Error Card */
 .msg-error {
   align-self: center;
   width: 100%;
@@ -234,7 +434,6 @@ body {
   color: #9f1239;
   font-size: 13.5px;
   line-height: 1.6;
-  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.08);
 }
 
 .msg-error button {
@@ -250,11 +449,7 @@ body {
   cursor: pointer;
 }
 
-.msg-error button:hover {
-  background: #be123c;
-}
-
-/* Loading State in Chat */
+/* Loading State */
 .msg-loading {
   align-self: flex-start;
   background: #ffffff;
@@ -282,11 +477,50 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* Bottom Input Bar */
+/* ================= QUICK CHIPS BAR (ข้อ 1) ================= */
+.quick-chips-bar {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.chips-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #36c0d3;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.quick-chips-bar button {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.quick-chips-bar button:hover {
+  background: #36c0d3;
+  border-color: #36c0d3;
+  color: #ffffff;
+}
+
+/* ================= INPUT BAR ================= */
 .chat-input-bar {
   background: #ffffff;
   border-top: 1px solid #e2e8f0;
-  padding: 12px 18px;
+  padding: 12px 16px;
   display: flex;
   gap: 8px;
 }
@@ -321,9 +555,6 @@ body {
   cursor: pointer;
   font-family: inherit;
   transition: 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .chat-input-bar button:hover:not(:disabled) { background: #2ba2b3; }

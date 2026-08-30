@@ -3,34 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeSy-Escape — ช่องแชทสืบสวน (FE-1)</title>
+  <title>NeSy-Escape — ช่องแชทสืบสวน</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Header: Alliance Theme (Teal + White) -->
+  <!-- Header: Alliance Theme with Clock (FE-3), Pillars Trigger (FE-4), and Mode Toggle -->
   <header class="navbar">
     <div class="brand">🚂 NeSy-Escape</div>
     
+    <div class="nav-center">
+      <!-- FE-3: นาฬิกานับถอยหลังการสืบสวน -->
+      <div id="clockWidget" class="clock-widget" title="เวลาที่เหลือในการสืบสวน (ลดลงตาละ 60 วินาที)">
+        <span class="clock-icon">⏱️</span>
+        <span id="clockText">60:00</span>
+      </div>
+
+      <!-- FE-4: ปุ่มเปิด-ปิดแผงสี่เสา -->
+      <button id="pillarsBtn" class="pillars-btn" onclick="togglePillarsPanel()" title="ดูความคืบหน้าหลักฐาน 4 ด้านของผู้ต้องสงสัย (Motive, Means, Opportunity, Corroboration)">
+        <span>🏛️ หลักฐาน 4 เสา</span>
+        <span id="pillarsBadge" class="pillars-badge">0/4</span>
+      </button>
+    </div>
+
     <div class="modes">
       <button id="btnB" class="active" onclick="setMode('B')" title="โหมดที่นำเสนอ: ประมวลผลผ่าน Symbolic Engine ตรวจกฎ 15 ข้อ">
-        ⚖️ โหมด B (NeSy Engine)
+        ⚖️ โหมด B (NeSy)
       </button>
       <button id="btnA" onclick="setMode('A')" title="โหมดเปรียบเทียบ (Baseline): ใช้ LLM ตัดสินเดี่ยว ไม่มีเอนจินกฎ">
-        🤖 โหมด A (Baseline LLM - เปรียบเทียบ)
+        🤖 โหมด A (Baseline)
       </button>
     </div>
   </header>
 
-  <!-- FE-1 Chat Main Area -->
+  <!-- FE-4: Dropdown Panel สำหรับแผงความคืบหน้าสี่เสา -->
+  <section id="pillarsPanel" class="pillars-panel" style="display: none;">
+    <div class="pillars-header">
+      <div class="pillars-title">🏛️ ตรวจสอบความคืบหน้า 4 เสาหลัก (Four Pillars Tracker)</div>
+      <button type="button" onclick="togglePillarsPanel()" class="close-btn">✕</button>
+    </div>
+    <p class="pillars-desc">
+      การตั้งข้อกล่าวหาผู้ต้องสงสัยตามกฎ R013 ต้องมีหลักฐานครบ 4 ด้าน: 
+      <strong>แรงจูงใจ (Motive)</strong>, <strong>วิธีการ (Means)</strong>, <strong>โอกาส (Opportunity)</strong>, และ <strong>หลักฐานสนับสนุน (Corroboration)</strong>
+    </p>
+    <div id="pillarsGrid" class="pillars-grid">
+      <!-- Suspect pillar cards dynamically populated from POST /pillars -->
+    </div>
+  </section>
+
+  <!-- Chat Main Area -->
   <main class="chat-container">
     <div id="chatFeed" class="chat-feed">
-      <!-- ข้อความแชทจะถูกโหลดเข้ามาที่นี่ -->
+      <!-- ข้อความแชท: Briefing -> ดูรอบๆ -> การตอบกลับ -->
     </div>
 
+    <!-- ข้อ 1: ตัวอย่างคำสั่ง (Quick Suggestion Chips) -->
+    <div class="quick-chips-bar">
+      <span class="chips-label">💡 ตัวอย่างคำสั่ง:</span>
+      <button type="button" onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button>
+      <button type="button" onclick="fillInput('ไปที่จุดเกิดเหตุ')">ไปที่จุดเกิดเหตุ</button>
+      <button type="button" onclick="fillInput('ตรวจดูสมุดบันทึกของผู้ตาย')">ตรวจดูสมุดบันทึกของผู้ตาย</button>
+      <button type="button" onclick="fillInput('ขอสอบปากคำพนักงานควบคุมรถหน่อย')">ขอสอบปากคำพนักงานควบคุมรถหน่อย</button>
+      <button type="button" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
+    </div>
+
+    <!-- Input Form -->
     <form onsubmit="sendMessage(event)" class="chat-input-bar">
-      <input id="chatInput" type="text" placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย..." autocomplete="off" />
+      <input id="chatInput" type="text" placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย (หรือคลิกตัวอย่างด้านบน)..." autocomplete="off" />
       <button type="submit" id="sendBtn">
         <span id="sendBtnText">ส่ง</span>
       </button>
