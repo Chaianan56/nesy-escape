@@ -4,27 +4,18 @@
  * คุณสมบัติ:
  * 1. ตัวอย่างคำสั่ง (Quick Suggestion Chips & Onboarding Hints)
  * 2. คำบรรยายห้องตอนเริ่มเกม (Auto Look Around via POST /command)
- * 3. แผงความคืบหน้าสี่เสา (FE-4: Dossier Drawer via POST /pillars)
  * 4. นาฬิกาการสืบสวน (FE-3: Investigation Clock)
  * 5. ป้ายแสดงตู้รถปัจจุบัน (Location HUD Pill)
  */
 
 const API_BASE = "http://127.0.0.1:8000";
 
-let currentMode = "B"; // 'B' = NeSy Engine, 'A' = Baseline LLM
 let gameState = null;
 let timeLimitSeconds = 3600;
 let locationsMap = {};
 let suspectsMap = {};
 let objectsMap = {};
-let pillarsData = {};
 
-const PILLAR_LABELS = {
-  motive: "แรงจูงใจ (Motive)",
-  means: "วิธีการ (Means)",
-  opportunity: "โอกาส (Opportunity)",
-  corroboration: "หลักฐานสนับสนุน (Corroboration)"
-};
 
 // ============================================================
 // 1. เริ่มต้นเกม (INIT GAME)
@@ -63,7 +54,6 @@ async function initGame() {
     renderBriefing(sceneData.briefing);
 
     // ดึงสถานะสี่เสาตั้งต้น (FE-4)
-    await fetchPillars();
 
     // ข้อ 2: คำบรรยายห้องตอนเริ่มเกม — ยิง "ดูรอบๆ" อัตโนมัติหนึ่งครั้ง
     await executeInitialLookAround();
@@ -113,7 +103,6 @@ async function executeInitialLookAround() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: "ดูรอบๆ",
-        mode: currentMode,
         state: gameState
       })
     });
@@ -166,96 +155,11 @@ function updateClock() {
 }
 
 // ============================================================
-// 3. FE-4: FOUR PILLARS TRACKER (แผงสี่เสา)
-// ============================================================
-async function fetchPillars() {
-  if (!gameState) return;
-  try {
-    const res = await fetch(`${API_BASE}/pillars`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(gameState)
-    });
-    if (res.ok) {
-      pillarsData = await res.json();
-      renderPillarsUI();
-    }
-  } catch (e) {
-    console.warn("Fetch pillars failed:", e);
-  }
-}
 
-function renderPillarsUI() {
-  const grid = document.getElementById("pillarsGrid");
-  const badge = document.getElementById("pillarsBadge");
-  if (!grid || !badge) return;
-
-  let maxFound = 0;
-  grid.innerHTML = "";
-
-  for (const [suspectId, pillars] of Object.entries(pillarsData)) {
-    const thName = suspectsMap[suspectId] || suspectId;
-    let foundCount = 0;
-
-    let itemsHtml = "";
-    for (const [pillarKey, pLabel] of Object.entries(PILLAR_LABELS)) {
-      const evList = pillars[pillarKey] || [];
-      const hasEv = evList.length > 0;
-      if (hasEv) foundCount++;
-
-      const evNames = evList.map(id => objectsMap[id] || id).join(", ");
-      const hint = hasEv ? ` (${evNames})` : "";
-
-      itemsHtml += `
-        <div class="pillar-row">
-          <span>${pLabel.split(" ")[0]}</span>
-          <span class="pillar-status-badge ${hasEv ? 'yes' : 'no'}" title="${hasEv ? 'หลักฐาน: ' + evNames : 'ยังไม่มีหลักฐาน'}">
-            ${hasEv ? '✓ พบแล้ว' + hint : '✗ ยังไม่พบ'}
-          </span>
-        </div>
-      `;
-    }
-
-    if (foundCount > maxFound) maxFound = foundCount;
-
-    const isCulprit = suspectId === "gideon_hart";
-    const card = document.createElement("div");
-    card.className = `suspect-card ${isCulprit ? 'target' : ''}`;
-    card.innerHTML = `
-      <div class="suspect-card-header">
-        <span class="suspect-name">👤 ${escapeHtml(thName)}${isCulprit ? ' ★' : ''}</span>
-        <span class="suspect-progress-pill">${foundCount}/4 เสา</span>
-      </div>
-      <div>${itemsHtml}</div>
-    `;
-    grid.appendChild(card);
-  }
-
-  badge.textContent = `${maxFound}/4`;
-}
-
-function togglePillarsPanel() {
-  const panel = document.getElementById("pillarsPanel");
-  if (!panel) return;
-  panel.style.display = panel.style.display === "none" ? "block" : "none";
-}
 
 // ============================================================
 // 4. สลับโหมดการทดลอง (Mode A vs Mode B)
 // ============================================================
-function setMode(mode) {
-  currentMode = mode;
-  const btnB = document.getElementById("btnB");
-  const btnA = document.getElementById("btnA");
-
-  if (mode === "B") {
-    btnB.className = "mode-tab active";
-    btnA.className = "mode-tab";
-  } else {
-    btnB.className = "mode-tab";
-    btnA.className = "mode-tab mode-a-active";
-  }
-}
 
 // ============================================================
 // 5. ตัวอย่างคำสั่ง (Quick Chips Fill)
@@ -294,7 +198,7 @@ async function sendMessage(e) {
   loadingDiv.id = "activeLoading";
   loadingDiv.innerHTML = `
     <div class="spinner"></div>
-    <span>${currentMode === "B" ? "NeSy Engine กำลังตีความและตรวจกฎ 15 ข้อ..." : "โหมด A (Baseline LLM) กำลังประมวลผล..."}</span>
+    <span>NeSy Engine กำลังตีความและตรวจกฎ 15 ข้อ...</span>
   `;
   feed.appendChild(loadingDiv);
   feed.scrollTop = feed.scrollHeight;
@@ -313,7 +217,6 @@ async function sendMessage(e) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: text,
-        mode: currentMode,
         state: gameState
       })
     });
@@ -332,7 +235,6 @@ async function sendMessage(e) {
 
     // อัปเดตสี่เสาเมื่อคำสั่งผ่าน
     if (data.decision && data.decision.allowed) {
-      fetchPillars();
     }
 
     removeLoading();
@@ -381,7 +283,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     statusBadge = `<span class="badge denied">✗ ปฏิเสธ (DENIED)</span>`;
   }
 
-  const modeLabel = currentMode === "B" ? "โหมด B (NeSy Engine)" : "โหมด A (Baseline LLM)";
+  const modeLabel = "โหมด B (NeSy Engine)";
 
   // Reasoning Chain (FE-1 Core)
   let reasoningHtml = "";

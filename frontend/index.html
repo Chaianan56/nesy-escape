@@ -36,38 +36,8 @@
         <span id="clockText">60:00</span>
       </div>
 
-      <!-- FE-4: ปุ่มเปิด-ปิดแผงสี่เสา -->
-      <button id="pillarsBtn" class="hud-btn pillars-trigger" onclick="togglePillarsPanel()" title="ตรวจสอบความคืบหน้า 4 เสาหลัก (Motive, Means, Opportunity, Corroboration)">
-        <span class="hud-icon">🏛️</span>
-        <span>หลักฐาน 4 เสา</span>
-        <span id="pillarsBadge" class="badge-counter">0/4</span>
-      </button>
-    </div>
-
-    <!-- Mode Selector: Mode B (Proposed) vs Mode A (Baseline) -->
-    <div class="modes-toggle">
-      <button id="btnB" class="mode-tab active" onclick="setMode('B')" title="โหมดที่นำเสนอ: ประมวลผลผ่าน Symbolic Engine ตรวจกฎ 15 ข้อ">
-        ⚖️ โหมด B (NeSy)
-      </button>
-      <button id="btnA" class="mode-tab" onclick="setMode('A')" title="โหมดเปรียบเทียบ (Baseline): ใช้ LLM ตัดสินเดี่ยว ไม่มีเอนจินกฎ">
-        🤖 โหมด A (Baseline)
-      </button>
     </div>
   </header>
-
-  <!-- ================= FE-4: FOUR PILLARS DRAWER ================= -->
-  <aside id="pillarsPanel" class="pillars-drawer" style="display: none;">
-    <div class="drawer-header">
-      <div class="drawer-title-group">
-        <h3>🏛️ แผงติดตามหลักฐาน 4 เสาหลัก (Four Pillars Tracker)</h3>
-        <p class="drawer-desc">ตามกฎ R013 การตั้งข้อกล่าวหาผู้ต้องสงสัยจะต้องมีหลักฐานครบทั้ง 4 ด้าน: แรงจูงใจ, วิธีการ, โอกาส, และหลักฐานสนับสนุน</p>
-      </div>
-      <button type="button" class="drawer-close" onclick="togglePillarsPanel()">✕</button>
-    </div>
-    <div id="pillarsGrid" class="pillars-grid">
-      <!-- ข้อมูลผู้ต้องสงสัยและเสาหลักฐานจะถูกโหลดจาก POST /pillars -->
-    </div>
-  </aside>
 
   <!-- ================= MAIN CHAT CONTAINER ================= -->
   <main class="chat-container">
