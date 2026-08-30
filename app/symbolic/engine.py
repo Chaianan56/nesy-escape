@@ -227,9 +227,19 @@ class SymbolicEngine:
 
             # หยุดที่กฎแรกที่ไม่ผ่าน เพราะกฎถัดไปอาจสมมติว่ากฎก่อนหน้าผ่านแล้ว
             if not passed:
+                # กฎข้อแรกครอบทั้ง unknown และ ambiguous ด้วยข้อความเดียว แต่ผู้เล่นต้องการ
+                # คำแนะนำคนละแบบ เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าบอกแค่ว่าไม่เข้าใจ ผู้เล่นจะตันทันที
+                message = rule["message_fail"]
+                if cmd.action is ActionType.AMBIGUOUS:
+                    message = ("คำสั่งนี้กว้างเกินไป ระบบจะไม่เดาแทนผู้เล่น "
+                               "ลองบอกให้เจาะจงว่าจะทำกับสิ่งไหน "
+                               "หรือพิมพ์ 'ดูรอบๆ' เพื่อดูว่าตอนนี้มีอะไรอยู่ตรงหน้าบ้าง")
+                elif cmd.action is ActionType.UNKNOWN:
+                    message += (" สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น "
+                                "ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ")
                 return Decision(
                     allowed=False,
-                    message=rule["message_fail"],
+                    message=message,
                     reasoning_chain=chain,
                     violated_rule_id=rule["id"],
                     state_changes={},
@@ -303,6 +313,26 @@ class SymbolicEngine:
                             for sid, s in people)
             lines.append(f"คนที่อยู่ในตู้นี้:\n{who}")
         return "\n".join(lines)
+
+    def offerable(self, target: str, state: GameState) -> bool:
+        """ตัวเลือกนี้เอ่ยชื่อให้ผู้เล่นเห็นได้ไหม โดยไม่เฉลยของที่เขายังหาไม่เจอ
+
+        ตู้รถกับผู้คนบอกได้หมด ตู้ทุกตู้ถูกเอ่ยชื่ออยู่ในคำบรรยายตู้แรกแล้ว
+        ส่วนคนก็เดินไปเจอเองได้ และคำสั่งพ่วงอย่าง "ไปที่ ก แล้วคุยกับ ข"
+        ต้องยังแตกขั้นได้ตามปกติ
+        แต่ 'ของ' คือสิ่งที่ผู้เล่นต้องออกไปหา ถ้าลิสต์ชื่อให้ก็เท่ากับเกมเฉลยตัวเอง
+        จึงเสนอได้เฉพาะของที่ถืออยู่ เจอแล้ว หรือมองเห็นได้ในตู้ที่ยืนอยู่ตอนนี้
+        โดยถามจากกฎชุดเดียวกับที่ look_around ใช้ ของที่ยังซ่อนอยู่จึงไม่หลุด
+        """
+        obj = self.world["objects"].get(target)
+        if obj is None:
+            return True
+        if target in state.inventory or target in state.discovered_evidence:
+            return True
+        return obj.get("location") == state.current_location and self.decide(
+            ParsedCommand(action=ActionType.EXAMINE, target=target, raw_text="", confidence=0.0),
+            state,
+        ).allowed
 
     def _success_message(self, cmd: ParsedCommand, state: GameState) -> str:
         obj = self.world["objects"].get(cmd.target, {})

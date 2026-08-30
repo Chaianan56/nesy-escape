@@ -456,3 +456,32 @@ def test_evidence_that_unlocks_something_in_another_car_says_which_car(engine):
                 f"'{src}' ปลดล็อก '{tid}' ซึ่งอยู่ที่ {dst_loc} "
                 f"แต่คำบรรยายไม่ได้บอกว่าต้องไปตู้ไหน ผู้เล่นจะตัน"
             )
+
+
+def test_alternatives_never_name_objects_the_player_has_not_found(engine):
+    """ตัวเลือกที่ยื่นให้ผู้เล่นต้องไม่เฉลยชื่อของที่ยังหาไม่เจอ
+
+    เคยพลาดมาแล้ว พิมพ์ 'ปลดทุกอย่าง' ตั้งแต่ตาแรก แล้วเกมยื่นเมนู
+    บอกชื่อของ 4 ชิ้นในตู้ที่ยังไม่เคยไป รวมถึงกุญแจพนักงานที่ต้องไปคุยกับคนถึงจะได้
+    """
+    state = GameState()   # ตาแรก ยืนที่ตู้โดยสาร ยังไม่เจออะไรเลย
+    for oid, obj in engine.world["objects"].items():
+        if obj.get("location") != state.current_location:
+            assert not engine.offerable(oid, state), f"{oid} ไม่ควรถูกเสนอ ผู้เล่นยังไม่เจอ"
+
+
+def test_offering_still_works_for_places_people_and_things_in_sight(engine):
+    """กันกรองแรงเกินจนคำสั่งพ่วงอย่าง 'ไปที่ ก แล้วคุยกับ ข' แตกขั้นไม่ได้"""
+    state = GameState()
+    for lid in engine.world["locations"]:
+        assert engine.offerable(lid, state), f"ตู้ {lid} ต้องเสนอได้"
+    for sid in engine.world["suspects"]:
+        assert engine.offerable(sid, state), f"คน {sid} ต้องเสนอได้"
+
+    # ของที่มองเห็นอยู่ตรงหน้าต้องยังเสนอได้ ไม่งั้น "ตรวจของในตู้นี้" จะใช้ไม่ได้
+    here = GameState(current_location="service_pantry", visited_locations=["passenger_car", "service_pantry"])
+    view = engine.look_around("service_pantry", here)
+    seen = [oid for oid, o in engine.world["objects"].items() if o.get("name_th", "\0") in view]
+    assert seen, "ฉากนี้ควรมีของที่มองเห็นได้อย่างน้อยหนึ่งชิ้น"
+    for oid in seen:
+        assert engine.offerable(oid, here), f"{oid} มองเห็นอยู่ตรงหน้าแต่กลับเสนอไม่ได้"

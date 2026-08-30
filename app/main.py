@@ -88,6 +88,12 @@ def handle_command(req: CommandRequest):
     # ------------------------------------------------------------
     new_state = apply_changes(req.state, decision.state_changes) if decision.allowed else req.state
 
+    # ตัวเลือกที่ยื่นกลับไปต้องไม่เอ่ยชื่อของที่ผู้เล่นยังหาไม่เจอ
+    # ไม่งั้นคำสั่งกว้างๆ อย่าง "ปลดทุกอย่าง" จะกลายเป็นเมนูเฉลยชื่อของทั้งขบวน
+    # LLM มองเห็นตารางทั้งโลก แต่ไม่รู้ว่าผู้เล่นเดินไปถึงไหนแล้ว จึงต้องกรองที่ชั้นนี้
+    parsed.alternatives = [a for a in parsed.alternatives
+                           if engine.offerable((a.split() or [""])[-1], req.state)]
+
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
 
 
