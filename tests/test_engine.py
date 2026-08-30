@@ -423,3 +423,36 @@ def test_the_person_who_gives_the_key_is_reachable_from_the_start(engine):
     loc = engine.world["locations"][engine.world["suspects"][giver]["location"]]
     assert not loc.get("locked"), f"{giver} อยู่ในตู้ที่ล็อกอยู่ ทั้งที่เป็นคนให้กุญแจเอง"
     assert engine.decide(cmd(ActionType.INTERROGATE, giver), GameState()).allowed,         f"สอบปากคำ {giver} ตั้งแต่เริ่มเกมไม่ได้ ผู้เล่นจะไม่มีทางได้กุญแจ"
+
+
+def test_evidence_that_unlocks_something_in_another_car_says_which_car(engine):
+    """หลักฐานที่ปลดล็อกของในตู้อื่น ต้องบอกด้วยว่าตู้ไหน
+
+    เกมนี้พิมพ์ล้วนไม่มีปุ่ม ผู้เล่นรู้จักโลกจากข้อความเท่านั้น
+    ถ้าอ่านจบแล้วไม่รู้ว่าต้องไปไหนต่อ ก็ตันตรงนั้น เคยเกิดขึ้นจริงสามจุด
+    ส่วนของที่อยู่ตู้เดียวกันไม่ต้องบอก เพราะ ดูรอบๆ จะเห็นเอง
+    """
+    w = engine.world
+    unlocks = {}
+    for oid, o in w["objects"].items():
+        for need in o.get("requires_evidence", []):
+            unlocks.setdefault(need, []).append(("object", oid))
+    for sid, sus in w["suspects"].items():
+        for need in sus.get("requires_evidence", []):
+            unlocks.setdefault(need, []).append(("suspect", sid))
+
+    for src, targets in unlocks.items():
+        desc = w["objects"][src].get("description", "")
+        src_loc = w["objects"][src].get("location")
+        for kind, tid in targets:
+            entry = w["objects"][tid] if kind == "object" else w["suspects"][tid]
+            dst_loc = entry.get("location")
+            if not dst_loc or dst_loc == src_loc:
+                continue          # ตู้เดียวกัน ดูรอบๆ ก็เห็น
+            car = w["locations"][dst_loc]["name_th"].split(" (")[0]
+            # ยอมรับได้ทั้งเอ่ยชื่อตู้ตรงๆ หรือคำที่สื่อถึงตู้นั้นในเรื่อง
+            aliases = {car, "ตู้ท้ายขบวน" if dst_loc == "luggage_van" else car}
+            assert any(a in desc for a in aliases), (
+                f"'{src}' ปลดล็อก '{tid}' ซึ่งอยู่ที่ {dst_loc} "
+                f"แต่คำบรรยายไม่ได้บอกว่าต้องไปตู้ไหน ผู้เล่นจะตัน"
+            )
