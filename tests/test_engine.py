@@ -504,3 +504,15 @@ def test_cannot_interrogate_someone_in_another_car(engine):
         ok = engine.decide(cmd(ActionType.INTERROGATE, sid),
                            s.model_copy(update={"current_location": sus["location"]}))
         assert ok.allowed, f"{sid} ควรสอบปากคำได้เมื่อยืนอยู่ตู้เดียวกัน"
+
+
+def test_blocked_by_distance_tells_the_player_which_car_to_go_to(engine):
+    """บอกว่า 'ต้องเดินไปหาก่อน' เฉยๆ ไม่พอ ต้องบอกด้วยว่าตู้ไหน ไม่งั้นผู้เล่นตัน"""
+    for sid, sus in engine.world["suspects"].items():
+        elsewhere = next(l for l in engine.world["locations"] if l != sus["location"])
+        d = engine.decide(cmd(ActionType.INTERROGATE, sid),
+                          GameState(current_location=elsewhere,
+                                    discovered_evidence=list(engine.world["objects"])))
+        assert d.violated_rule_id == "R005_SAME_LOCATION"
+        car = engine.world["locations"][sus["location"]]["name_th"]
+        assert car in d.message, f"ข้อความไม่ได้บอกว่า {sid} อยู่ที่ {car}: {d.message}"

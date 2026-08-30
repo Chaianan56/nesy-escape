@@ -235,6 +235,16 @@ class SymbolicEngine:
                     message = ("คำสั่งนี้กว้างเกินไป ระบบจะไม่เดาแทนผู้เล่น "
                                "ลองบอกให้เจาะจงว่าจะทำกับสิ่งไหน "
                                "หรือพิมพ์ 'ดูรอบๆ' เพื่อดูว่าตอนนี้มีอะไรอยู่ตรงหน้าบ้าง")
+                elif rule["id"] == "R005_SAME_LOCATION":
+                    # เอนจินรู้อยู่แล้วว่าเป้าหมายอยู่ตู้ไหน แต่เดิมข้อความทิ้งข้อมูลนั้นไป
+                    # บอกแค่ว่าต้องเดินไปหาก่อน ผู้เล่นเลยตันเพราะไม่รู้ว่าตู้ไหน
+                    # ไม่ถือว่าเฉลย เพราะผู้เล่นเอ่ยชื่อสิ่งนั้นออกมาเองแล้ว
+                    entity = (self.world["objects"].get(cmd.target)
+                              or self.world["suspects"].get(cmd.target) or {})
+                    where = entity.get("location")
+                    if where:
+                        message += (f" {entity.get('name_th', cmd.target)} อยู่ที่"
+                                    f"{self.world['locations'].get(where, {}).get('name_th', where)}")
                 elif cmd.action is ActionType.UNKNOWN:
                     message += (" สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น "
                                 "ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ")
