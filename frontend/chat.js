@@ -240,6 +240,12 @@ async function sendMessage(e) {
     removeLoading();
     renderSystem(data.decision, data.parsed);
 
+    // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
+    // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
+    // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
+    const steps = parseSteps(data.parsed);
+    if (steps.length > 1) offerSteps(steps);
+
   } catch (err) {
     removeLoading();
     renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
@@ -248,6 +254,79 @@ async function sendMessage(e) {
     btn.disabled = false;
     btnText.textContent = "ส่งคำสั่ง";
     input.focus();
+  }
+}
+
+// ============================================================
+// คิวคำสั่งพ่วง — แปลง alternatives เป็นลำดับขั้นแล้วทำทีละขั้น
+// ============================================================
+function parseSteps(parsed) {
+  if (!parsed || (parsed.action !== "ambiguous" && parsed.action !== "unknown")) return [];
+  return (parsed.alternatives || [])
+    .map((a) => {
+      const [action, target] = a.split(/\s+/);
+      const known = { ...locationsMap, ...objectsMap, ...suspectsMap };
+      if (!action || !target || !known[target]) return null;
+      return { action, target, label: known[target] };
+    })
+    .filter(Boolean);
+}
+
+// ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งหมด" หรือ "เลือกอย่างใดอย่างหนึ่ง"
+//   "ไปที่ ก แล้วตรวจ ข"  -> ['move ก','examine ข']    ทำทั้งสอง
+//   "พาไปห้องอื่นหน่อย"    -> ['move ก','move ข',...]   เลือกอันเดียว
+// หน้าตาใน alternatives เหมือนกันทุกอย่าง จึงห้ามเดาแทนผู้เล่น
+// ให้เขากดเอง แม่นกว่าเดาผิดแล้วเผาเวลาในเกมทิ้ง
+function offerSteps(steps) {
+  const feed = document.getElementById("chatFeed");
+  const box = document.createElement("div");
+  box.className = "msg-system";
+  box.innerHTML =
+    `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>` +
+    `เลือกทำทีละอย่าง หรือทำทั้งหมดเรียงตามลำดับ</div>` +
+    `<div class="chips-scroll" id="stepChoices"></div>`;
+  feed.appendChild(box);
+
+  const wrap = box.querySelector("#stepChoices");
+  steps.forEach((st, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip-btn";
+    b.textContent = `${i + 1}. ${st.label}`;
+    b.onclick = () => { wrap.remove(); runSteps([st]); };
+    wrap.appendChild(b);
+  });
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "chip-btn";
+  all.textContent = `▶ ทำทั้งหมด ${steps.length} ขั้นตามลำดับ`;
+  all.onclick = () => { wrap.remove(); runSteps(steps); };
+  wrap.appendChild(all);
+
+  feed.scrollTop = feed.scrollHeight;
+}
+
+async function runSteps(steps) {
+  for (const [i, st] of steps.entries()) {
+    const res = await fetch(`${API_BASE}/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: `${st.action} ${st.target}`, state: gameState }),
+    });
+    if (!res.ok) { renderError(`⚠️ ขั้นที่ ${i + 1} ล้มเหลว: HTTP ${res.status}`); return; }
+    const data = await res.json();
+    if (data.new_state) gameState = data.new_state;
+    updateLocationHUD();
+    updateClock();
+    renderUser(steps.length > 1 ? `(ขั้นที่ ${i + 1}) ${st.label}` : st.label);
+    renderSystem(data.decision, data.parsed);
+
+    // ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
+    if (!data.decision.allowed) {
+      const left = steps.length - i - 1;
+      if (left > 0) renderError(`ยกเลิกอีก ${left} ขั้นที่รออยู่ เพราะขั้นนี้ทำไม่ได้`);
+      return;
+    }
   }
 }
 
