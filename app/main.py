@@ -7,10 +7,13 @@ app/main.py — Interaction Layer / ท่อเชื่อมระบบ (Mai
   1. Neural Layer (Gemini API)   : แปลงข้อความภาษาไทยของผู้เล่น -> ParsedCommand
   2. Symbolic Layer (Engine)     : ตรวจสอบกฎการเล่นและตัดสินผล -> Decision
   3. Game State Updates          : อัปเดตสถานะเกมหากคำสั่งได้รับการอนุมัติ
+- บริการไฟล์เว็บ Frontend (HTML, CSS, JS) ที่เส้นทาง Root (`/`)
 """
 
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.schemas import (
     ActionType,
@@ -86,3 +89,12 @@ def handle_command(req: CommandRequest):
     new_state = apply_changes(req.state, decision.state_changes) if decision.allowed else req.state
 
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
+
+
+# ------------------------------------------------------------
+# FRONTEND STATIC FILES MOUNT
+# บริการไฟล์ HTML/CSS/JS สำหรับ Web UI
+# ------------------------------------------------------------
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
