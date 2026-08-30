@@ -69,15 +69,16 @@
     },
     {
       "id": "R005_SAME_LOCATION",
-      "description": "ต้องอยู่ในตู้รถเดียวกับสิ่งที่ต้องการเข้าถึง",
+      "description": "ต้องอยู่ในตู้รถเดียวกับสิ่งหรือคนที่ต้องการเข้าถึง",
       "applies_to": [
         "examine",
         "take",
-        "use"
+        "use",
+        "interrogate"
       ],
       "check": "in_same_location",
       "params": {},
-      "message_fail": "สิ่งที่ระบุไม่ได้อยู่ในตู้รถนี้"
+      "message_fail": "สิ่งหรือคนที่ระบุไม่ได้อยู่ในตู้รถนี้ ต้องเดินไปหาก่อน"
     },
     {
       "id": "R006_TAKEABLE",

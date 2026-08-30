@@ -89,13 +89,16 @@ def test_evidence_prerequisite_enforced(engine):
 
 
 def test_interrogation_requires_grounds(engine):
-    d = engine.decide(cmd(ActionType.INTERROGATE, "gideon_hart"), GameState())
+    # ยืนอยู่ตู้เดียวกับเขาแล้ว ที่ยังคุยไม่ได้จึงเป็นเพราะยังไม่มีประเด็นตั้งคำถาม
+    s = GameState(current_location="dining_car")
+    d = engine.decide(cmd(ActionType.INTERROGATE, "gideon_hart"), s)
     assert not d.allowed
     assert d.violated_rule_id == "R010_INTERROGATE_PREREQ"
 
 
 def test_elias_requires_liora_first(engine):
-    s = GameState(discovered_evidence=["elias_ticket", "manifest_altered"])
+    s = GameState(current_location="luggage_van",
+                  discovered_evidence=["elias_ticket", "manifest_altered"])
     d = engine.decide(cmd(ActionType.INTERROGATE, "elias_venn"), s)
     assert not d.allowed
     assert d.violated_rule_id == "R010_INTERROGATE_PREREQ"
@@ -485,3 +488,19 @@ def test_offering_still_works_for_places_people_and_things_in_sight(engine):
     assert seen, "ฉากนี้ควรมีของที่มองเห็นได้อย่างน้อยหนึ่งชิ้น"
     for oid in seen:
         assert engine.offerable(oid, here), f"{oid} มองเห็นอยู่ตรงหน้าแต่กลับเสนอไม่ได้"
+
+
+def test_cannot_interrogate_someone_in_another_car(engine):
+    """ตะโกนข้ามขบวนไม่ได้ ต้องเดินไปหาคนนั้นก่อน"""
+    for sid, sus in engine.world["suspects"].items():
+        elsewhere = next(l for l in engine.world["locations"] if l != sus["location"])
+        s = GameState(current_location=elsewhere,
+                      discovered_evidence=list(engine.world["objects"]),
+                      interrogated_suspects=[x for x in engine.world["suspects"] if x != sid])
+        d = engine.decide(cmd(ActionType.INTERROGATE, sid), s)
+        assert not d.allowed, f"{sid} ไม่ควรถูกสอบปากคำจาก {elsewhere}"
+        assert d.violated_rule_id == "R005_SAME_LOCATION"
+        # ยืนถูกตู้แล้วต้องคุยได้ กันกฎใหม่บล็อกจนเล่นไม่จบ
+        ok = engine.decide(cmd(ActionType.INTERROGATE, sid),
+                           s.model_copy(update={"current_location": sus["location"]}))
+        assert ok.allowed, f"{sid} ควรสอบปากคำได้เมื่อยืนอยู่ตู้เดียวกัน"

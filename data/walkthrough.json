@@ -1,6 +1,10 @@
 {
-  "note": "เส้นทางเฉลยของฉาก ใช้ในเทสเพื่อพิสูจน์ว่าเกมเดินได้จนจบจริง",
+  "note": "เส้นทางเฉลยของฉาก ใช้ในเทสเพื่อพิสูจน์ว่าเกมเดินได้จนจบจริง ทุกขั้นต้องอยู่ในตู้เดียวกับสิ่งหรือคนที่จะเข้าถึง",
   "steps": [
+    [
+      "interrogate",
+      "mara_voss"
+    ],
     [
       "move",
       "service_pantry"
@@ -55,7 +59,7 @@
     ],
     [
       "interrogate",
-      "mara_voss"
+      "liora_venn"
     ],
     [
       "move",
@@ -102,16 +106,12 @@
       "gideon_seal"
     ],
     [
-      "interrogate",
-      "liora_venn"
+      "move",
+      "luggage_van"
     ],
     [
       "interrogate",
       "elias_venn"
-    ],
-    [
-      "move",
-      "luggage_van"
     ],
     [
       "examine",

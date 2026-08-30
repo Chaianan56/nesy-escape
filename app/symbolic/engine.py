@@ -79,8 +79,9 @@ def _in_same_location(cmd, state, world, p):
         if cmd.target != state.current_location:
             return False, f"ต้องเดินไปที่ '{cmd.target}' ก่อนจึงจะมองเห็นได้"
         return True, ""
-    obj = world["objects"].get(cmd.target, {})
-    where = obj.get("location")
+    # ค้นทั้งของและคน คนก็ต้องอยู่ตู้เดียวกันถึงจะสอบปากคำได้ ตะโกนข้ามขบวนไม่ได้
+    entity = world["objects"].get(cmd.target) or world["suspects"].get(cmd.target, {})
+    where = entity.get("location")
     if where is None:
         return True, ""
     if cmd.target in state.inventory:
