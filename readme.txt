@@ -28,7 +28,7 @@ NeSy-Escape (draft1) — Neuro-Symbolic Escape Room
     เอกสาร API: http://127.0.0.1:8000/docs
 
 ทดสอบ
-    python -m pytest -v           47 เทส (ชุดที่ต้องใช้ LLM จะ skip เองถ้าไม่มีคีย์)
+    python -m pytest -v           รันเทส (ต้อง pip install -r requirements-dev.txt ก่อน) (ชุดที่ต้องใช้ LLM จะ skip เองถ้าไม่มีคีย์)
 
 Endpoints
     GET  /health    สถานะระบบ

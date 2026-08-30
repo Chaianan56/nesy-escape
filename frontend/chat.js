@@ -8,7 +8,10 @@
  * 5. ป้ายแสดงตู้รถปัจจุบัน (Location HUD Pill)
  */
 
-const API_BASE = "http://127.0.0.1:8000";
+// ใช้ origin เดียวกับหน้าเว็บ เพราะ FastAPI เสิร์ฟทั้ง API และไฟล์หน้าเว็บ
+// ถ้าฝัง 127.0.0.1 ไว้ พอขึ้นคลาวด์เบราว์เซอร์จะยิงกลับไปที่เครื่องผู้ใช้เอง ไม่ใช่เซิร์ฟเวอร์
+// เปิดไฟล์ตรงๆ ด้วย file:// ค่อยถอยไปใช้ localhost
+const API_BASE = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
 
 let gameState = null;
 let timeLimitSeconds = 3600;

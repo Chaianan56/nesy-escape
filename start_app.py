@@ -1,15 +1,31 @@
 """
-start_app.py — Launch NeSy-Escape Web Application
+start_app.py — เปิดเซิร์ฟเวอร์ NeSy-Escape
+
+รันในเครื่อง:  python start_app.py        เปิดเบราว์เซอร์ให้อัตโนมัติ
+บนคลาวด์:      แพลตฟอร์มจะกำหนดพอร์ตมาให้ทาง environment variable PORT
+               และไม่ควรเปิดเบราว์เซอร์ ตั้ง NO_BROWSER=1 หรือปล่อยให้ตรวจ PORT เอง
 """
 
+import os
 import webbrowser
-import uvicorn
 from threading import Timer
 
+import uvicorn
+
+PORT = int(os.getenv("PORT", "8000"))
+HOST = os.getenv("HOST", "127.0.0.1")
+# แพลตฟอร์มคลาวด์กำหนด PORT มาให้เสมอ ใช้เป็นสัญญาณว่าไม่ได้รันในเครื่อง
+IS_CLOUD = bool(os.getenv("PORT")) or os.getenv("NO_BROWSER") == "1"
+
+
 def open_browser():
-    webbrowser.open("http://127.0.0.1:8000")
+    webbrowser.open(f"http://127.0.0.1:{PORT}")
+
 
 if __name__ == "__main__":
-    print("🚂 Starting NeSy-Escape Web App on http://127.0.0.1:8000 ...")
-    Timer(1.2, open_browser).start()
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    if IS_CLOUD:
+        HOST = "0.0.0.0"          # คลาวด์ต้องรับ request จากภายนอก
+    else:
+        Timer(1.2, open_browser).start()
+    print(f"NeSy-Escape กำลังเปิดที่ http://{HOST}:{PORT}")
+    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=not IS_CLOUD)
