@@ -292,6 +292,16 @@ class SymbolicEngine:
             lines.append(f"สิ่งที่สังเกตเห็นได้ตอนนี้:\n{names}")
         else:
             lines.append("ตอนนี้ยังไม่มีอะไรในตู้นี้ที่น่าตรวจสอบเพิ่ม")
+
+        # คนที่อยู่ในตู้นี้ — แสดงทุกคนที่อยู่ ไม่ว่าจะสอบปากคำได้แล้วหรือยัง
+        # เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าไม่บอกว่ามีใครอยู่ ผู้เล่นจะไม่มีทางรู้ว่าสอบปากคำใครได้
+        # ส่วนคนที่ยังสอบไม่ได้ กฎจะเป็นคนบอกเองว่าต้องหาหลักฐานอะไรก่อน
+        people = [(sid, s) for sid, s in self.world["suspects"].items()
+                  if s.get("location") == loc_id]
+        if people:
+            who = "\n".join(f"  - {s.get('name_th', sid)} ({s.get('role', '')})"
+                            for sid, s in people)
+            lines.append(f"คนที่อยู่ในตู้นี้:\n{who}")
         return "\n".join(lines)
 
     def _success_message(self, cmd: ParsedCommand, state: GameState) -> str:

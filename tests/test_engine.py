@@ -397,3 +397,29 @@ def test_closing_argument_changes_with_the_evidence_collected(engine):
     b = engine.closing_argument("gideon_hart", fewer)
     assert a != b
     assert engine.world["objects"]["gideon_seal"]["name_th"] not in b
+
+
+def test_every_suspect_can_be_found_by_walking_around(engine):
+    """ผู้ต้องสงสัยทุกคนต้องอยู่ในตู้ใดตู้หนึ่ง และต้องโผล่ตอน "ดูรอบๆ"
+
+    เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าคนไหนไม่ถูกเอ่ยถึงที่ไหนเลย ผู้เล่นจะไม่มีทาง
+    รู้ว่าสอบปากคำเขาได้ เคยเกิดขึ้นจริงมาแล้ว มารา วอสส์เป็นคนให้กุญแจที่ต้องใช้
+    เปิดสองห้องที่ล็อกอยู่ แต่ไม่มีข้อความไหนบอกว่าเธอมีตัวตน เกมจึงตันสนิท
+    """
+    for sid, sus in engine.world["suspects"].items():
+        loc = sus.get("location")
+        assert loc, f"{sid} ไม่ได้อยู่ตู้ไหนเลย ผู้เล่นจะหาไม่เจอ"
+        assert loc in engine.world["locations"], f"{sid} อยู่ในตู้ที่ไม่มีอยู่จริง: {loc}"
+        seen = engine.look_around(loc, GameState(current_location=loc))
+        assert sus["name_th"] in seen, f"ไปยืนที่ {loc} แล้วยังไม่เห็น {sid}"
+
+
+def test_the_person_who_gives_the_key_is_reachable_from_the_start(engine):
+    """คนที่ให้กุญแจต้องอยู่ในตู้ที่เดินไปถึงได้โดยไม่ต้องใช้กุญแจ
+
+    ไม่งั้นจะเป็นลูกโซ่วน คือต้องมีกุญแจก่อนถึงจะไปหาคนที่ให้กุญแจได้
+    """
+    giver = next(sid for sid, s in engine.world["suspects"].items() if s.get("grants_object"))
+    loc = engine.world["locations"][engine.world["suspects"][giver]["location"]]
+    assert not loc.get("locked"), f"{giver} อยู่ในตู้ที่ล็อกอยู่ ทั้งที่เป็นคนให้กุญแจเอง"
+    assert engine.decide(cmd(ActionType.INTERROGATE, giver), GameState()).allowed,         f"สอบปากคำ {giver} ตั้งแต่เริ่มเกมไม่ได้ ผู้เล่นจะไม่มีทางได้กุญแจ"
