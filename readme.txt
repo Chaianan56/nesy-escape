@@ -33,7 +33,7 @@ NeSy-Escape (draft1) — Neuro-Symbolic Escape Room
 Endpoints
     GET  /health    สถานะระบบ
     GET  /scene     ทะเบียน id ทั้งหมด + briefing + initial_state
-    POST /command   {text, mode, state} -> {parsed, decision, new_state}
+    POST /command   {text, state} -> {parsed, decision, new_state}
 
     เซิร์ฟเวอร์ไม่จำสถานะ ฝั่ง client ถือ GameState เองแล้วส่งไปกับทุก request
 

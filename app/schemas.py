@@ -71,8 +71,12 @@ class Decision(BaseModel):
 # 5) API REQUEST & RESPONSE
 # ============================================================
 class CommandRequest(BaseModel):
+    """คำขอหนึ่งครั้งจากผู้เล่น
+
+    ไม่มีฟิลด์ mode เพราะ draft1 มีเส้นทางเดียวคือ Neural ตีความ -> Symbolic ตัดสิน
+    โหมด baseline ที่ให้ LLM ตัดสินเองอยู่ในสาขาที่ทำการทดลอง
+    """
     text: str
-    mode: Optional[str] = "B"
     state: GameState
 
 
