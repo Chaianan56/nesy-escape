@@ -9,6 +9,8 @@ test_neural.py — ทดสอบ Neuro AI Layer
 """
 
 import os
+import re
+
 import pytest
 
 from app.schemas import ActionType, GameState, ParsedCommand
@@ -140,3 +142,22 @@ def test_a_non_quota_error_does_not_burn_the_backup_keys(monkeypatch):
     with pytest.raises(NeuralUnavailable):
         gc.interpret("ไปตู้เสบียง", GameState())
     assert broken.calls == 1 and spare.calls == 0
+
+
+def test_prompt_does_not_teach_the_model_to_invent_a_list_of_objects():
+    """ตารางในพรอมป์ตไม่ได้บอกว่าอะไรอยู่ตู้ไหน จึงห้ามสอนให้เดารายชื่อของในห้อง
+
+    เคยพลาดมาแล้ว few-shot สอนให้ตอบ 'ตรวจของในตู้นี้' ด้วย object 3 ชิ้นแรกในไฟล์
+    ซึ่งชิ้นแรกคือของที่ไม่ได้อยู่ในตู้ไหนเลย ผู้เล่นเลยถามถึงห้องตัวเองไม่ได้
+    """
+    prompt = build_interpret_system_prompt(STORY_DATA)
+    assert "ไม่ได้บอกว่าอะไรอยู่ตู้ไหน" in prompt
+    assert "เฉพาะสิ่งที่ผู้เล่นเอ่ยชื่อออกมาเองเท่านั้น" in prompt
+
+    # คำถามที่ถามถึงทั้งห้อง ต้องถูกสอนให้ตอบด้วย examine ของตู้ที่ยืนอยู่
+    for phrase in ("ตรวจของในตู้นี้", "ถามคนที่อยู่ในตู้นี้", "ดูหลักฐานที่อยู่ในห้องนี้ให้หมด"):
+        blocks = re.findall(r"\{[^{}]*" + re.escape(phrase) + r"[^{}]*\}", prompt, re.S)
+        assert blocks, f"ไม่พบตัวอย่างของ {phrase} ในพรอมป์ต"
+        for block in blocks:
+            assert '"action": "examine"' in block, block
+            assert any(f'"target": "{loc}"' in block for loc in STORY_DATA["locations"]), block

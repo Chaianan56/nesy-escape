@@ -516,3 +516,12 @@ def test_blocked_by_distance_tells_the_player_which_car_to_go_to(engine):
         assert d.violated_rule_id == "R005_SAME_LOCATION"
         car = engine.world["locations"][sus["location"]]["name_th"]
         assert car in d.message, f"ข้อความไม่ได้บอกว่า {sid} อยู่ที่ {car}: {d.message}"
+
+
+def test_looking_around_works_in_every_car(engine):
+    """prompt ชี้คำถามที่ถามถึงทั้งห้องมาที่ examine ตู้ปัจจุบัน ปลายทางนี้จึงต้องใช้ได้ทุกตู้"""
+    for loc_id in engine.world["locations"]:
+        s = GameState(current_location=loc_id, visited_locations=[loc_id])
+        d = engine.decide(cmd(ActionType.EXAMINE, loc_id), s)
+        assert d.allowed, f"ดูรอบๆ ที่ {loc_id} ไม่ผ่าน: {d.message}"
+        assert d.message == engine.look_around(loc_id, s)
