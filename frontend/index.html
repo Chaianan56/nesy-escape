@@ -3,77 +3,111 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeSy-Escape — ช่องแชทสืบสวน</title>
+  <title>NeSy-Escape — ระบบสืบสวนคดีฆาตกรรมบนรถไฟ (Alliance UI)</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Header: Alliance Theme with Clock (FE-3), Pillars Trigger (FE-4), and Mode Toggle -->
+  <!-- ================= TOP NAVBAR ================= -->
   <header class="navbar">
-    <div class="brand">🚂 NeSy-Escape</div>
-    
-    <div class="nav-center">
-      <!-- FE-3: นาฬิกานับถอยหลังการสืบสวน -->
-      <div id="clockWidget" class="clock-widget" title="เวลาที่เหลือในการสืบสวน (ลดลงตาละ 60 วินาที)">
-        <span class="clock-icon">⏱️</span>
+    <!-- Brand Logo -->
+    <div class="brand">
+      <span class="brand-icon">🚂</span>
+      <div class="brand-text">
+        <span class="brand-name">NeSy-Escape</span>
+        <span class="brand-sub">นอกเทิร์นเอกซ์เพรส 1938</span>
+      </div>
+    </div>
+
+    <!-- HUD Center: Location, Clock, Four Pillars -->
+    <div class="nav-hud">
+      <!-- ตำแหน่งปัจจุบันของผู้เล่น -->
+      <div id="locWidget" class="hud-pill loc-pill" title="ตำแหน่งตู้รถที่ยืนอยู่ปัจจุบัน">
+        <span class="hud-icon">📍</span>
+        <span id="locText">ตู้โดยสาร</span>
+      </div>
+
+      <!-- FE-3: นาฬิกาการสืบสวน -->
+      <div id="clockWidget" class="hud-pill clock-pill" title="เวลาที่เหลือในการสืบสวน (ลดลงตาละ 60 วินาที)">
+        <span class="hud-icon">⏱️</span>
         <span id="clockText">60:00</span>
       </div>
 
       <!-- FE-4: ปุ่มเปิด-ปิดแผงสี่เสา -->
-      <button id="pillarsBtn" class="pillars-btn" onclick="togglePillarsPanel()" title="ดูความคืบหน้าหลักฐาน 4 ด้านของผู้ต้องสงสัย (Motive, Means, Opportunity, Corroboration)">
-        <span>🏛️ หลักฐาน 4 เสา</span>
-        <span id="pillarsBadge" class="pillars-badge">0/4</span>
+      <button id="pillarsBtn" class="hud-btn pillars-trigger" onclick="togglePillarsPanel()" title="ตรวจสอบความคืบหน้า 4 เสาหลัก (Motive, Means, Opportunity, Corroboration)">
+        <span class="hud-icon">🏛️</span>
+        <span>หลักฐาน 4 เสา</span>
+        <span id="pillarsBadge" class="badge-counter">0/4</span>
       </button>
     </div>
 
-    <div class="modes">
-      <button id="btnB" class="active" onclick="setMode('B')" title="โหมดที่นำเสนอ: ประมวลผลผ่าน Symbolic Engine ตรวจกฎ 15 ข้อ">
+    <!-- Mode Selector: Mode B (Proposed) vs Mode A (Baseline) -->
+    <div class="modes-toggle">
+      <button id="btnB" class="mode-tab active" onclick="setMode('B')" title="โหมดที่นำเสนอ: ประมวลผลผ่าน Symbolic Engine ตรวจกฎ 15 ข้อ">
         ⚖️ โหมด B (NeSy)
       </button>
-      <button id="btnA" onclick="setMode('A')" title="โหมดเปรียบเทียบ (Baseline): ใช้ LLM ตัดสินเดี่ยว ไม่มีเอนจินกฎ">
+      <button id="btnA" class="mode-tab" onclick="setMode('A')" title="โหมดเปรียบเทียบ (Baseline): ใช้ LLM ตัดสินเดี่ยว ไม่มีเอนจินกฎ">
         🤖 โหมด A (Baseline)
       </button>
     </div>
   </header>
 
-  <!-- FE-4: Dropdown Panel สำหรับแผงความคืบหน้าสี่เสา -->
-  <section id="pillarsPanel" class="pillars-panel" style="display: none;">
-    <div class="pillars-header">
-      <div class="pillars-title">🏛️ ตรวจสอบความคืบหน้า 4 เสาหลัก (Four Pillars Tracker)</div>
-      <button type="button" onclick="togglePillarsPanel()" class="close-btn">✕</button>
+  <!-- ================= FE-4: FOUR PILLARS DRAWER ================= -->
+  <aside id="pillarsPanel" class="pillars-drawer" style="display: none;">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <h3>🏛️ แผงติดตามหลักฐาน 4 เสาหลัก (Four Pillars Tracker)</h3>
+        <p class="drawer-desc">ตามกฎ R013 การตั้งข้อกล่าวหาผู้ต้องสงสัยจะต้องมีหลักฐานครบทั้ง 4 ด้าน: แรงจูงใจ, วิธีการ, โอกาส, และหลักฐานสนับสนุน</p>
+      </div>
+      <button type="button" class="drawer-close" onclick="togglePillarsPanel()">✕</button>
     </div>
-    <p class="pillars-desc">
-      การตั้งข้อกล่าวหาผู้ต้องสงสัยตามกฎ R013 ต้องมีหลักฐานครบ 4 ด้าน: 
-      <strong>แรงจูงใจ (Motive)</strong>, <strong>วิธีการ (Means)</strong>, <strong>โอกาส (Opportunity)</strong>, และ <strong>หลักฐานสนับสนุน (Corroboration)</strong>
-    </p>
     <div id="pillarsGrid" class="pillars-grid">
-      <!-- Suspect pillar cards dynamically populated from POST /pillars -->
+      <!-- ข้อมูลผู้ต้องสงสัยและเสาหลักฐานจะถูกโหลดจาก POST /pillars -->
     </div>
-  </section>
+  </aside>
 
-  <!-- Chat Main Area -->
+  <!-- ================= MAIN CHAT CONTAINER ================= -->
   <main class="chat-container">
+    <!-- Stream ของข้อความสนทนาและเนื้อเรื่อง -->
     <div id="chatFeed" class="chat-feed">
-      <!-- ข้อความแชท: Briefing -> ดูรอบๆ -> การตอบกลับ -->
+      <!-- บรีฟคดี -> คำบรรยายห้องตอนเริ่ม -> การโต้ตอบของผู้เล่น -->
     </div>
 
-    <!-- ข้อ 1: ตัวอย่างคำสั่ง (Quick Suggestion Chips) -->
-    <div class="quick-chips-bar">
-      <span class="chips-label">💡 ตัวอย่างคำสั่ง:</span>
-      <button type="button" onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button>
-      <button type="button" onclick="fillInput('ไปที่จุดเกิดเหตุ')">ไปที่จุดเกิดเหตุ</button>
-      <button type="button" onclick="fillInput('ตรวจดูสมุดบันทึกของผู้ตาย')">ตรวจดูสมุดบันทึกของผู้ตาย</button>
-      <button type="button" onclick="fillInput('ขอสอบปากคำพนักงานควบคุมรถหน่อย')">ขอสอบปากคำพนักงานควบคุมรถหน่อย</button>
-      <button type="button" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
+    <!-- ข้อ 1: แถบตัวอย่างคำสั่งที่พิมพ์ได้ (Quick Suggestions Bar) -->
+    <div class="quick-chips-wrapper">
+      <span class="chips-label">💡 คำสั่งแนะนำ:</span>
+      <div class="chips-scroll">
+        <button type="button" class="chip-btn" onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button>
+        <button type="button" class="chip-btn" onclick="fillInput('ไปที่จุดเกิดเหตุ')">ไปที่จุดเกิดเหตุ</button>
+        <button type="button" class="chip-btn" onclick="fillInput('ตรวจดูสมุดบันทึกของผู้ตาย')">ตรวจดูสมุดบันทึกของผู้ตาย</button>
+        <button type="button" class="chip-btn" onclick="fillInput('ขอสอบปากคำพนักงานควบคุมรถหน่อย')">ขอสอบปากคำพนักงานควบคุมรถหน่อย</button>
+        <button type="button" class="chip-btn chip-danger" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
+      </div>
     </div>
 
-    <!-- Input Form -->
+    <!-- Pinned Bottom Input Form -->
     <form onsubmit="sendMessage(event)" class="chat-input-bar">
-      <input id="chatInput" type="text" placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย (หรือคลิกตัวอย่างด้านบน)..." autocomplete="off" />
-      <button type="submit" id="sendBtn">
-        <span id="sendBtnText">ส่ง</span>
-      </button>
+      <div class="input-inner">
+        <input 
+          id="chatInput" 
+          type="text" 
+          placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย (หรือคลิกตัวอย่างคำสั่งด้านบน)..." 
+          autocomplete="off" 
+        />
+        <button type="submit" id="sendBtn" class="send-button">
+          <span id="sendBtnText">ส่งคำสั่ง</span>
+          <svg class="send-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">
+        <span>คำสั่งถูกส่งไปประมวลผลผ่าน Neural Interpretation Layer &amp; Symbolic Rule Engine</span>
+      </div>
     </form>
   </main>
 

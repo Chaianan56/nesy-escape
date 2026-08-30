@@ -1,11 +1,12 @@
 /**
- * NeSy-Escape: Complete Controller
+ * NeSy-Escape: Complete Controller & UI Manager (Alliance Modern Dashboard)
  * 
- * ครอบคลุมสเปก:
+ * คุณสมบัติ:
  * 1. ตัวอย่างคำสั่ง (Quick Suggestion Chips & Onboarding Hints)
- * 2. คำบรรยายห้องตอนเริ่มเกม (Auto-execute 'ดูรอบๆ' หลังโหลด /scene)
- * 3. แผงความคืบหน้าสี่เสา (FE-4: POST /pillars ทุกครั้งที่คำสั่งผ่าน)
- * 4. นาฬิกาการสืบสวน (FE-3: นับถอยหลังตาม time_limit_seconds - elapsed_seconds)
+ * 2. คำบรรยายห้องตอนเริ่มเกม (Auto Look Around via POST /command)
+ * 3. แผงความคืบหน้าสี่เสา (FE-4: Dossier Drawer via POST /pillars)
+ * 4. นาฬิกาการสืบสวน (FE-3: Investigation Clock)
+ * 5. ป้ายแสดงตู้รถปัจจุบัน (Location HUD Pill)
  */
 
 const API_BASE = "http://127.0.0.1:8000";
@@ -13,10 +14,12 @@ const API_BASE = "http://127.0.0.1:8000";
 let currentMode = "B"; // 'B' = NeSy Engine, 'A' = Baseline LLM
 let gameState = null;
 let timeLimitSeconds = 3600;
+let locationsMap = {};
 let suspectsMap = {};
+let objectsMap = {};
 let pillarsData = {};
 
-const PILLAR_NAMES = {
+const PILLAR_LABELS = {
   motive: "แรงจูงใจ (Motive)",
   means: "วิธีการ (Means)",
   opportunity: "โอกาส (Opportunity)",
@@ -47,12 +50,15 @@ async function initGame() {
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
     timeLimitSeconds = sceneData.time_limit_seconds || 3600;
+    locationsMap = sceneData.locations || {};
     suspectsMap = sceneData.suspects || {};
+    objectsMap = sceneData.objects || {};
 
-    // อัปเดตนาฬิกาครั้งแรก (FE-3)
+    // อัปเดต HUD (ตำแหน่งและนาฬิกา)
+    updateLocationHUD();
     updateClock();
 
-    // เคลียร์ loading และแสดงบทเปิดคดี (Briefing) จาก story.json จริง
+    // เคลียร์ loading และแสดงบรีฟคดี (Briefing) จาก story.json
     feed.innerHTML = "";
     renderBriefing(sceneData.briefing);
 
@@ -73,7 +79,7 @@ async function initGame() {
   }
 }
 
-// แสดงการ์ดบทเปิดคดี พร้อมตัวอย่างคำสั่งเบื้องต้น (ข้อ 1)
+// แสดงการ์ดบรีฟคดี พร้อมตัวอย่างคำสั่งเบื้องต้น (ข้อ 1)
 function renderBriefing(briefingText) {
   const feed = document.getElementById("chatFeed");
   const card = document.createElement("div");
@@ -88,7 +94,7 @@ function renderBriefing(briefingText) {
     <div class="hints-box">
       <div class="hints-title">💡 ตัวอย่างคำสั่งที่พิมพ์ได้ในเกม:</div>
       <div class="hints-list">
-        <div>• <code>ดูรอบๆ</code> — สำรวจตู้รถที่ยืนอยู่และดูว่ามีอะไรให้ตรวจสอบบ้าง</div>
+        <div>• <code>ดูรอบๆ</code> — สำรวจตู้รถที่ยืนอยู่และดูสิ่งที่มองเห็นได้</div>
         <div>• <code>ไปที่จุดเกิดเหตุ</code> — เดินทางไปยังห้องเก็บของบริการ</div>
         <div>• <code>ตรวจดูสมุดบันทึกของผู้ตาย</code> — ตรวจสอบวัตถุหรือหลักฐานในห้อง</div>
         <div>• <code>ขอสอบปากคำพนักงานควบคุมรถหน่อย</code> — พูดคุยกับพยานหรือผู้ต้องสงสัย</div>
@@ -99,7 +105,7 @@ function renderBriefing(briefingText) {
   feed.appendChild(card);
 }
 
-// ข้อ 2: ยิงคำสั่ง "ดูรอบๆ" อัตโนมัติเพื่อแสดงคำบรรยายห้องที่ผู้เล่นยืนอยู่
+// ข้อ 2: ยิงคำสั่ง "ดูรอบๆ" อัตโนมัติเพื่อแสดงคำบรรยายห้องที่ยืนอยู่
 async function executeInitialLookAround() {
   try {
     const res = await fetch(`${API_BASE}/command`, {
@@ -115,9 +121,9 @@ async function executeInitialLookAround() {
     if (res.ok) {
       const data = await res.json();
       if (data.new_state) gameState = data.new_state;
+      updateLocationHUD();
       updateClock();
 
-      // แสดงผลคำบรรยายห้อง
       renderSystem(data.decision, data.parsed, true);
     }
   } catch (e) {
@@ -126,8 +132,15 @@ async function executeInitialLookAround() {
 }
 
 // ============================================================
-// 2. นาฬิกาการสืบสวน (FE-3)
+// 2. HUD UPDATES (Location & Clock)
 // ============================================================
+function updateLocationHUD() {
+  const locText = document.getElementById("locText");
+  if (!locText || !gameState) return;
+  const locId = gameState.current_location || "passenger_car";
+  locText.textContent = locationsMap[locId] || locId;
+}
+
 function updateClock() {
   const clockText = document.getElementById("clockText");
   const clockWidget = document.getElementById("clockWidget");
@@ -141,19 +154,19 @@ function updateClock() {
   clockText.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
   if (remaining <= 0) {
-    clockWidget.className = "clock-widget danger";
+    clockWidget.className = "hud-pill clock-pill danger";
     clockText.textContent = "00:00 (หมดเวลา)";
-  } else if (remaining <= 600) { // เหลือน้อยกว่า 10 นาที
-    clockWidget.className = "clock-widget danger";
-  } else if (remaining <= 1200) { // เหลือน้อยกว่า 20 นาที
-    clockWidget.className = "clock-widget warning";
+  } else if (remaining <= 600) {
+    clockWidget.className = "hud-pill clock-pill danger";
+  } else if (remaining <= 1200) {
+    clockWidget.className = "hud-pill clock-pill warning";
   } else {
-    clockWidget.className = "clock-widget";
+    clockWidget.className = "hud-pill clock-pill";
   }
 }
 
 // ============================================================
-// 3. แผงความคืบหน้าสี่เสา (FE-4)
+// 3. FE-4: FOUR PILLARS TRACKER (แผงสี่เสา)
 // ============================================================
 async function fetchPillars() {
   if (!gameState) return;
@@ -185,15 +198,20 @@ function renderPillarsUI() {
     let foundCount = 0;
 
     let itemsHtml = "";
-    for (const [pillarKey, pLabel] of Object.entries(PILLAR_NAMES)) {
+    for (const [pillarKey, pLabel] of Object.entries(PILLAR_LABELS)) {
       const evList = pillars[pillarKey] || [];
       const hasEv = evList.length > 0;
       if (hasEv) foundCount++;
 
+      const evNames = evList.map(id => objectsMap[id] || id).join(", ");
+      const hint = hasEv ? ` (${evNames})` : "";
+
       itemsHtml += `
-        <div class="pillar-item">
+        <div class="pillar-row">
           <span>${pLabel.split(" ")[0]}</span>
-          <span class="status ${hasEv ? 'yes' : 'no'}">${hasEv ? '✓ พบแล้ว' : '✗ ยังไม่พบ'}</span>
+          <span class="pillar-status-badge ${hasEv ? 'yes' : 'no'}" title="${hasEv ? 'หลักฐาน: ' + evNames : 'ยังไม่มีหลักฐาน'}">
+            ${hasEv ? '✓ พบแล้ว' + hint : '✗ ยังไม่พบ'}
+          </span>
         </div>
       `;
     }
@@ -204,9 +222,9 @@ function renderPillarsUI() {
     const card = document.createElement("div");
     card.className = `suspect-card ${isCulprit ? 'target' : ''}`;
     card.innerHTML = `
-      <div class="suspect-name">
-        <span>👤 ${escapeHtml(thName)}</span>
-        <span class="suspect-count">${foundCount}/4 เสา</span>
+      <div class="suspect-card-header">
+        <span class="suspect-name">👤 ${escapeHtml(thName)}${isCulprit ? ' ★' : ''}</span>
+        <span class="suspect-progress-pill">${foundCount}/4 เสา</span>
       </div>
       <div>${itemsHtml}</div>
     `;
@@ -231,11 +249,11 @@ function setMode(mode) {
   const btnA = document.getElementById("btnA");
 
   if (mode === "B") {
-    btnB.className = "active";
-    btnA.className = "";
+    btnB.className = "mode-tab active";
+    btnA.className = "mode-tab";
   } else {
-    btnB.className = "";
-    btnA.className = "mode-a-active";
+    btnB.className = "mode-tab";
+    btnA.className = "mode-tab mode-a-active";
   }
 }
 
@@ -261,10 +279,10 @@ async function sendMessage(e) {
 
   if (!text) return;
 
-  // ล็อกช่องพิมพ์ทันที กันกดซ้ำ
+  // ล็อกช่องพิมพ์ทันที ป้องกัน Race Condition
   input.disabled = true;
   btn.disabled = true;
-  btnText.textContent = "...";
+  btnText.textContent = "ประมวลผล...";
 
   renderUser(text);
   input.value = "";
@@ -308,10 +326,11 @@ async function sendMessage(e) {
       gameState = data.new_state;
     }
 
-    // อัปเดตนาฬิกา (FE-3)
+    // อัปเดต HUD (ตำแหน่งและนาฬิกา)
+    updateLocationHUD();
     updateClock();
 
-    // อัปเดตสี่เสาเมื่อคำสั่งผ่าน (FE-4)
+    // อัปเดตสี่เสาเมื่อคำสั่งผ่าน
     if (data.decision && data.decision.allowed) {
       fetchPillars();
     }
@@ -325,7 +344,7 @@ async function sendMessage(e) {
   } finally {
     input.disabled = false;
     btn.disabled = false;
-    btnText.textContent = "ส่ง";
+    btnText.textContent = "ส่งคำสั่ง";
     input.focus();
   }
 }
@@ -350,7 +369,7 @@ function renderUser(text) {
 function renderSystem(decision, parsed = null, isRoomLook = false) {
   const feed = document.getElementById("chatFeed");
   const card = document.createElement("div");
-  card.className = `msg-system ${decision.allowed ? "" : "denied"} ${isRoomLook ? "room-look" : ""}`;
+  card.className = `msg-system ${decision.allowed ? "" : "denied"} ${isRoomLook ? "room-card" : ""}`;
 
   const steps = decision.reasoning_chain || [];
   let statusBadge = "";
@@ -362,9 +381,9 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     statusBadge = `<span class="badge denied">✗ ปฏิเสธ (DENIED)</span>`;
   }
 
-  const modeLabel = currentMode === "B" ? "โหมด B (NeSy)" : "โหมด A (Baseline)";
+  const modeLabel = currentMode === "B" ? "โหมด B (NeSy Engine)" : "โหมด A (Baseline LLM)";
 
-  // Reasoning Chain
+  // Reasoning Chain (FE-1 Core)
   let reasoningHtml = "";
   if (steps.length > 0) {
     if (decision.allowed) {
