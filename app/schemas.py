@@ -1,5 +1,9 @@
 """
-schemas.py — สัญญากลาง (Contract) ระหว่าง Neural Layer และ Symbolic Layer
+schemas.py — สัญญากลาง (Data Contracts & Schemas) ระหว่าง Neural Layer และ Symbolic Layer
+
+หน้าที่:
+- กำหนดโครงสร้างข้อมูลมาตรฐาน (Pydantic Models) ที่ใช้แลกเปลี่ยนข้อมูลระหว่างเลเยอร์
+- ป้องกันความผิดพลาดของชนิดข้อมูลและชื่อฟิลด์ในการเชื่อมต่อระบบ
 """
 
 from enum import Enum
@@ -8,75 +12,85 @@ from pydantic import BaseModel, Field
 
 
 # ============================================================
-# 1) ACTION — รายการสิ่งที่ผู้เล่นทำได้ทั้งหมด
+# 1) ACTION TYPE — ประเภทการกระทำทั้งหมดในเกม
 # ============================================================
 class ActionType(str, Enum):
-    EXAMINE = "examine"        # ตรวจสอบวัตถุ/หลักฐาน
-    TAKE = "take"              # หยิบ/เก็บ
-    USE = "use"                # ใช้ของกับเป้าหมาย
-    UNLOCK = "unlock"          # ปลดล็อก
-    MOVE = "move"              # เคลื่อนย้ายตัวเอง/วัตถุ
+    """รายการ Action ทั้งหมดที่ระบบรองรับ"""
+    EXAMINE = "examine"          # ตรวจสอบวัตถุ/สถานที่/หลักฐาน
+    TAKE = "take"                # หยิบ/เก็บวัตถุเข้ากระเป๋า
+    USE = "use"                  # ใช้ไอเทมกับเป้าหมาย (ต้องระบุ instrument)
+    UNLOCK = "unlock"            # ปลดล็อกวัตถุ/สถานที่
+    MOVE = "move"                # เคลื่อนที่ไปยังตู้รถอื่น
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
-    ACCUSE = "accuse"          # กล่าวหา (จบเกม)
+    ACCUSE = "accuse"            # กล่าวหาฆาตกร (จบเกม)
 
-    AMBIGUOUS = "ambiguous"    # ตีความได้หลายทาง
-    UNKNOWN = "unknown"        # ตีความไม่ได้เลย / อยู่นอกขอบเขตเกม
+    AMBIGUOUS = "ambiguous"      # คำสั่งกำกวม ตีความได้หลายทาง
+    UNKNOWN = "unknown"          # คำสั่งอยู่นอกขอบเขตหรือไม่สามารถตีความได้
 
 
 # ============================================================
-# 2) NEURAL OUTPUT
+# 2) NEURAL LAYER OUTPUT — ผลลัพธ์จากการตีความของ LLM
 # ============================================================
 class ParsedCommand(BaseModel):
-    """ผลลัพธ์จาก LLM หลังตีความภาษาธรรมชาติ"""
-    action: ActionType
-    target: Optional[str] = Field(None, description="id ของเป้าหมาย")
-    instrument: Optional[str] = Field(None, description="id ของสิ่งที่ใช้")
-    raw_text: str = Field(..., description="ข้อความดิบของผู้เล่น")
-    confidence: float = Field(0.0, ge=0.0, le=1.0)
-    alternatives: List[str] = Field(default_factory=list)
+    """ผลลัพธ์ที่ Gemini สกัดจากข้อความภาษาไทยของผู้เล่น
+
+    หมายเหตุ: โมเดลนี้ไม่มีฟิลด์ 'allowed' โดยเจตนา 
+    เพราะหน้าที่ตัดสินใจเป็นของ Symbolic Layer 100%
+    """
+    action: ActionType = Field(..., description="ประเภทการกระทำที่สกัดได้")
+    target: Optional[str] = Field(None, description="ID ภาษาอังกฤษของเป้าหมาย (เช่น 'service_pantry')")
+    instrument: Optional[str] = Field(None, description="ID ภาษาอังกฤษของไอเทมที่ใช้ (เช่น 'crew_key')")
+    raw_text: str = Field(..., description="ข้อความภาษาไทยดิบดั้งเดิมจากผู้เล่น")
+    confidence: float = Field(0.0, ge=0.0, le=1.0, description="ความมั่นใจในการสกัดข้อมูลของ LLM")
+    alternatives: List[str] = Field(default_factory=list, description="ตัวเลือกเพิ่มเติมหากคำสั่งกำกวม")
 
 
 # ============================================================
-# 3) GAME STATE
+# 3) GAME STATE — สถานะของเกม ณ ปัจจุบัน
 # ============================================================
 class GameState(BaseModel):
-    current_location: str = Field("passenger_car", description="id ของตู้รถที่ผู้เล่นอยู่")
-    inventory: List[str] = Field(default_factory=list)
-    discovered_evidence: List[str] = Field(default_factory=list)
-    unlocked_objects: List[str] = Field(default_factory=list)
-    visited_locations: List[str] = Field(default_factory=lambda: ["passenger_car"])
-    interrogated_suspects: List[str] = Field(default_factory=list)
-    elapsed_seconds: int = 0
-    turn_count: int = 0
+    """สถานะรวมของเกมในขณะนั้น (ตำแหน่ง, ไอเทม, หลักฐาน)"""
+    current_location: str = Field("passenger_car", description="ID ของตู้รถที่ผู้เล่นยืนอยู่ปัจจุบัน")
+    inventory: List[str] = Field(default_factory=list, description="รายการ ID วัตถุที่ถือติดตัว")
+    discovered_evidence: List[str] = Field(default_factory=list, description="รายการ ID หลักฐานที่ค้นพบแล้ว")
+    unlocked_objects: List[str] = Field(default_factory=list, description="รายการ ID สิ่งที่ถูกปลดล็อกแล้ว")
+    visited_locations: List[str] = Field(default_factory=lambda: ["passenger_car"], description="ตู้รถที่เคยไปแล้ว")
+    interrogated_suspects: List[str] = Field(default_factory=list, description="ผู้ต้องสงสัยที่เคยสอบปากคำแล้ว")
+    elapsed_seconds: int = Field(0, description="เวลาที่ผ่านไปในเกม (วินาที)")
+    turn_count: int = Field(0, description="จำนวนตาที่เล่นไปแล้ว")
 
 
 # ============================================================
-# 4) REASONING CHAIN & DECISION
+# 4) REASONING CHAIN & DECISION — คำตัดสินจาก Symbolic Engine
 # ============================================================
 class ReasoningStep(BaseModel):
-    rule_id: str
-    description: str
-    passed: bool
+    """ขั้นตอนการตรวจสอบกฎเกณฑ์ 1 ขั้น"""
+    rule_id: str = Field(..., description="รหัสกฎใน rules.json (เช่น 'R005_SAME_LOCATION')")
+    description: str = Field(..., description="คำอธิบายกฎภาษาไทย")
+    passed: bool = Field(..., description="ผลการตรวจสอบกฎ (ผ่าน / ไม่ผ่าน)")
 
 
 class Decision(BaseModel):
-    allowed: bool
-    message: str
-    reasoning_chain: List[ReasoningStep] = Field(default_factory=list)
-    violated_rule_id: Optional[str] = None
-    state_changes: Dict[str, Any] = Field(default_factory=dict)
+    """คำตัดสินสุดท้ายจาก Symbolic Engine"""
+    allowed: bool = Field(..., description="อนุมัติให้ดำเนินการหรือไม่ (True / False)")
+    message: str = Field(..., description="ข้อความบรรยายผลลัพธ์ที่จะแสดงแก่ผู้เล่น")
+    reasoning_chain: List[ReasoningStep] = Field(default_factory=list, description="ลำดับการตรวจกฎทั้งหมด (Reasoning Chain)")
+    violated_rule_id: Optional[str] = Field(None, description="รหัสกฎที่ละเมิด (หากถูกปฏิเสธ)")
+    state_changes: Dict[str, Any] = Field(default_factory=dict, description="รายการเปลี่ยนแปลงสถานะเกม")
 
 
 # ============================================================
-# 5) API REQUEST & RESPONSE
+# 5) API REQUEST & RESPONSE — โครงสร้างรับส่ง API
 # ============================================================
 class CommandRequest(BaseModel):
-    text: str
-    mode: Optional[str] = "B"
-    state: GameState
+    """Payload รับเข้าจาก Frontend"""
+    text: str = Field(..., description="ข้อความคำสั่งภาษาไทยจากผู้เล่น")
+    mode: Optional[str] = Field("B", description="โหมดการทำงาน")
+    state: GameState = Field(..., description="สถานะเกมปัจจุบัน")
 
 
 class CommandResponse(BaseModel):
-    parsed: ParsedCommand
-    decision: Decision
-    new_state: GameState
+    """Payload ตอบกลับไปยัง Frontend"""
+    parsed: ParsedCommand = Field(..., description="ผลการตีความจาก Neural Layer")
+    decision: Decision = Field(..., description="คำตัดสินและ Reasoning Chain จาก Symbolic Layer")
+    new_state: GameState = Field(..., description="สถานะเกมใหม่หลังประมวลผล")

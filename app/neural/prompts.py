@@ -1,18 +1,10 @@
 """
-prompts.py — คลังเก็บ System Prompts และ Instruction Templates สำหรับ Gemini LLM
+prompts.py — คลังเก็บ System Prompts และ Dynamic Entity Grounding สำหรับ Gemini LLM
 
 หน้าที่:
-- เก็บข้อความตระกูล System Prompt, Prompt Template, และตัวอย่าง Few-shot Examples
-- แยกข้อความคำสั่งออกจากโค้ดคำนวณ เพื่อให้ง่ายต่อการจูน Prompt (Prompt Engineering)
-
-ประกอบด้วย:
-1. build_interpret_system_prompt(): สร้าง Prompt สำหรับตีความคำสั่งผู้เล่น
-   พร้อม Entity Grounding (ID จาก story.json) และ Few-shot Examples (กลุ่ม A, B, C, D)
-2. build_baseline_decision_prompt(): สร้าง Prompt สำหรับ Mode A Baseline
-   พร้อมแนบกฎทั้งหมดจาก rules.json เพื่อความยุติธรรมของการทดลอง
-
-⚠️ ตัวอย่าง Few-shot ทั้งหมดถูกสร้างจาก story.json จริง ห้าม hard-code id ลงไฟล์นี้
-   เพราะ id ที่ไม่มีอยู่จริงจะสอนให้ LLM สร้าง id ผิดขึ้นมาเอง (entity hallucination)
+- จัดสร้าง Dynamic System Prompt สำหรับให้ LLM ตีความข้อความภาษาไทยของผู้เล่น
+- ทำ Dynamic Entity Grounding ดึงทะเบียน ID จาก story.json มาสร้างตารางจับคู่ภาษาไทย-อังกฤษใน Prompt
+- เพิ่มตัวอย่าง Few-shot Examples แบบไดนามิก เพื่อให้ LLM ส่งออกรูปแบบ JSON ได้ตรงตาม ParsedCommand Schema
 """
 
 from typing import Any, Dict, List
