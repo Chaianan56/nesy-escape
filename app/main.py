@@ -24,6 +24,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.schemas import (
     ActionType,
@@ -72,7 +73,7 @@ engine = SymbolicEngine()
 #       ต่างกันแค่ว่ามันไม่ถูกบังคับให้ทำตาม)
 # ============================================================
 
-from app.neural.gemini_client import interpret, decide_autonomously, llm_online
+from app.neural.gemini_client import _clients, interpret, decide_autonomously, llm_online
 
 
 # ============================================================
@@ -80,13 +81,31 @@ from app.neural.gemini_client import interpret, decide_autonomously, llm_online
 # ============================================================
 
 @app.get("/health")
-def health():
-    return {
+def health(probe: bool = False):
+    """ตรวจความพร้อมของระบบ
+
+    llm_configured บอกแค่ว่าตั้งคีย์ไว้แล้ว ไม่ได้แปลว่าเรียกได้จริง
+    เดิมฟิลด์นี้ชื่อ llm_online ซึ่งทำให้เข้าใจผิด เพราะโควตาหมดแล้วมันก็ยังตอบ true
+    ถ้าอยากรู้ว่าเรียกได้จริงไหม ต้องส่ง ?probe=true ซึ่งจะยิง API จริงหนึ่งครั้ง
+    ไม่ทำให้เป็นค่าเริ่มต้น เพราะทุกครั้งที่เรียกจะกินโควตารายวัน
+    """
+    info = {
         "status": "ok",
-        "llm_online": llm_online(),   # False = Neural Layer กำลังเดินด้วย fallback heuristic
+        "llm_configured": llm_online(),
+        "llm_keys": len(_clients()),
         "rules_loaded": len(engine.rules),
         "objects_loaded": len(engine.world["objects"]),
+        "suspects_loaded": len(engine.world["suspects"]),
+        "endings_loaded": len(engine.world.get("endings", [])),
     }
+    if probe:
+        try:
+            interpret("ดูรอบๆ", GameState())
+            info["llm_reachable"] = True
+        except Exception as e:
+            info["llm_reachable"] = False
+            info["llm_error"] = str(e)[:200]
+    return info
 
 
 @app.get("/scene")
@@ -105,6 +124,7 @@ def scene():
         "objects": {k: v.get("name_th") for k, v in w["objects"].items()},
         "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
         "actions": [a.value for a in ActionType],
+        "rules_count": len(engine.rules),
         "initial_state": GameState().model_dump(),
     }
 
@@ -136,6 +156,12 @@ def handle_command(req: CommandRequest):
 
     # --- ขั้นที่ 3: อัปเดตสถานะ ---
     new_state = apply_changes(req.state, decision.state_changes) if decision.allowed else req.state
+
+    # ตัวเลือกที่ยื่นกลับไปต้องไม่เอ่ยชื่อของที่ผู้เล่นยังหาไม่เจอ
+    # ไม่งั้นคำสั่งกว้างๆ อย่าง "ปลดทุกอย่าง" จะกลายเป็นเมนูเฉลยชื่อของทั้งขบวน
+    # LLM มองเห็นตารางทั้งโลก แต่ไม่รู้ว่าผู้เล่นเดินไปถึงไหนแล้ว จึงต้องกรองที่ชั้นนี้
+    parsed.alternatives = [a for a in parsed.alternatives
+                           if engine.offerable((a.split() or [""])[-1], req.state)]
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     _write_log(req, parsed, decision, latency_ms)
@@ -170,3 +196,12 @@ def _write_log(req: CommandRequest, parsed: ParsedCommand,
     fname = LOG_DIR / f"{datetime.now():%Y%m%d}_play_mode_{req.mode.value}.jsonl"
     with fname.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+# ------------------------------------------------------------
+# FRONTEND STATIC FILES MOUNT
+# ต้องอยู่ท้ายสุด เพราะ mount ที่ "/" จะกลืนทุก path ที่ประกาศหลังจากนี้
+# ------------------------------------------------------------
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

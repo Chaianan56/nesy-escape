@@ -68,11 +68,10 @@ SYSTEM_BASELINE_DECISION_PROMPT = build_baseline_decision_prompt(RULES_DATA, STO
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
-_client_instance: Optional[object] = None
-
+_clients_cache: Optional[list] = None
 
 class NeuralUnavailable(RuntimeError):
-    """เรียก LLM ไม่สำเร็จขณะอยู่ในโหมด strict"""
+    """Exception แจ้งเตือนเมื่อเรียกใช้งาน LLM ไม่สำเร็จ"""
 
 
 def _strict() -> bool:
@@ -125,29 +124,49 @@ class _DecisionResponse(BaseModel):
         )
 
 
-def get_genai_client():
-    """สร้างหรือคืนค่า Singleton Client ของ Gemini (คืน None ถ้าไม่มี SDK หรือไม่มี API Key)"""
-    global _client_instance
+def _is_quota_error(e: Exception) -> bool:
+    """โควตาหมดของคีย์นี้หรือเปล่า ถ้าใช่ค่อยคุ้มที่จะเปลี่ยนไปคีย์อื่น"""
+    text = str(e)
+    return "RESOURCE_EXHAUSTED" in text or "429" in text
+
+
+def _clients() -> list:
+    """คืนไคลเอนต์ของทุกคีย์ตามลำดับที่เขียนไว้
+
+    ใส่คีย์สำรองได้โดยคั่นด้วยจุลภาคในตัวแปร GEMINI_API_KEY ตัวเดิม
+    เช่น  GEMINI_API_KEY=AIzaคีย์หลัก,AIzaคีย์สำรอง
+    ตั้งตัวแปรชื่ออื่นเพิ่มไม่มีผล เพราะไม่มีโค้ดตรงไหนอ่าน
+
+    โควตาฟรีนับต่อโปรเจกต์ ไม่ใช่ต่อคีย์ คีย์สำรองจึงต้องมาจากโปรเจกต์อื่นถึงจะได้โควตาเพิ่ม
+    """
+    global _clients_cache
     if not GENAI_AVAILABLE:
-        return None
-    if _client_instance is None:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if api_key:
-            _client_instance = genai.Client(api_key=api_key)
-    return _client_instance
+        return []
+    if _clients_cache is None:
+        _clients_cache = [
+            genai.Client(api_key=key)
+            for key in (k.strip() for k in os.getenv("GEMINI_API_KEY", "").split(","))
+            if key
+        ]
+    return _clients_cache
+
+
+def get_genai_client():
+    """คืนไคลเอนต์ตัวแรก ใช้ตรวจว่าตั้งคีย์ไว้แล้วหรือยัง"""
+    clients = _clients()
+    return clients[0] if clients else None
 
 
 def llm_online() -> bool:
-    """บอกว่าตอนนี้ระบบเรียก LLM ได้จริงหรือกำลังเดินด้วย Fallback"""
+    """ตั้งคีย์ไว้แล้วหรือยัง
+
+    ชื่อฟังก์ชันชวนเข้าใจผิด มันไม่ได้ตรวจว่าเรียก API ได้จริง
+    แค่ตรวจว่ามีคีย์และสร้างไคลเอนต์ได้ โควตาหมดแล้วมันก็ยังคืน True
+    ถ้าอยากรู้ว่าเรียกได้จริงไหม ต้องลองเรียก interpret() แล้วดักข้อผิดพลาดเอง
+    """
     return get_genai_client() is not None
 
 
-# ============================================================
-# FALLBACK PARSER — ใช้เมื่อไม่มี API Key หรือ API ขัดข้อง
-# ไม่ใช่ส่วนของการทดลอง มีไว้ให้ระบบและ frontend เดินได้โดยไม่ต้องมีคีย์
-# ============================================================
-
-# คำกริยาจัดกลุ่มตาม action เรียงตามความยาวตอนจับคู่ คำเฉพาะเจาะจงกว่าชนะ
 _VERBS: Dict[ActionType, List[str]] = {
     ActionType.INTERROGATE: ["interrogate", "สอบปากคำ", "สอบสวน", "ซักถาม", "พูดกับ", "คุยกับ", "ถาม", "คุย"],
     ActionType.ACCUSE: ["accuse", "กล่าวหา", "ชี้ตัว", "จับกุม", "ระบุตัวคนร้าย"],
@@ -276,31 +295,30 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     """แกะความหมายจากข้อความภาษาธรรมชาติของผู้เล่น ให้กลายเป็น ParsedCommand
 
     Args:
-        text (str): ข้อความป้อนเข้าจากผู้เล่น
-        state (GameState): สถานะเกมปัจจุบัน ใช้เป็นบริบทช่วยแก้คำกำกวม
+        text (str): ข้อความภาษาไทยดิบจากผู้เล่น (เช่น 'เดินไปตู้เสบียง', 'ตรวจดูบันทึก')
+        state (GameState): สถานะเกมปัจจุบัน ใช้เป็นบริบทช่วยในการแกะคำกำกวม
 
     Returns:
-        ParsedCommand: คำสั่งที่ผ่านการตีความเชิงโครงสร้างแล้ว
+        ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, instrument, confidence)
     """
-    # Step 1: Preprocessing & Feature Extraction
-    features: PreprocessedFeature = preprocess_text(text)
-    clean_text = features.normalized_text
+    clients = _clients()
+    if not clients:
+        raise NeuralUnavailable("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
 
-    client = get_genai_client()
+    # ประกอบ Prompt พร้อมบริบทตำแหน่งของผู้เล่น ไอเทมในกระเป๋า และหลักฐานที่พบ
+    prompt_content = (
+        f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
+        f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
+        f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
+        f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}"
+    )
 
-    # Step 2: ถ้ามี Gemini API Key ให้เรียกใช้ Gemini จริง
-    if client is not None:
+    # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
+    # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
+    last_error: Optional[Exception] = None
+    for client in clients:
         try:
-            prompt_content = (
-                f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
-                f"ข้อความหลังล้าง (Normalized Text): '{clean_text}'\n"
-                f"ภาษาที่ตรวจพบ (Language): {features.language}\n"
-                f"คำสำคัญ (Keywords): {', '.join(features.keywords)}\n"
-                f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
-                f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
-                f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}"
-            )
-
+            # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
             response = client.models.generate_content(
                 model=DEFAULT_MODEL,
                 contents=prompt_content,
@@ -311,20 +329,17 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                     temperature=0.0,
                 ),
             )
-            if response.text:
-                parsed_result = ParsedCommand.model_validate_json(response.text)
-                parsed_result.raw_text = text
-                return parsed_result
-            _fallback_or_raise("Gemini คืนคำตอบว่าง")
-        except NeuralUnavailable:
-            raise
+            if not response.text:
+                raise RuntimeError("Gemini API คืนคำตอบว่าง")
+            parsed_result = ParsedCommand.model_validate_json(response.text)
+            parsed_result.raw_text = text
+            return parsed_result
         except Exception as e:
-            _fallback_or_raise(f"เรียก Gemini API ล้มเหลว: {e}")
-    else:
-        _fallback_or_raise("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai")
-
-    # Step 3: Fallback Heuristic Parser (กรณีไม่มี API Key หรือ API ขัดข้อง)
-    return _fallback_parse(text, clean_text, state)
+            last_error = e
+            if not _is_quota_error(e):
+                break
+    raise NeuralUnavailable(
+        f"เรียก Gemini API ล้มเหลว (ลองแล้ว {len(clients)} คีย์): {last_error}")
 
 
 def decide_autonomously(text: str, state: GameState, parsed: ParsedCommand) -> Decision:

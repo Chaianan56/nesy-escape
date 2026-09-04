@@ -26,6 +26,7 @@ class ActionType(str, Enum):
     MOVE = "move"              # เคลื่อนย้ายตัวเอง/วัตถุ
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
     ACCUSE = "accuse"          # กล่าวหา (จบเกม)
+    BURN = "burn"              # ทำลายเอกสาร ทำลายแล้วเรียกคืนไม่ได้
 
     # --- สอง action นี้สำคัญมากต่อการทดลอง ห้ามตัดออก ---
     AMBIGUOUS = "ambiguous"    # ตีความได้หลายทาง -> กลุ่ม D (30 คำสั่ง)
@@ -69,6 +70,8 @@ class GameState(BaseModel):
     interrogated_suspects: List[str] = Field(default_factory=list)
     elapsed_seconds: int = 0
     turn_count: int = 0
+    burned_objects: List[str] = Field(default_factory=list, description="id ของสิ่งที่ถูกทำลายไปแล้ว")
+    ending_id: Optional[str] = Field(None, description="id ฉากจบ ถ้าไม่ใช่ None แปลว่าคดีปิดแล้ว")
 
 
 # ============================================================

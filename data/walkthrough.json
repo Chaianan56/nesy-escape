@@ -1,6 +1,30 @@
 {
-  "note": "เส้นทางเฉลยฉบับทางการ ใช้สองที่: เทสกันเกมตัน และเป็นจุดตั้งต้น (checkpoint) ของคำสั่งในการทดลอง",
+  "note": "เส้นทางเฉลยของฉาก ใช้ในเทสเพื่อพิสูจน์ว่าเกมเดินได้จนจบจริง ทุกขั้นต้องอยู่ในตู้เดียวกับสิ่งหรือคนที่จะเข้าถึง",
   "steps": [
+    [
+      "examine",
+      "seat_eight"
+    ],
+    [
+      "interrogate",
+      "mara_voss"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "wine_receipt_2316"
+    ],
+    [
+      "move",
+      "medical_bay"
+    ],
+    [
+      "examine",
+      "medical_key_log"
+    ],
     [
       "move",
       "service_pantry"
@@ -8,6 +32,10 @@
     [
       "examine",
       "crime_scene_record"
+    ],
+    [
+      "examine",
+      "pantry_door"
     ],
     [
       "examine",
@@ -19,43 +47,7 @@
     ],
     [
       "examine",
-      "latch_scratches"
-    ],
-    [
-      "examine",
-      "supply_hatch"
-    ],
-    [
-      "examine",
-      "copper_wire"
-    ],
-    [
-      "move",
-      "luggage_van"
-    ],
-    [
-      "examine",
-      "elias_ticket"
-    ],
-    [
-      "examine",
-      "bellwether_documents"
-    ],
-    [
-      "examine",
-      "project_nocturne_file"
-    ],
-    [
-      "move",
-      "dining_car"
-    ],
-    [
-      "examine",
-      "wine_receipt_2316"
-    ],
-    [
-      "interrogate",
-      "mara_voss"
+      "service_hatch"
     ],
     [
       "move",
@@ -67,7 +59,7 @@
     ],
     [
       "examine",
-      "master_key_record"
+      "mara_incident_note"
     ],
     [
       "move",
@@ -79,19 +71,175 @@
     ],
     [
       "examine",
+      "oil_footprints"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
+      "examine",
+      "elias_ticket"
+    ],
+    [
+      "examine",
+      "bellwether_record"
+    ],
+    [
+      "examine",
+      "letter_nine"
+    ],
+    [
+      "move",
+      "passenger_car"
+    ],
+    [
+      "examine",
+      "coat_missing_button"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "gideon_table_note"
+    ],
+    [
+      "examine",
+      "unfinished_wine_glass"
+    ],
+    [
+      "interrogate",
+      "gideon_hart"
+    ],
+    [
+      "move",
+      "medical_bay"
+    ],
+    [
+      "interrogate",
+      "liora_venn"
+    ],
+    [
+      "move",
+      "service_pantry"
+    ],
+    [
+      "examine",
+      "latch_scratches"
+    ],
+    [
+      "examine",
+      "hatch_scuff_marks"
+    ],
+    [
+      "move",
+      "conductor_office"
+    ],
+    [
+      "examine",
+      "master_key_record"
+    ],
+    [
+      "examine",
+      "mara_sighting_note"
+    ],
+    [
+      "examine",
+      "anselm_draft"
+    ],
+    [
+      "move",
+      "electrical_compartment"
+    ],
+    [
+      "examine",
       "removed_fuse"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
+      "examine",
+      "project_nocturne_file"
+    ],
+    [
+      "interrogate",
+      "elias_venn"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "gideon_cane"
+    ],
+    [
+      "examine",
+      "narin_report_1931"
+    ],
+    [
+      "take",
+      "narin_report_1931"
+    ],
+    [
+      "interrogate",
+      "halm"
+    ],
+    [
+      "move",
+      "service_pantry"
+    ],
+    [
+      "examine",
+      "holdback_tampered"
+    ],
+    [
+      "move",
+      "electrical_compartment"
     ],
     [
       "examine",
       "blackout_log_46s"
     ],
     [
+      "interrogate",
+      "ilya_renn"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
       "examine",
-      "oil_footprints"
+      "nocturne_page_19"
+    ],
+    [
+      "examine",
+      "nocturne_page_41"
+    ],
+    [
+      "examine",
+      "letter_ten"
+    ],
+    [
+      "examine",
+      "elias_testimony"
+    ],
+    [
+      "move",
+      "passenger_car"
     ],
     [
       "interrogate",
-      "ilya_renn"
+      "mira_solen"
+    ],
+    [
+      "move",
+      "electrical_compartment"
     ],
     [
       "examine",
@@ -100,33 +248,27 @@
     [
       "examine",
       "gideon_seal"
-    ],
-    [
-      "interrogate",
-      "liora_venn"
-    ],
-    [
-      "interrogate",
-      "elias_venn"
-    ],
-    [
-      "move",
-      "luggage_van"
-    ],
-    [
-      "examine",
-      "elias_testimony"
     ]
   ],
   "checkpoints": {
     "เริ่มเกม": 0,
-    "ถึงจุดเกิดเหตุ": 1,
-    "สำรวจจุดเกิดเหตุครบ": 7,
-    "ถึงตู้สัมภาระ": 8,
-    "ได้กุญแจพนักงาน": 14,
-    "อยู่ห้องพนักงานควบคุมรถ": 17,
-    "อยู่ห้องระบบไฟฟ้า": 22,
-    "สอบปากคำอิลยาแล้ว": 25,
-    "ครบสี่เสา": 29
+    "ได้กุญแจพนักงาน": 2,
+    "สอบปากคำมารา วอสส์แล้ว": 2,
+    "ถึงตู้เสบียง": 3,
+    "ถึงห้องแพทย์": 5,
+    "ถึงห้องเก็บของบริการ": 7,
+    "ถึงห้องพนักงานควบคุมรถ": 13,
+    "ถึงห้องระบบไฟฟ้า": 16,
+    "ถึงตู้สัมภาระ": 19,
+    "ถึงตู้โดยสาร": 23,
+    "สอบปากคำกิเดียน ฮาร์ตแล้ว": 28,
+    "สอบปากคำแพทย์หญิงลิโอรา เวนน์แล้ว": 30,
+    "สอบปากคำอีไลอัส เวนน์แล้ว": 42,
+    "ถือรายงานปี 1931": 46,
+    "สอบปากคำฮาล์มแล้ว": 47,
+    "สอบปากคำอิลยา เรนน์แล้ว": 52,
+    "ครบสี่เสา": 55,
+    "สอบปากคำมิรา โซเลนแล้ว": 59,
+    "จบเฉลย": 62
   }
 }
