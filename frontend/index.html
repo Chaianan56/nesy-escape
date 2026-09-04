@@ -3,113 +3,384 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeSy-Escape — ระบบสืบสวนคดีฆาตกรรมบนรถไฟ (Alliance UI)</title>
+  <title>Nocturne Express: The Eighth Passenger — Wireframe</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- ================= TOP NAVBAR ================= -->
-  <header class="navbar">
-    <!-- Brand Logo -->
-    <div class="brand">
-      <span class="brand-icon">🚂</span>
-      <div class="brand-text">
-        <span class="brand-name">NeSy-Escape</span>
-        <span class="brand-sub">นอกเทิร์นเอกซ์เพรส 1938</span>
+  <!-- ================= 1. แถบด้านบน (TOP HEADER) ================= -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-crest">NE</div>
+      <div class="brand-title-group">
+        <span class="gold-ornament">❖</span>
+        <h1 class="brand-title">Nocturne Express: The Eighth Passenger</h1>
+        <span class="gold-ornament">❖</span>
       </div>
     </div>
 
-    <!-- HUD Center: Location, Clock, Four Pillars -->
-    <div class="nav-hud">
-      <!-- ตำแหน่งปัจจุบันของผู้เล่น -->
-      <div id="locWidget" class="hud-pill loc-pill" title="ตำแหน่งตู้รถที่ยืนอยู่ปัจจุบัน">
-        <span class="hud-icon">📍</span>
-        <span id="locText">ตู้โดยสาร</span>
+    <div class="header-hud">
+      <div class="hud-pill act-pill">Act 2</div>
+      <div class="hud-pill loc-pill" id="headerLocTag">📍 <span id="locHeader">ตู้เสบียง</span></div>
+      <div class="hud-pill time-pill">⏱ <span id="clockHeader">23:42</span></div>
+      
+      <!-- โหมดวิจัย A/B -->
+      <div class="mode-switch">
+        <button id="btnModeB" class="mode-btn active" onclick="setMode('B')">โหมด B (NeSy)</button>
+        <button id="btnModeA" class="mode-btn" onclick="setMode('A')">โหมด A</button>
       </div>
 
-      <!-- FE-3: นาฬิกาการสืบสวน -->
-      <div id="clockWidget" class="hud-pill clock-pill" title="เวลาที่เหลือในการสืบสวน (ลดลงตาละ 60 วินาที)">
-        <span class="hud-icon">⏱️</span>
-        <span id="clockText">60:00</span>
-      </div>
-
-      <!-- FE-4: ปุ่มเปิด-ปิดแผงสี่เสา -->
-      <button id="pillarsBtn" class="hud-btn pillars-trigger" onclick="togglePillarsPanel()" title="ตรวจสอบความคืบหน้า 4 เสาหลัก (Motive, Means, Opportunity, Corroboration)">
-        <span class="hud-icon">🏛️</span>
-        <span>หลักฐาน 4 เสา</span>
-        <span id="pillarsBadge" class="badge-counter">0/4</span>
-      </button>
-    </div>
-
-    <!-- Mode Selector: Mode B (Proposed) vs Mode A (Baseline) -->
-    <div class="modes-toggle">
-      <button id="btnB" class="mode-tab active" onclick="setMode('B')" title="โหมดที่นำเสนอ: ประมวลผลผ่าน Symbolic Engine ตรวจกฎ 15 ข้อ">
-        ⚖️ โหมด B (NeSy)
-      </button>
-      <button id="btnA" class="mode-tab" onclick="setMode('A')" title="โหมดเปรียบเทียบ (Baseline): ใช้ LLM ตัดสินเดี่ยว ไม่มีเอนจินกฎ">
-        🤖 โหมด A (Baseline)
-      </button>
+      <button class="settings-btn" onclick="openBriefingModal()" title="เปิดบรีฟคดี">⚙</button>
     </div>
   </header>
 
-  <!-- ================= FE-4: FOUR PILLARS DRAWER ================= -->
-  <aside id="pillarsPanel" class="pillars-drawer" style="display: none;">
-    <div class="drawer-header">
-      <div class="drawer-title-group">
-        <h3>🏛️ แผงติดตามหลักฐาน 4 เสาหลัก (Four Pillars Tracker)</h3>
-        <p class="drawer-desc">ตามกฎ R013 การตั้งข้อกล่าวหาผู้ต้องสงสัยจะต้องมีหลักฐานครบทั้ง 4 ด้าน: แรงจูงใจ, วิธีการ, โอกาส, และหลักฐานสนับสนุน</p>
+  <!-- ================= 2. พื้นที่ทำงาน 3 คอลัมน์ (MAIN 3-COLUMNS) ================= -->
+  <main class="main-layout">
+
+    <!-- [คอลัมน์ซ้าย: กระดานคดี (CASE BOARD)] -->
+    <aside class="layout-left case-board-box">
+      <div class="box-header">
+        <h2 class="box-title">กระดานคดี</h2>
+        <span class="box-icon">🔍</span>
       </div>
-      <button type="button" class="drawer-close" onclick="togglePillarsPanel()">✕</button>
-    </div>
-    <div id="pillarsGrid" class="pillars-grid">
-      <!-- ข้อมูลผู้ต้องสงสัยและเสาหลักฐานจะถูกโหลดจาก POST /pillars -->
-    </div>
-  </aside>
 
-  <!-- ================= MAIN CHAT CONTAINER ================= -->
-  <main class="chat-container">
-    <!-- Stream ของข้อความสนทนาและเนื้อเรื่อง -->
-    <div id="chatFeed" class="chat-feed">
-      <!-- บรีฟคดี -> คำบรรยายห้องตอนเริ่ม -> การโต้ตอบของผู้เล่น -->
-    </div>
+      <!-- ส่วนที่ 1: คำถามหลักของคดี -->
+      <div class="board-block">
+        <div class="block-title">คำถามหลักของคดี</div>
+        <div class="questions-list">
+          <div class="question-item">
+            <span class="q-badge">1</span>
+            <span class="q-label">ผู้โดยสารคนที่ 8 คือใคร?</span>
+            <span class="q-diamond">◇</span>
+          </div>
+          <div class="question-item">
+            <span class="q-badge">2</span>
+            <span class="q-label">ห้องปิดตายถูกสร้างได้อย่างไร?</span>
+            <span class="q-diamond">◇</span>
+          </div>
+          <div class="question-item">
+            <span class="q-badge">3</span>
+            <span class="q-label">ไฟดับ 46 วินาทีเกิดจากอะไร?</span>
+            <span class="q-diamond">◇</span>
+          </div>
+          <div class="question-item">
+            <span class="q-badge">4</span>
+            <span class="q-label">เหตุใด Cassian จึงถูกฆ่า?</span>
+            <span class="q-diamond">◇</span>
+          </div>
+        </div>
+      </div>
 
-    <!-- ข้อ 1: แถบตัวอย่างคำสั่งที่พิมพ์ได้ (Quick Suggestions Bar) -->
-    <div class="quick-chips-wrapper">
-      <span class="chips-label">💡 คำสั่งแนะนำ:</span>
-      <div class="chips-scroll">
-        <button type="button" class="chip-btn" onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ไปที่จุดเกิดเหตุ')">ไปที่จุดเกิดเหตุ</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ตรวจดูสมุดบันทึกของผู้ตาย')">ตรวจดูสมุดบันทึกของผู้ตาย</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ขอสอบปากคำพนักงานควบคุมรถหน่อย')">ขอสอบปากคำพนักงานควบคุมรถหน่อย</button>
-        <button type="button" class="chip-btn chip-danger" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
+      <!-- ส่วนที่ 2: ความคืบหน้าการสืบสวน -->
+      <div class="board-block progress-block">
+        <div class="block-title">ความคืบหน้าการสืบสวน</div>
+
+        <div class="progress-item">
+          <div class="prog-meta">
+            <span>เบาะแสที่พบ</span>
+            <span id="evidenceRatio" class="prog-count">18 / 42</span>
+          </div>
+          <div class="prog-bar-bg">
+            <div id="evidenceBar" class="prog-bar-fill" style="width: 43%;"></div>
+          </div>
+        </div>
+
+        <div class="progress-item">
+          <div class="prog-meta">
+            <span>บุคคลที่พบ</span>
+            <span id="suspectRatio" class="prog-count">7 / 12</span>
+          </div>
+          <div class="prog-bar-bg">
+            <div id="suspectBar" class="prog-fill" style="width: 58%;"></div>
+          </div>
+        </div>
+
+        <div class="progress-item">
+          <div class="prog-meta">
+            <span>สถานที่ตรวจแล้ว</span>
+            <span id="locRatio" class="prog-count">4 / 8</span>
+          </div>
+          <div class="prog-bar-bg">
+            <div id="locBar" class="prog-fill" style="width: 50%;"></div>
+          </div>
+        </div>
+
+        <div class="progress-item">
+          <div class="prog-meta">
+            <span>คำถามที่ตอบได้</span>
+            <span id="pillarRatio" class="prog-count">1 / 4</span>
+          </div>
+          <div class="prog-bar-bg">
+            <div id="pillarBar" class="prog-fill gold-fill" style="width: 25%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="board-footer">
+        <p>ทุกคำที่คุณพิมพ์อาจช่วยขยายเหตุผลและไขปริศนานี้</p>
+        <div class="ne-sign">- NE -</div>
+      </div>
+    </aside>
+
+    <!-- [คอลัมน์กลาง: ฉากห้อง + บทสนทนา + ผังรถไฟ] -->
+    <section class="layout-center stage-box">
+      <!-- 1. ช่องแสดงฉากและตัวละคร -->
+      <div class="scene-stage">
+        <div class="scene-ambient-backdrop">
+          <!-- เมนูด้านหลัง -->
+          <div class="ambient-menu-card">
+            <div class="menu-tag">MENU</div>
+            <div class="menu-row">Soupe du Jour</div>
+            <div class="menu-row">Boeuf Bourguignon</div>
+            <div class="menu-row">Tarte Tatin</div>
+          </div>
+
+          <!-- โคมไฟ -->
+          <div class="ambient-lantern">
+            <div class="lantern-glow-orb"></div>
+          </div>
+
+          <!-- ประตูตู้บริการ -->
+          <div class="ambient-doorway">
+            <div class="door-tag">SERVICE</div>
+            <div class="door-window"></div>
+          </div>
+
+          <!-- เคาน์เตอร์ -->
+          <div class="ambient-counter"></div>
+        </div>
+
+        <!-- ตัวละครเงาดำ (Silhouette) -->
+        <div class="character-silhouette-wrap">
+          <div class="silhouette-card">
+            <svg viewBox="0 0 160 220" class="silhouette-vector">
+              <path fill="#080b10" stroke="#8c733e" stroke-width="1.5" d="
+                M 80 30
+                C 65 30, 55 42, 53 60
+                C 51 78, 58 90, 64 98
+                C 48 110, 34 135, 26 170
+                C 22 190, 18 210, 15 220
+                L 145 220
+                C 142 210, 138 190, 134 170
+                C 126 135, 112 110, 96 98
+                C 102 90, 109 78, 107 60
+                C 105 42, 95 30, 80 30 Z
+              " />
+            </svg>
+          </div>
+        </div>
+
+        <!-- กล่องข้อความบทสนทนา (Dialogue Box) -->
+        <div class="dialogue-overlay-card">
+          <div class="dialogue-meta">
+            <div class="speaker-grp">
+              <span class="speaker-title" id="speakerName">Mara</span>
+              <span class="speaker-role" id="speakerRole">พนักงานควบคุมรถไฟ</span>
+            </div>
+            <div class="decision-tag allowed" id="decisionBadge">
+              <span class="tag-dot">●</span>
+              <span id="decisionBadgeText">✓ ตรวจสอบผ่าน (ALLOWED)</span>
+            </div>
+          </div>
+
+          <div class="dialogue-text" id="dialogueText">
+            ...ฉันจำเวลาไม่ได้เป๊ะ ๆ หรอกนะคะ แต่ก่อนที่จะไฟดับ ฉันเห็นคุณ Cassian ยืนอยู่แถวตู้โดยสาร... เหมือนกำลังรอใครบางคน
+          </div>
+
+          <!-- Reasoning Chain (FE-1) -->
+          <div id="reasoningContainer" class="reasoning-drawer">
+            <details id="reasoningDetails" class="drawer-accordion">
+              <summary class="accordion-title">
+                <span>🔍 ตรวจสอบกฎ Symbolic Engine (Reasoning Chain)</span>
+                <span id="rulesCountBadge" class="rules-badge">ผ่าน 4/4</span>
+              </summary>
+              <div id="rulesTable" class="rules-list-box"></div>
+            </details>
+            <div id="failAlertBox" class="fail-notice-box" style="display: none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. ผังขบวนรถไฟ (Train Schematic Map) -->
+      <div class="train-schematic-bar">
+        <div class="rail-line"></div>
+        <div class="train-cars-flex">
+          <div class="car-card" data-loc="locomotive" onclick="quickMove('locomotive')">
+            <div class="car-hull"><span class="car-ico">🚂</span></div>
+            <span class="car-txt">หัวจักร</span>
+          </div>
+          <div class="car-card" id="car-passenger_car" data-loc="passenger_car" onclick="quickMove('passenger_car')">
+            <div class="car-hull"><span class="car-ico">🪑</span></div>
+            <span class="car-txt">ตู้โดยสาร</span>
+          </div>
+          <div class="car-card active" id="car-dining_car" data-loc="dining_car" onclick="quickMove('dining_car')">
+            <div class="pin-marker">📍</div>
+            <div class="car-hull active-hull"><span class="car-ico">🍷</span></div>
+            <span class="car-txt">ตู้เสบียง</span>
+          </div>
+          <div class="car-card" id="car-luggage_van" data-loc="luggage_van" onclick="quickMove('luggage_van')">
+            <div class="car-hull"><span class="car-ico">📦</span></div>
+            <span class="car-txt">ตู้สัมภาระ</span>
+          </div>
+          <div class="car-card" id="car-electrical_compartment" data-loc="electrical_compartment" onclick="quickMove('electrical_compartment')">
+            <div class="car-hull"><span class="car-ico">⚡</span></div>
+            <span class="car-txt">ห้องไฟฟ้า</span>
+          </div>
+          <div class="car-card" id="car-service_pantry" data-loc="service_pantry" onclick="quickMove('service_pantry')">
+            <div class="car-hull crime-hull"><span class="car-ico">⚠️</span></div>
+            <span class="car-txt">ห้องสัมภาระท้าย</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- [คอลัมน์ขวา: แฟ้มหลักฐาน & บุคคล (DOSSIER)] -->
+    <aside class="layout-right dossier-box">
+      <!-- แท็บเมนู -->
+      <div class="dossier-tab-row">
+        <button id="tabBtnEvidence" class="tab-pill active" onclick="switchRightTab('evidence')">🔍 หลักฐาน</button>
+        <button id="tabBtnSuspects" class="tab-pill" onclick="switchRightTab('suspects')">👤 บุคคล</button>
+        <button id="tabBtnPillars" class="tab-pill" onclick="switchRightTab('pillars')">📖 บันทึก 4 เสา</button>
+      </div>
+
+      <!-- เนื้อหาแท็บ 1: หลักฐาน & บุคคล -->
+      <div id="tabContentEvidence" class="tab-pane active">
+        <div class="pane-subheading">หลักฐานสำคัญ</div>
+        
+        <!-- แถวการ์ดหลักฐาน 3 ช่อง -->
+        <div class="cards-tri-grid" id="evidenceGrid">
+          <div class="item-slot">
+            <div class="slot-thumb">🪙</div>
+            <div class="slot-name">กระดุมทองเหลือง</div>
+            <div class="slot-found">พบที่: ตู้โดยสาร 🔍</div>
+          </div>
+          <div class="item-slot">
+            <div class="slot-thumb">📖</div>
+            <div class="slot-name">บันทึกของ Mara</div>
+            <div class="slot-found">พบที่: ตู้เสบียง 🔍</div>
+          </div>
+          <div class="item-slot">
+            <div class="slot-thumb">🎫</div>
+            <div class="slot-name">ตั๋วที่นั่งหมายเลข 8</div>
+            <div class="slot-found">พบที่: ตู้โดยสาร 🔍</div>
+          </div>
+        </div>
+
+        <div class="pane-subheading" style="margin-top: 10px;">บุคคลที่เกี่ยวข้อง</div>
+
+        <!-- แถวการ์ดบุคคล 3 ช่อง -->
+        <div class="cards-tri-grid" id="suspectsGrid">
+          <div class="suspect-slot">
+            <div class="suspect-thumb">👤</div>
+            <div class="suspect-name">Liora Venn</div>
+            <div class="suspect-role">แพทย์ประจำขบวน</div>
+            <div class="suspect-rel">❖ ความสัมพันธ์: เป็นกลาง</div>
+          </div>
+          <div class="suspect-slot target-suspect">
+            <div class="suspect-thumb">👤</div>
+            <div class="suspect-name gold-name">Gideon Hart</div>
+            <div class="suspect-role">อดีตผู้พิพากษา</div>
+            <div class="suspect-rel">❖ ความสัมพันธ์: ไม่แน่ใจ</div>
+          </div>
+          <div class="suspect-slot">
+            <div class="suspect-thumb">👤</div>
+            <div class="suspect-name">Cassian Reed</div>
+            <div class="suspect-role">นักประวัติศาสตร์ (ตาย)</div>
+            <div class="suspect-rel">❖ ความสัมพันธ์: ---</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- แท็บ 2: บุคคลทั้งหมด -->
+      <div id="tabContentSuspects" class="tab-pane">
+        <div class="pane-subheading">ผู้ต้องสงสัยทั้งหมด</div>
+        <div id="fullSuspectsList"></div>
+      </div>
+
+      <!-- แท็บ 3: 4 เสาหลัก -->
+      <div id="tabContentPillars" class="tab-pane">
+        <div class="pane-subheading">ความคืบหน้า 4 เสาหลัก (Four Pillars)</div>
+        <div id="pillarsDossierList"></div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ================= 3. แถบควบคุมด้านล่าง (BOTTOM BAR) ================= -->
+  <footer class="app-footer">
+    <!-- ตัวนับเวลา/ตา ด้านซ้าย -->
+    <div class="footer-timer-col">
+      <span class="hourglass-ico">⏳</span>
+      <div class="timer-texts">
+        <span class="timer-lbl">คำสั่งที่ใช้แล้ว</span>
+        <span id="elapsedSecondsText" class="timer-val">30 วินาที</span>
+        <span class="timer-sub">(โดยประมาณ)</span>
       </div>
     </div>
 
-    <!-- Pinned Bottom Input Form -->
-    <form onsubmit="sendMessage(event)" class="chat-input-bar">
-      <div class="input-inner">
+    <!-- ช่องพิมพ์คำสั่ง ตรงกลาง -->
+    <div class="footer-input-col">
+      <!-- แถบปุ่มคำแนะนำ -->
+      <div class="chips-row">
+        <span class="chips-lead">คำแนะนำการพิมพ์:</span>
+        <div class="chips-scroll-wrap">
+          <button type="button" class="chip-btn" onclick="fillInput('ถาม Mara เมื่อเวลา 23:17')">ถาม Mara เมื่อเวลา 23:17</button>
+          <button type="button" class="chip-btn" onclick="fillInput('ตรวจบันทึกทุกมุม')">ตรวจบันทึกทุกมุม</button>
+          <button type="button" class="chip-btn" onclick="fillInput('ในตู้เสบียงมีอะไร')">ในตู้เสบียงมีอะไร</button>
+          <button type="button" class="chip-btn" onclick="fillInput('ใครเห็น Cassian คนสุดท้าย?')">ใครเห็น Cassian คนสุดท้าย?</button>
+          <button type="button" class="chip-btn" onclick="fillInput('ตรวจสอบกระดุมทองเหลือง')">ตรวจสอบกระดุมทองเหลือง</button>
+          <button type="button" class="chip-btn danger-btn" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
+        </div>
+      </div>
+
+      <!-- ฟอร์มพิมพ์ -->
+      <form onsubmit="sendMessage(event)" class="command-form">
+        <span class="quill-ico">🪶</span>
         <input 
           id="chatInput" 
           type="text" 
-          placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย (หรือคลิกตัวอย่างคำสั่งด้านบน)..." 
+          placeholder="พิมพ์สิ่งที่ต้องการถาม / ตรวจสอบ / กล่าวหา... พิมพ์อะไรก็ได้แล้วกด Enter เพื่อส่งคำสั่ง" 
           autocomplete="off" 
         />
-        <button type="submit" id="sendBtn" class="send-button">
-          <span id="sendBtnText">ส่งคำสั่ง</span>
-          <svg class="send-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
+        <button type="submit" id="sendBtn" class="send-action-btn">
+          <span class="send-arrow">➔</span>
+          <div class="send-labels">
+            <strong id="sendBtnText">ส่งคำสั่ง</strong>
+            <small>Enter</small>
+          </div>
         </button>
+      </form>
+    </div>
+
+    <!-- มอนิเตอร์สถานะระบบ ด้านขวา -->
+    <div class="footer-status-col">
+      <div class="status-indicator">
+        <span class="pulse-dot"></span>
+        <span id="systemStatusText" class="status-lbl">ระบบทำงานปกติ</span>
       </div>
-      <div class="input-hint">
-        <span>คำสั่งถูกส่งไปประมวลผลผ่าน Neural Interpretation Layer &amp; Symbolic Rule Engine</span>
+      <div class="waveform-wrap">
+        <svg viewBox="0 0 120 16" class="waveform-svg">
+          <path d="M0 8 L30 8 L34 2 L38 14 L42 8 L48 8 L52 0 L56 16 L60 8 L120 8" fill="none" stroke="#22c55e" stroke-width="1.8" />
+        </svg>
       </div>
-    </form>
-  </main>
+      <span class="status-sub">ระบบพร้อมรับคำสั่งของคุณแล้ว</span>
+    </div>
+  </footer>
+
+  <!-- โมดอลบรีฟคดี -->
+  <div id="briefingModal" class="briefing-modal-backdrop" style="display: none;">
+    <div class="briefing-modal-card">
+      <div class="modal-head">
+        <h3>แฟ้มคดี: นอกเทิร์นเอกซ์เพรส (1938)</h3>
+        <button onclick="closeBriefingModal()" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="modalBriefingText">คืนวันที่ 14 พฤศจิกายน 1938 เวลา 23:17 เกิดคดีฆาตกรรมห้องปิดตาย...</p>
+      </div>
+    </div>
+  </div>
 
   <script src="chat.js"></script>
 </body>
