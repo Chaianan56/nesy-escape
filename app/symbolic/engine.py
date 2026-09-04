@@ -226,6 +226,13 @@ class SymbolicEngine:
             desc = f"{rule['description']} ({detail})" if detail else rule["description"]
             chain.append(ReasoningStep(rule_id=rule["id"], description=desc, passed=passed))
 
+            # กฎที่ blocking=false ใช้ "จำแนก" ไม่ใช่ "ปิดประตู"
+            # ผลของมันยังถูกบันทึกลงสายเหตุผลตามจริง แต่ไม่ทำให้คำสั่งถูกปฏิเสธ
+            # เกมนี้ต้องกล่าวหาผิดคนได้ ไม่งั้นฉากจบที่เป็นแก่นของเรื่องจะไปไม่ถึง
+            # ส่วนการเลือกว่าได้ฉากจบไหน ยังเป็นงานของ symbolic ทั้งหมด ไม่มี LLM เกี่ยว
+            if not passed and not rule.get("blocking", True):
+                continue
+
             # หยุดที่กฎแรกที่ไม่ผ่าน เพราะกฎถัดไปอาจสมมติว่ากฎก่อนหน้าผ่านแล้ว
             if not passed:
                 # กฎข้อแรกครอบทั้ง unknown และ ambiguous ด้วยข้อความเดียว แต่ผู้เล่นต้องการ
@@ -245,6 +252,10 @@ class SymbolicEngine:
                     if where:
                         message += (f" {entity.get('name_th', cmd.target)} อยู่ที่"
                                     f"{self.world['locations'].get(where, {}).get('name_th', where)}")
+                elif rule["id"] == "R014_TIME_LIMIT":
+                    timeout = self.ending_for(on_timeout=True)
+                    if timeout:
+                        message = self._render_ending(timeout, [])
                 elif cmd.action is ActionType.UNKNOWN:
                     message += (" สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น "
                                 "ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ")
@@ -371,13 +382,50 @@ class SymbolicEngine:
         }
         return templates.get(cmd.action, "ดำเนินการเรียบร้อย")
 
+    def pillars_complete(self, suspect_id: str, state: GameState) -> bool:
+        """ผู้ถูกกล่าวหาคนนี้มีหลักฐานครบทั้งสี่ด้านแล้วหรือยัง"""
+        found = _collect_pillars(suspect_id, state, self.world)
+        return all(found[p] for p in PILLARS)
+
+    def ending_for(self, suspect_id: str = None, state: GameState = None,
+                on_timeout: bool = False) -> dict:
+        """เลือกฉากจบจากสถานะจริงของผู้เล่น ตามเงื่อนไขที่เขียนไว้ใน story.json
+
+        เรียงจากเงื่อนไขเฉพาะที่สุดไปกว้างที่สุด หยิบอันแรกที่เข้าเงื่อนไข
+        ทุกเงื่อนไขอ่านจาก GameState และ story.json เท่านั้น ไม่มี LLM เกี่ยวข้อง
+        ฉากจบจึงตรวจย้อนกลับได้เหมือน reasoning_chain
+        """
+        culprit = self.world.get("culprit")
+        for ending in self.world.get("endings", []):
+            if bool(ending.get("on_timeout")) != on_timeout:
+                continue
+            if on_timeout:
+                return ending
+            who = ending.get("accuse", "*")
+            if who != "*" and who != suspect_id:
+                continue
+            if ending.get("requires_pillars") and not self.pillars_complete(suspect_id, state):
+                continue
+            if ending.get("requires_case_against_culprit") and not self.pillars_complete(culprit, state):
+                continue
+            if any(e not in state.discovered_evidence for e in ending.get("requires_evidence", [])):
+                continue
+            if any(i not in state.inventory for i in ending.get("requires_inventory", [])):
+                continue
+            return ending
+        return {}
+
+    def _render_ending(self, ending: dict, body: List[str]) -> str:
+        head = [f"=== {ending.get('title', 'จบเกม')} ({ending.get('rank', '')}) ===", ""]
+        return "\n".join(head + body + ["", ending.get("text", "")])
+
     def closing_argument(self, suspect_id: str, state: GameState) -> str:
         """คำแถลงปิดคดี ประกอบขึ้นจากหลักฐานที่ผู้เล่นหามาได้จริง
 
         ไม่ใช่ข้อความสำเร็จรูป ทุกบรรทัดอ้างชิ้นหลักฐานที่อยู่ใน discovered_evidence
         จริงๆ ถ้าผู้เล่นเก็บหลักฐานคนละชุด คำแถลงก็ออกมาคนละแบบ
         หลักการเดียวกับ reasoning_chain คือคำอธิบายต้องมาจากสิ่งที่เกิดขึ้นจริง
-        ไม่ใช่ข้อความที่เขียนรอไว้
+        ไม่ใช่ข้อความที่เขียนรอไว้ ส่วนฉากจบก็ถูกเลือกจากสถานะเดียวกันนี้
         """
         sus = self.world["suspects"].get(suspect_id, {})
         found = _collect_pillars(suspect_id, state, self.world)
@@ -388,18 +436,20 @@ class SymbolicEngine:
             "corroboration": "หลักฐานสนับสนุน",
         }
 
-        lines = [f"คุณเรียกทุกคนมารวมกันที่ตู้เสบียง แล้วชี้ไปที่{sus.get('name_th', suspect_id)}", ""]
+        body = [f"คุณเรียกทุกคนมารวมกันที่ตู้เสบียง แล้วชี้ไปที่{sus.get('name_th', suspect_id)}", ""]
         for pillar in PILLARS:
             names = [self.world["objects"][e].get("name_th", e) for e in found[pillar]]
-            lines.append(f"  {label[pillar]}")
+            body.append(f"  {label[pillar]}")
             for n in names:
-                lines.append(f"    - {n}")
-        lines.append("")
-        lines.append(f"รวมหลักฐาน {sum(len(v) for v in found.values())} ชิ้น ครบทั้งสี่ด้าน "
-                     f"ใช้เวลาไป {state.elapsed_seconds // 60} นาที จาก "
-                     f"{self.world.get('time_limit_seconds', 3600) // 60} นาที")
-        lines.append("คดีปิดลงก่อนรถไฟเทียบชานชาลา")
-        return "\n".join(lines)
+                body.append(f"    - {n}")
+            if not names:
+                body.append("    - ไม่มีหลักฐานด้านนี้")
+        body.append("")
+        body.append(f"รวมหลักฐาน {sum(len(v) for v in found.values())} ชิ้น "
+                    f"ครบ {sum(1 for p in PILLARS if found[p])} จาก 4 ด้าน "
+                    f"ใช้เวลาไป {state.elapsed_seconds // 60} นาที จาก "
+                    f"{self.world.get('time_limit_seconds', 3600) // 60} นาที")
+        return self._render_ending(self.ending_for(suspect_id, state), body)
 
     # ใช้สำหรับ UI และการวิเคราะห์ผล ไม่ใช่ส่วนของการตัดสิน
     def pillar_status(self, target: str, state: GameState) -> Dict[str, List[str]]:

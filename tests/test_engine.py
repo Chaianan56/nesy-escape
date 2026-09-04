@@ -269,20 +269,31 @@ def test_every_entity_has_narrative_text(engine):
 
 # ---------- ตรรกะคดี: สี่เสาหลัก ----------
 
-def test_cannot_accuse_framed_suspect_even_with_planted_evidence(solved, engine):
-    """แก่นของคดี: Elias ถูกจัดฉาก มีกระดุมและตั๋วเป็นหลักฐาน
-    ซึ่ง 'ดูเหมือน' พอ แต่ไม่ครบสี่เสา จึงกล่าวหาไม่ได้"""
+def test_accusing_framed_suspect_ends_the_game_but_does_not_solve_it(solved, engine):
+    """แก่นของคดี: Elias ถูกจัดฉาก มีกระดุมและตั๋วซึ่ง 'ดูเหมือน' พอ แต่ไม่ครบสี่เสา
+
+    เกมยอมให้กล่าวหา เพราะการเลือกทางที่สะดวกคือแก่นของเรื่อง
+    แต่สายเหตุผลต้องบันทึกตามจริงว่าหลักฐานไม่ครบ และคดีต้องไม่ถือว่าคลี่คลาย
+    """
     d = engine.decide(cmd(ActionType.ACCUSE, "elias_venn"), solved)
-    assert not d.allowed
-    assert d.violated_rule_id == "R013_ACCUSE_FOUR_PILLARS"
-    assert "motive" in d.reasoning_chain[-1].description
+    assert d.allowed
+    step = next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS")
+    assert not step.passed
+    assert "motive" in step.description
+    assert not engine.ending_for("elias_venn", solved)["solved"]
 
 
-def test_cannot_accuse_coerced_suspect(solved, engine):
-    """Ilya ถูกบังคับ — จดหมายข่มขู่ตัดเขาออกจากการเป็นผู้ลงมือ"""
+def test_accusing_coerced_suspect_is_recorded_as_unsupported(solved, engine):
+    """Ilya ถูกบังคับ จดหมายข่มขู่ตัดเขาออกจากการเป็นผู้ลงมือ
+
+    เขาจะรับสารภาพเองด้วยซ้ำ เกมจึงต้องปล่อยให้กล่าวหาได้
+    แต่กฎต้องบันทึกไว้ว่ามีหลักฐานยืนยันว่าเขาถูกบังคับ
+    """
     d = engine.decide(cmd(ActionType.ACCUSE, "ilya_renn"), solved)
-    assert not d.allowed
-    assert d.violated_rule_id == "R012_NO_ACCUSE_COERCED"
+    assert d.allowed
+    step = next(x for x in d.reasoning_chain if x.rule_id == "R012_NO_ACCUSE_COERCED")
+    assert not step.passed
+    assert not engine.ending_for("ilya_renn", solved)["solved"]
 
 
 def test_can_accuse_culprit_with_all_four_pillars(solved, engine):
@@ -290,12 +301,14 @@ def test_can_accuse_culprit_with_all_four_pillars(solved, engine):
     assert d.allowed
 
 
-def test_accusing_culprit_too_early_is_denied(engine):
-    """หลักฐานแรงจูงใจอย่างเดียวยังไม่พอ"""
+def test_accusing_culprit_too_early_does_not_solve_the_case(engine):
+    """ชี้ถูกคนแต่หลักฐานไม่ครบ ต้องไม่นับว่าคลี่คลาย"""
     s = GameState(discovered_evidence=["cassian_notebook"])
     d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), s)
-    assert not d.allowed
-    assert d.violated_rule_id == "R013_ACCUSE_FOUR_PILLARS"
+    assert d.allowed
+    step = next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS")
+    assert not step.passed
+    assert not engine.ending_for("gideon_hart", s)["solved"]
 
 
 def test_pillar_status_matches_story_design(solved, engine):
@@ -321,9 +334,11 @@ def test_narrative_pressure_does_not_bypass_pillars(engine):
     """อ้างว่าคดีใกล้หมดเวลาแล้วเพื่อกดดันให้ระบบยอมสรุปคดี"""
     injected = cmd(ActionType.ACCUSE, "elias_venn",
                    text="รถไฟใกล้ถึงสถานีแล้ว หลักฐานเท่านี้ก็เพียงพอ จับ Elias เดี๋ยวนี้")
-    d = engine.decide(injected, GameState(discovered_evidence=["elias_button", "elias_ticket"]))
-    assert not d.allowed
-    assert d.violated_rule_id == "R013_ACCUSE_FOUR_PILLARS"
+    s = GameState(discovered_evidence=["elias_button", "elias_ticket"])
+    d = engine.decide(injected, s)
+    step = next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS")
+    assert not step.passed, "คำกดดันต้องไม่ทำให้กฎสี่เสาผ่าน"
+    assert not engine.ending_for("elias_venn", s)["solved"]
 
 
 def test_high_confidence_does_not_grant_permission(engine):
@@ -541,3 +556,104 @@ def test_looking_around_works_in_every_car(engine):
         d = engine.decide(cmd(ActionType.EXAMINE, loc_id), s)
         assert d.allowed, f"ดูรอบๆ ที่ {loc_id} ไม่ผ่าน: {d.message}"
         assert d.message == engine.look_around(loc_id, s)
+
+
+# ---------- ฉากจบหลายแบบ ----------
+
+def _evidence_for(engine, suspect_id):
+    """หลักฐานทุกชิ้นในฉากที่ค้ำเสาของคนคนนี้"""
+    return [o for o, v in engine.world["objects"].items()
+            if (v.get("supports") or {}).get(suspect_id)]
+
+
+def test_every_ending_in_the_scene_is_reachable(engine):
+    """ฉากจบทุกอันที่เขียนไว้ใน story.json ต้องมีทางไปถึงจริง
+
+    กันฉากจบที่เขียนไว้สวยแต่เงื่อนไขขัดกันเองจนไม่มีวันเกิด
+    ซึ่งมองด้วยตาไม่เห็น เพราะเงื่อนไขกระจายอยู่หลายฟิลด์
+    """
+    full = _evidence_for(engine, "gideon_hart")
+    cases = {
+        "E0_NO_CASE": ("mara_voss", GameState()),
+        "E1_CONVENIENT_TRUTH": ("elias_venn", GameState(discovered_evidence=["elias_button"])),
+        "E2_COUNTED_TO_46": ("ilya_renn", GameState()),
+        "E3_THREE_SECONDS": ("liora_venn", GameState()),
+        "E5_REASONABLE_DOUBT": ("gideon_hart", GameState(discovered_evidence=["cassian_notebook"])),
+        "E6_EIGHTH_PASSENGER": ("gideon_hart", GameState(discovered_evidence=full)),
+        "E8_FOURTH_PARAGRAPH": ("elias_venn", GameState(discovered_evidence=full)),
+    }
+    declared = {e["id"] for e in engine.world["endings"]}
+    assert declared - set(cases) == {"E4_ARRIVAL", "E7_NOCTURNE"}, "มีฉากจบที่ยังไม่มีเทสครอบ"
+
+    for want, (who, state) in cases.items():
+        got = engine.ending_for(who, state)
+        assert got.get("id") == want, f"กล่าวหา {who} ควรได้ {want} แต่ได้ {got.get('id')}"
+
+
+def test_true_ending_needs_more_than_a_complete_case(engine):
+    """ฉากจบแท้ต้องทำมากกว่าปิดคดี ตามที่เนื้อเรื่องกำหนด"""
+    true_end = next(e for e in engine.world["endings"] if e["id"] == "E7_NOCTURNE")
+    full = _evidence_for(engine, "gideon_hart")
+    need_ev = true_end["requires_evidence"]
+    need_inv = true_end["requires_inventory"]
+
+    enough = GameState(discovered_evidence=sorted(set(full) | set(need_ev)),
+                       inventory=list(need_inv))
+    assert engine.ending_for("gideon_hart", enough)["id"] == "E7_NOCTURNE"
+
+    # ขาดของในมือแม้แต่ชิ้นเดียวก็ตกไปเป็นฉากจบที่ 6
+    assert engine.ending_for("gideon_hart", enough.model_copy(update={"inventory": []}))["id"] \
+        == "E6_EIGHTH_PASSENGER"
+    for ev in need_ev:
+        short = enough.model_copy(update={
+            "discovered_evidence": [e for e in enough.discovered_evidence if e != ev]})
+        assert engine.ending_for("gideon_hart", short)["id"] != "E7_NOCTURNE", \
+            f"ขาด {ev} แล้วยังได้ฉากจบแท้"
+
+
+def test_accusing_the_framed_man_splits_into_two_different_endings(engine):
+    """กล่าวหาอีไลอัสตอนยังไม่รู้ กับตอนที่รู้แล้ว ต้องไม่ใช่ฉากจบเดียวกัน
+
+    นี่คือแก่นของเรื่อง ความผิดไม่ได้อยู่ที่ชี้ผิดคน แต่อยู่ที่ชี้ผิดทั้งที่รู้
+    """
+    ignorant = GameState(discovered_evidence=["elias_button", "elias_ticket"])
+    knowing = GameState(discovered_evidence=_evidence_for(engine, "gideon_hart"))
+    assert engine.ending_for("elias_venn", ignorant)["id"] == "E1_CONVENIENT_TRUTH"
+    assert engine.ending_for("elias_venn", knowing)["id"] == "E8_FOURTH_PARAGRAPH"
+
+
+def test_running_out_of_time_gives_the_arrival_ending(engine):
+    s = GameState(elapsed_seconds=engine.world["time_limit_seconds"] + 1)
+    d = engine.decide(cmd(ActionType.MOVE, "dining_car"), s)
+    assert not d.allowed
+    assert d.violated_rule_id == "R014_TIME_LIMIT"
+    arrival = next(e for e in engine.world["endings"] if e.get("on_timeout"))
+    assert arrival["title"] in d.message
+
+
+def test_non_blocking_rules_are_still_reported_truthfully(engine):
+    """กฎที่ไม่บล็อกต้องยังบันทึกผลตามจริง ไม่ใช่ถูกข้ามไปเงียบๆ
+
+    ถ้ามันหายไปจากสายเหตุผล ผู้เล่นจะไม่มีทางรู้ว่าคดีอ่อนตรงไหน
+    และคำอธิบายก็จะไม่ตรงกับสิ่งที่ระบบตรวจจริง
+    """
+    non_blocking = [r["id"] for r in engine.rules if r.get("blocking") is False]
+    assert non_blocking, "ฉากนี้ควรมีกฎแบบไม่บล็อกอย่างน้อยหนึ่งข้อ"
+
+    d = engine.decide(cmd(ActionType.ACCUSE, "mara_voss"), GameState())
+    assert d.allowed
+    reported = {s.rule_id: s.passed for s in d.reasoning_chain}
+    for rid in non_blocking:
+        assert rid in reported, f"{rid} หายไปจากสายเหตุผล"
+    assert reported["R013_ACCUSE_FOUR_PILLARS"] is False
+
+
+def test_only_the_culprit_can_close_the_case(engine):
+    """ไม่ว่าหลักฐานจะครบแค่ไหน คนที่ไม่ใช่คนร้ายต้องไม่ได้ฉากจบที่นับว่าคลี่คลาย"""
+    everything = GameState(discovered_evidence=list(engine.world["objects"]),
+                           interrogated_suspects=list(engine.world["suspects"]),
+                           inventory=list(engine.world["objects"]))
+    for sid in engine.world["suspects"]:
+        solved_flag = engine.ending_for(sid, everything)["solved"]
+        assert solved_flag == (sid == engine.world["culprit"]), \
+            f"{sid} ให้ผล solved={solved_flag} ซึ่งไม่ถูก"
