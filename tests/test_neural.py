@@ -184,11 +184,42 @@ def test_llm_detects_prompt_injection():
 
 
 @needs_llm
-def test_llm_baseline_decision_returns_reasoning():
+def test_baseline_never_cites_a_rule_that_does_not_exist():
+    """โหมด A อ้างรหัสกฎได้ แต่ห้ามอ้างรหัสที่ไม่มีอยู่จริง
+
+    เดิมเทสข้อนี้ยืนยันว่าโหมด A ต้องคืน reasoning_chain เสมอ ซึ่งแกว่ง
+    เพราะบางครั้งโมเดลตอบคำตัดสินมาพร้อมรหัสกฎ แต่ไม่ใส่สายเหตุผลมาเลย
+    นั่นคือข้อเท็จจริงของโหมด A ไม่ใช่บั๊กของโค้ด และเป็นความต่างที่งานนี้ต้องการชี้พอดี
+    คำอธิบายของโหมด A เป็นของแถม ส่วนของโหมด B เป็นผลพลอยได้จากการตรวจกฎจริง
+    เทสจึงเปลี่ยนมาวัดสิ่งที่ต้องจริงเสมอ คือรหัสกฎที่อ้างต้องมีอยู่จริง
+    """
     state = GameState()
-    cmd = llm_call(interpret, "ตรวจดูบันทึกสภาพจุดเกิดเหตุ", state)
-    decision = llm_call(decide_autonomously, "ตรวจดูบันทึกสภาพจุดเกิดเหตุ", state, cmd)
-    assert decision.reasoning_chain
+    text = "ตรวจดูบันทึกสภาพจุดเกิดเหตุ"
+    cmd = llm_call(interpret, text, state)
+    decision = llm_call(decide_autonomously, text, state, cmd)
+
+    engine = SymbolicEngine()
+    rule_ids = {r["id"] for r in engine.rules}
+    if decision.violated_rule_id:
+        assert decision.violated_rule_id in rule_ids,             f"โหมด A อ้างกฎ '{decision.violated_rule_id}' ซึ่งไม่มีใน rules.json"
+    for step in decision.reasoning_chain:
+        assert step.rule_id in rule_ids, f"สายเหตุผลอ้างกฎ '{step.rule_id}' ซึ่งไม่มีจริง"
+
+
+def test_symbolic_always_explains_itself_but_the_baseline_need_not(engine=None):
+    """ความต่างที่เป็นแก่นของงาน โหมด B ต้องมีสายเหตุผลเสมอโดยโครงสร้าง
+
+    ข้อนี้ไม่เรียก LLM เลย เพราะเป็นคุณสมบัติของฝั่ง symbolic ล้วน
+    ถ้าวันหนึ่งมีคำสั่งที่ทำให้ decide คืนสายเหตุผลว่าง แปลว่าข้ออ้างหลักของงานพัง
+    """
+    eng = SymbolicEngine()
+    for action, target in [(ActionType.EXAMINE, "crime_scene_record"),
+                           (ActionType.MOVE, "electrical_compartment"),
+                           (ActionType.ACCUSE, "gideon_hart"),
+                           (ActionType.UNKNOWN, None)]:
+        d = eng.decide(ParsedCommand(action=action, target=target, raw_text="", confidence=0.5),
+                       GameState())
+        assert d.reasoning_chain, f"{action.value} คืนสายเหตุผลว่าง"
 
 
 def test_baseline_fallback_still_returns_a_reasoning_chain():

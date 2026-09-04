@@ -1,0 +1,17 @@
+# ตั้งค่าสำหรับ Render (render.com) — ฟรีและรองรับ Python
+# ⚠️ ห้ามใส่ GEMINI_API_KEY ในไฟล์นี้ ต้องไปวางในหน้า Environment ของ Render เท่านั้น
+#    ไฟล์นี้ถูก commit ขึ้น git ใครเห็น repo ก็เห็นคีย์
+services:
+  - type: web
+    name: nesy-escape
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python start_app.py
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false          # ต้องกรอกเองในหน้าเว็บ Render
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: PYTHON_VERSION
+        value: "3.12"
