@@ -657,3 +657,71 @@ def test_only_the_culprit_can_close_the_case(engine):
         solved_flag = engine.ending_for(sid, everything)["solved"]
         assert solved_flag == (sid == engine.world["culprit"]), \
             f"{sid} ให้ผล solved={solved_flag} ซึ่งไม่ถูก"
+
+
+# ---------- ปิดคดีแล้วจบจริง และการทำลายหลักฐาน ----------
+
+def test_the_case_closes_for_good_once_accused(engine):
+    """กล่าวหาแล้วต้องสั่งอะไรต่อไม่ได้อีก
+
+    เดิมไม่ต้องมีกฎข้อนี้ เพราะจบเกมได้ทางเดียว
+    พอมีฉากจบหลายแบบ กล่าวหาใครก็จบได้ตั้งแต่ตาแรก จึงต้องมีตัวปิดฉากจริง ๆ
+    """
+    d = engine.decide(cmd(ActionType.ACCUSE, "mara_voss"), GameState())
+    assert d.allowed
+    over = apply_changes(GameState(), d.state_changes)
+    assert over.ending_id == "E0_NO_CASE"
+
+    for action, target in [(ActionType.EXAMINE, "passenger_car"),
+                           (ActionType.MOVE, "dining_car"),
+                           (ActionType.INTERROGATE, "mara_voss"),
+                           (ActionType.ACCUSE, "gideon_hart")]:
+        blocked = engine.decide(cmd(action, target), over)
+        assert not blocked.allowed, f"{action.value} ยังทำได้ทั้งที่คดีปิดแล้ว"
+        assert blocked.violated_rule_id == "R015_GAME_NOT_OVER"
+
+
+def test_burning_a_document_destroys_it_permanently(engine):
+    """เผาแล้วต้องหายไปจริง ทั้งจากมือและจากสิ่งที่ตรวจได้"""
+    burnable = [o for o, v in engine.world["objects"].items() if v.get("burnable")]
+    assert burnable, "ฉากนี้ควรมีเอกสารที่เผาได้อย่างน้อยหนึ่งชิ้น"
+
+    for oid in burnable:
+        obj = engine.world["objects"][oid]
+        s = GameState(current_location=obj["location"], inventory=[oid],
+                      discovered_evidence=list(obj.get("requires_evidence", [])),
+                      interrogated_suspects=[obj["requires_suspect"]] if obj.get("requires_suspect") else [])
+        d = engine.decide(cmd(ActionType.BURN, oid), s)
+        assert d.allowed, f"{oid} ควรเผาได้: {d.message}"
+
+        after = apply_changes(s, d.state_changes)
+        assert oid in after.burned_objects
+        assert oid not in after.inventory, "ของที่ถูกเผาต้องหลุดจากมือด้วย"
+        again = engine.decide(cmd(ActionType.EXAMINE, oid), after)
+        assert not again.allowed
+        assert again.violated_rule_id == "R016_NOT_DESTROYED"
+
+
+def test_only_burnable_documents_can_be_burned(engine):
+    """กันผู้เล่นเผาหลักฐานทั้งขบวนจนเกมพัง"""
+    for oid, obj in engine.world["objects"].items():
+        if obj.get("burnable") or not obj.get("location"):
+            continue
+        s = GameState(current_location=obj["location"], inventory=[oid])
+        d = engine.decide(cmd(ActionType.BURN, oid), s)
+        assert not d.allowed, f"{oid} ไม่ควรเผาได้"
+        assert d.violated_rule_id == "R017_BURNABLE"
+
+
+def test_burning_the_report_closes_off_the_true_ending(engine):
+    """เผารายงานปี 1931 ทิ้ง ฉากจบแท้ต้องปิดตาย แต่ยังปิดคดีได้ตามปกติ"""
+    true_end = next(e for e in engine.world["endings"] if e["id"] == "E7_NOCTURNE")
+    report = true_end["requires_inventory"][0]
+    full = [o for o, v in engine.world["objects"].items()
+            if (v.get("supports") or {}).get("gideon_hart")]
+    s = GameState(discovered_evidence=sorted(set(full) | set(true_end["requires_evidence"])),
+                  inventory=[report])
+    assert engine.ending_for("gideon_hart", s)["id"] == "E7_NOCTURNE"
+
+    burned = apply_changes(s, {"burned_add": report})
+    assert engine.ending_for("gideon_hart", burned)["id"] == "E6_EIGHTH_PASSENGER"

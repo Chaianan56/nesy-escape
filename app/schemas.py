@@ -23,6 +23,7 @@ class ActionType(str, Enum):
     MOVE = "move"                # เคลื่อนที่ไปยังตู้รถอื่น
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
     ACCUSE = "accuse"            # กล่าวหาฆาตกร (จบเกม)
+    BURN = "burn"                # ทำลายเอกสาร (ทำลายแล้วเรียกคืนไม่ได้)
 
     AMBIGUOUS = "ambiguous"      # คำสั่งกำกวม ตีความได้หลายทาง
     UNKNOWN = "unknown"          # คำสั่งอยู่นอกขอบเขตหรือไม่สามารถตีความได้
@@ -65,6 +66,8 @@ class GameState(BaseModel):
     interrogated_suspects: List[str] = Field(default_factory=list, description="ผู้ต้องสงสัยที่เคยสอบปากคำแล้ว")
     elapsed_seconds: int = Field(0, description="เวลาที่ผ่านไปในเกม (วินาที)")
     turn_count: int = Field(0, description="จำนวนตาที่เล่นไปแล้ว")
+    burned_objects: List[str] = Field(default_factory=list, description="รายการ ID สิ่งที่ถูกทำลายไปแล้ว")
+    ending_id: Optional[str] = Field(None, description="ID ฉากจบ ถ้าไม่ใช่ None แปลว่าเกมจบแล้ว")
 
 
 # ============================================================

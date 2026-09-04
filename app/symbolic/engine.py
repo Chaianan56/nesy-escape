@@ -172,6 +172,30 @@ def _four_pillars(cmd, state, world, p):
     return True, summary
 
 
+def _game_not_over(cmd, state, world, p):
+    """คดีปิดแล้วก็จบ ไม่ให้สั่งอะไรต่อ
+
+    เดิมไม่ต้องมีกฎข้อนี้ เพราะจบเกมได้ทางเดียวคือกล่าวหาถูกตอนหลักฐานครบ
+    พอมีฉากจบหลายแบบ ผู้เล่นกล่าวหาใครก็จบได้ตั้งแต่ตาแรก จึงต้องมีตัวปิดฉากจริงๆ
+    """
+    if state.ending_id:
+        return False, f"คดีปิดไปแล้วด้วยฉากจบ '{state.ending_id}'"
+    return True, ""
+
+
+def _not_destroyed(cmd, state, world, p):
+    if cmd.target in state.burned_objects:
+        return False, f"'{cmd.target}' ถูกทำลายไปแล้ว"
+    return True, ""
+
+
+def _target_is_burnable(cmd, state, world, p):
+    obj = world["objects"].get(cmd.target, {})
+    if not obj.get("burnable", False):
+        return False, f"'{cmd.target}' ไม่มีคุณสมบัติ burnable"
+    return True, ""
+
+
 def _within_time_limit(cmd, state, world, p):
     # กรอบเวลาเป็นสมบัติของฉาก จึงอยู่ใน story.json ที่เดียว
     # params ใน rules.json ใช้ override ได้ถ้าอยากทดลองค่าอื่นโดยไม่แตะฉาก
@@ -197,6 +221,9 @@ CHECKERS: Dict[str, Callable] = {
     "not_exculpated": _not_exculpated,
     "four_pillars": _four_pillars,
     "within_time_limit": _within_time_limit,
+    "game_not_over": _game_not_over,
+    "not_destroyed": _not_destroyed,
+    "target_is_burnable": _target_is_burnable,
 }
 
 
@@ -272,10 +299,10 @@ class SymbolicEngine:
             message=self._success_message(cmd, state),
             reasoning_chain=chain,
             violated_rule_id=None,
-            state_changes=self._state_changes(cmd),
+            state_changes=self._state_changes(cmd, state),
         )
 
-    def _state_changes(self, cmd: ParsedCommand) -> dict:
+    def _state_changes(self, cmd: ParsedCommand, state: GameState) -> dict:
         obj = self.world["objects"].get(cmd.target, {})
         if cmd.action == ActionType.MOVE:
             return {"move_to": cmd.target}
@@ -293,6 +320,11 @@ class SymbolicEngine:
             return changes
         if cmd.action == ActionType.UNLOCK:
             return {"unlocked_add": cmd.target}
+        if cmd.action == ActionType.BURN:
+            return {"burned_add": cmd.target}
+        if cmd.action == ActionType.ACCUSE:
+            # ฉากจบถูกเลือกที่นี่ครั้งเดียว แล้วบันทึกลง state เพื่อปิดคดี
+            return {"ending": self.ending_for(cmd.target, state).get("id")}
         if cmd.action == ActionType.INTERROGATE:
             changes = {"interrogated_add": cmd.target}
             granted = self.world["suspects"].get(cmd.target, {}).get("grants_object")
@@ -379,6 +411,7 @@ class SymbolicEngine:
             ActionType.TAKE: f"เก็บ{name}ไว้เป็นหลักฐาน",
             ActionType.UNLOCK: f"เปิด{name}ได้แล้ว",
             ActionType.USE: f"ใช้งานกับ{name}",
+            ActionType.BURN: f"คุณเผา{name}ทิ้ง เถ้าที่เหลือเรียกอะไรกลับมาไม่ได้อีก",
         }
         return templates.get(cmd.action, "ดำเนินการเรียบร้อย")
 
@@ -482,6 +515,15 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
         v = changes.get(key)
         if v and v not in lst:
             lst.append(v)
+    burned = changes.get("burned_add")
+    if burned:
+        if burned not in s.burned_objects:
+            s.burned_objects.append(burned)
+        # ของที่ถูกเผาต้องหลุดจากมือด้วย ไม่งั้นเงื่อนไขฉากจบที่ดูจากของในมือจะเพี้ยน
+        if burned in s.inventory:
+            s.inventory.remove(burned)
+    if changes.get("ending"):
+        s.ending_id = changes["ending"]
     dest = changes.get("move_to")
     if dest:
         s.current_location = dest

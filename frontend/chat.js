@@ -236,12 +236,15 @@ async function sendMessage(e) {
     updateLocationHUD();
     updateClock();
 
-    // อัปเดตสี่เสาเมื่อคำสั่งผ่าน
-    if (data.decision && data.decision.allowed) {
-    }
-
     removeLoading();
     renderSystem(data.decision, data.parsed);
+
+    // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
+    // ตอนนี้กล่าวหาใครก็จบได้ ไม่ใช่จบทางเดียวเหมือนเดิม จึงต้องปิดหน้าจอจริงๆ
+    // หมดเวลาก็จบเหมือนกัน ต่างกันแค่ไม่ได้ชี้ตัวใคร จึงไม่มี ending_id ใน state
+    const over = gameState.ending_id
+      || (data.decision && data.decision.violated_rule_id === "R014_TIME_LIMIT");
+    if (over) { showGameOver(); return; }
 
     // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
     // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
@@ -253,11 +256,33 @@ async function sendMessage(e) {
     removeLoading();
     renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
   } finally {
-    input.disabled = false;
-    btn.disabled = false;
-    btnText.textContent = "ส่งคำสั่ง";
-    input.focus();
+    if (!document.getElementById("chatInput").disabled) {
+      input.disabled = false;
+      btn.disabled = false;
+      btnText.textContent = "ส่งคำสั่ง";
+      input.focus();
+    }
   }
+}
+
+function showGameOver() {
+  const input = document.getElementById("chatInput");
+  const btn = document.getElementById("sendBtn");
+  input.disabled = true;
+  btn.disabled = true;
+  input.placeholder = "คดีปิดแล้ว";
+  document.getElementById("sendBtnText").textContent = "จบเกม";
+
+  const feed = document.getElementById("chatFeed");
+  const box = document.createElement("div");
+  box.className = "msg-system";
+  box.innerHTML =
+    `<div class="story-text"><strong>คดีนี้ปิดลงแล้ว</strong><br>` +
+    `เรื่องนี้มีฉากจบหลายแบบ ขึ้นอยู่กับว่าคุณชี้ตัวใคร และตอนนั้นมีหลักฐานอยู่ในมือแค่ไหน</div>` +
+    `<div class="chips-scroll"><button type="button" class="chip-btn" ` +
+    `onclick="location.reload()">เริ่มคดีใหม่</button></div>`;
+  feed.appendChild(box);
+  feed.scrollTop = feed.scrollHeight;
 }
 
 // ============================================================

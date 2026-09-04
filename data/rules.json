@@ -24,6 +24,16 @@
       "message_fail": "หมดเวลาการสืบสวนแล้ว"
     },
     {
+      "id": "R015_GAME_NOT_OVER",
+      "description": "คดีต้องยังไม่ถูกปิด จึงจะสั่งอะไรต่อได้",
+      "applies_to": [
+        "*"
+      ],
+      "check": "game_not_over",
+      "params": {},
+      "message_fail": "คดีนี้ปิดไปแล้ว ถ้าอยากเล่นใหม่ให้เริ่มเกมใหม่"
+    },
+    {
       "id": "R001_TARGET_EXISTS",
       "description": "เป้าหมายของคำสั่งต้องมีอยู่จริงบนขบวนรถ",
       "applies_to": [
@@ -35,6 +45,19 @@
       "check": "target_exists",
       "params": {},
       "message_fail": "ไม่พบสิ่งที่ระบุบนขบวนรถนี้"
+    },
+    {
+      "id": "R016_NOT_DESTROYED",
+      "description": "สิ่งที่ถูกทำลายไปแล้ว เข้าถึงอีกไม่ได้",
+      "applies_to": [
+        "examine",
+        "take",
+        "use",
+        "burn"
+      ],
+      "check": "not_destroyed",
+      "params": {},
+      "message_fail": "สิ่งนี้ถูกทำลายไปแล้ว ไม่เหลืออะไรให้ตรวจอีก"
     },
     {
       "id": "R002_LOCATION_EXISTS",
@@ -89,6 +112,16 @@
       "check": "target_is_takeable",
       "params": {},
       "message_fail": "สิ่งนี้ไม่สามารถเก็บติดตัวไปได้"
+    },
+    {
+      "id": "R017_BURNABLE",
+      "description": "ทำลายได้เฉพาะเอกสารที่ระบุไว้ว่าทำลายได้",
+      "applies_to": [
+        "burn"
+      ],
+      "check": "target_is_burnable",
+      "params": {},
+      "message_fail": "สิ่งนี้ทำลายทิ้งไม่ได้"
     },
     {
       "id": "R007_CONTAINER_OPENED",
