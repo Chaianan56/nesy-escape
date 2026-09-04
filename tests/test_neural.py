@@ -161,3 +161,20 @@ def test_prompt_does_not_teach_the_model_to_invent_a_list_of_objects():
         for block in blocks:
             assert '"action": "examine"' in block, block
             assert any(f'"target": "{loc}"' in block for loc in STORY_DATA["locations"]), block
+
+
+def test_prompt_says_who_the_victim_is():
+    """พรอมป์ตต้องบอกชัดว่าใครคือผู้ตาย
+
+    ผู้เล่นเรียกเขาว่า ผู้ตาย ศพ เหยื่อ แทบตลอดเวลา ไม่ค่อยเอ่ยชื่อจริง
+    ตอนฉากยังเล็กโมเดลเดาถูกเอง พอฉากใหญ่ขึ้นและมีของชื่อขึ้นต้นด้วย สมุด หรือ บันทึก
+    หลายชิ้น คำสั่งอย่าง ขอดูสมุดที่ผู้ตายจดไว้ ก็เริ่มได้ target เป็น null
+    ซึ่งโมเดลทำถูกตามกฎ ที่ผิดคือพรอมป์ตไม่เคยบอกว่าผู้ตายคือใคร
+    """
+    assert STORY_DATA.get("victim_name_th"), "story.json ต้องระบุชื่อผู้ตายไว้"
+    prompt = build_interpret_system_prompt(STORY_DATA)
+    assert STORY_DATA["victim_name_th"] in prompt
+    assert "ผู้ตาย ศพ เหยื่อ" in prompt
+
+    # ผู้ตายต้องไม่ถูกใช้เป็นเป้าของการสอบปากคำหรือกล่าวหา
+    assert STORY_DATA["victim"] not in STORY_DATA["suspects"]
