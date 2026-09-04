@@ -18,6 +18,8 @@ let timeLimitSeconds = 3600;
 let locationsMap = {};
 let suspectsMap = {};
 let objectsMap = {};
+let rulesCount = null;
+let gameOver = false;   // ปิดคดีแล้วหรือหมดเวลาแล้ว ห้ามรับคำสั่งอีก
 
 
 // ============================================================
@@ -47,6 +49,7 @@ async function initGame() {
     locationsMap = sceneData.locations || {};
     suspectsMap = sceneData.suspects || {};
     objectsMap = sceneData.objects || {};
+    rulesCount = sceneData.rules_count || null;
 
     // อัปเดต HUD (ตำแหน่งและนาฬิกา)
     updateLocationHUD();
@@ -201,7 +204,7 @@ async function sendMessage(e) {
   loadingDiv.id = "activeLoading";
   loadingDiv.innerHTML = `
     <div class="spinner"></div>
-    <span>NeSy Engine กำลังตีความและตรวจกฎ 15 ข้อ...</span>
+    <span>NeSy Engine กำลังตีความและตรวจกฎ${rulesCount ? " " + rulesCount + " ข้อ" : ""}...</span>
   `;
   feed.appendChild(loadingDiv);
   feed.scrollTop = feed.scrollHeight;
@@ -246,6 +249,7 @@ async function sendMessage(e) {
       || (data.decision && data.decision.violated_rule_id === "R014_TIME_LIMIT");
     if (over) { showGameOver(); return; }
 
+
     // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
     // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
     // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
@@ -256,7 +260,10 @@ async function sendMessage(e) {
     removeLoading();
     renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
   } finally {
-    if (!document.getElementById("chatInput").disabled) {
+    // ปลดล็อกเสมอ ยกเว้นคดีปิดไปแล้ว
+    // เคยพลาดตรงนี้มาแล้ว ไปเช็ค input.disabled ซึ่งถูกตั้งเป็น true ตอนเริ่มส่งอยู่แล้ว
+    // เงื่อนไขจึงเป็นเท็จตลอด ปุ่มค้างที่ ประมวลผล... และพิมพ์ได้ครั้งเดียวทั้งเกม
+    if (!gameOver) {
       input.disabled = false;
       btn.disabled = false;
       btnText.textContent = "ส่งคำสั่ง";
@@ -266,6 +273,7 @@ async function sendMessage(e) {
 }
 
 function showGameOver() {
+  gameOver = true;
   const input = document.getElementById("chatInput");
   const btn = document.getElementById("sendBtn");
   input.disabled = true;

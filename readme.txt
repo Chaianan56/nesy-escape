@@ -17,7 +17,7 @@ NeSy-Escape (draft1) — Neuro-Symbolic Escape Room
     app/walkthrough.py       เส้นทางเฉลย ใช้ในเทส
     app/main.py              FastAPI endpoints
 
-    data/rules.json          กฎทั้ง 15 ข้อ แก้กฎที่นี่ ไม่แก้ในโค้ด
+    data/rules.json          กฎทั้งหมดของเกม แก้กฎที่นี่ ไม่แก้ในโค้ด
     data/story.json          โลกของเกม แก้ id ที่นี่ที่เดียว ทั้งสองเลเยอร์อ่านไฟล์นี้
     data/walkthrough.json    เส้นทางเฉลย 29 ตา
 

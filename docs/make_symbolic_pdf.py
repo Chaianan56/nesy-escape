@@ -47,7 +47,8 @@ N_RULES = len(rules)
 N_LOC = len(world["locations"])
 N_OBJ = len(world["objects"])
 N_SUS = len(world["suspects"])
-N_END = len(world["endings"])
+N_END = sum(1 for e in world["endings"] if e.get("canon", True))
+N_END_ALL = len(world["endings"])
 N_STEPS = len(json.loads((ROOT / "data/walkthrough.json").read_text(encoding="utf-8"))["steps"])
 N_ENGINE_TESTS = sum(1 for l in (ROOT / "tests/test_engine.py").read_text(encoding="utf-8").splitlines()
                      if l.startswith("def test_"))
@@ -166,7 +167,7 @@ A(tbl([
     ["ขอบเขต", "app/symbolic/engine.py, app/schemas.py, data/rules.json, "
                 "data/story.json, app/walkthrough.py และจุดที่ app/main.py เรียกใช้"],
     ["ฉากของเกม", f"นอกเทิร์นเอกซ์เพรส ตู้รถ {N_LOC} ของ {N_OBJ} ชิ้น คน {N_SUS} "
-                   f"ฉากจบ {N_END} แบบ กรอบเวลา {MINUTES} นาที"],
+                   f"ฉากจบ {N_END} แบบตามเนื้อเรื่อง กรอบเวลา {MINUTES} นาที"],
     ["กฎในระบบ", f"{N_RULES} ข้อ ({FIRST_RULE}–{LAST_RULE})"],
     ["การทดสอบ", "70 ข้อ รันได้โดยไม่ต้องมี API key ยกเว้นกลุ่มที่เรียก LLM จริง"],
 ], [22, 78], header=False))
@@ -224,7 +225,7 @@ A(tbl([
      "schemas.py\nrules.json\nstory.json"],
     ["data/rules.json", f"กฎทั้ง {N_RULES} ข้อ เก็บเป็นข้อมูล ไม่ใช่โค้ด", "—"],
     ["data/story.json", f"โลกของเกม ตู้รถ {N_LOC} ของ {N_OBJ} คน {N_SUS} "
-                        f"พร้อมคำบรรยาย เงื่อนไข และฉากจบ {N_END} แบบ", "—"],
+                        f"พร้อมคำบรรยาย เงื่อนไข และฉากจบ {N_END_ALL} รายการ", "—"],
     ["app/walkthrough.py", f"อ่านเส้นทางเฉลย {N_STEPS} ขั้นจาก walkthrough.json ให้เทสใช้", "walkthrough.json"],
     ["app/main.py", "รับคำสั่งจากเว็บ เรียก neural แล้วส่งต่อให้ symbolic", "ทั้งสองชั้น"],
 ], [26, 52, 22], mono=(0,)))
@@ -315,7 +316,8 @@ A(tbl([
     ["objects", f"สิ่งของและหลักฐาน {N_OBJ} ชิ้น ในนั้นเป็นหลักฐาน {N_EV} ชิ้น"],
     ["suspects", f"ผู้เกี่ยวข้อง {N_SUS} คน"],
     ["culprit, framed, coerced", "เฉลยของฉาก ใช้เขียนเทสและใช้เลือกฉากจบ ไม่ได้ส่งให้ผู้เล่น"],
-    ["endings", f"ฉากจบ {N_END} แบบ พร้อมเงื่อนไขของแต่ละแบบ"],
+    ["endings", f"ฉากจบ {N_END} แบบตามเอกสารเนื้อเรื่อง บวกทางออกสำรองอีก "
+                f"{N_END_ALL - N_END} รายการ พร้อมเงื่อนไขของแต่ละอัน"],
 ], [28, 72], mono=(0,)))
 
 A(H2("4.1 ฟิลด์ใน locations"))
@@ -724,8 +726,12 @@ A(P("เกมนี้ไม่ได้มีแค่ชนะกับแพ
     "ขึ้นกับว่าชี้ตัวใคร และตอนนั้นมีหลักฐานอะไรอยู่ในมือ"))
 A(tbl([["ฉากจบ", "เงื่อนไข", "ปิดคดี"]] + [
     [e["title"], _ending_condition(e), "ใช่" if e["solved"] else "ไม่"]
-    for e in world["endings"]
+    for e in world["endings"] if e.get("canon", True)
 ], [30, 55, 15]))
+A(P(f"เอกสารเนื้อเรื่องกำหนดฉากจบไว้ {N_END} แบบ แต่ไม่ได้ระบุว่าถ้าผู้เล่นกล่าวหาคนที่ไม่มี "
+    "เส้นเรื่องรองรับจะเกิดอะไรขึ้น ซึ่งเอนจินต้องมีคำตอบให้ทุกกรณี "
+    f"จึงมีทางออกสำรองอีก {N_END_ALL - N_END} รายการในไฟล์ ทำเครื่องหมาย canon เป็น false ไว้ "
+    "เพื่อไม่ให้ถูกนับปนกับฉากจบตามเนื้อเรื่อง", "note"))
 A(P("ฉากจบทั้งหมดอยู่ใน story.json ไม่ได้เขียนตายในโค้ด "
     "<font face='MONO' size='8'>engine.ending_for()</font> ไล่เงื่อนไขจากบนลงล่างแล้วหยิบอันแรกที่เข้า "
     "ทุกเงื่อนไขอ่านจาก GameState กับ story.json เท่านั้น "

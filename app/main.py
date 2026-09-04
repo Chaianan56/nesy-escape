@@ -21,7 +21,7 @@ from app.schemas import (
     CommandResponse,
     GameState,
 )
-from app.neural.gemini_client import interpret, llm_online
+from app.neural.gemini_client import _clients, interpret, llm_online
 from app.symbolic.engine import SymbolicEngine, apply_changes
 
 # สร้างแอปพลิเคชัน FastAPI สำหรับบริการ Web API
@@ -40,14 +40,31 @@ engine = SymbolicEngine()
 
 
 @app.get("/health")
-def health():
-    """ตรวจสอบความพร้อมของระบบ และเช็กสถานะการเชื่อมต่อ Gemini API"""
-    return {
+def health(probe: bool = False):
+    """ตรวจความพร้อมของระบบ
+
+    llm_configured บอกแค่ว่า "ตั้งคีย์ไว้แล้ว" ไม่ได้แปลว่าเรียกได้จริง
+    เดิมฟิลด์นี้ชื่อ llm_online ซึ่งทำให้เข้าใจผิด เพราะโควตาหมดแล้วมันก็ยังตอบ true
+    ถ้าอยากรู้ว่าเรียกได้จริงไหม ต้องส่ง ?probe=true ซึ่งจะยิง API จริงหนึ่งครั้ง
+    ไม่ทำให้เป็นค่าเริ่มต้น เพราะทุกครั้งที่เรียกจะกินโควตารายวัน
+    """
+    info = {
         "status": "ok",
-        "llm_online": llm_online(),
+        "llm_configured": llm_online(),
+        "llm_keys": len(_clients()),
         "rules_loaded": len(engine.rules),
         "objects_loaded": len(engine.world["objects"]),
+        "suspects_loaded": len(engine.world["suspects"]),
+        "endings_loaded": len(engine.world.get("endings", [])),
     }
+    if probe:
+        try:
+            interpret("ดูรอบๆ", GameState())
+            info["llm_reachable"] = True
+        except Exception as e:
+            info["llm_reachable"] = False
+            info["llm_error"] = str(e)[:200]
+    return info
 
 
 @app.get("/scene")
@@ -62,6 +79,7 @@ def scene():
         "objects": {k: v.get("name_th") for k, v in w["objects"].items()},
         "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
         "actions": [a.value for a in ActionType],
+        "rules_count": len(engine.rules),
         "initial_state": GameState().model_dump(),
     }
 

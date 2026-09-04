@@ -725,3 +725,21 @@ def test_burning_the_report_closes_off_the_true_ending(engine):
 
     burned = apply_changes(s, {"burned_add": report})
     assert engine.ending_for("gideon_hart", burned)["id"] == "E6_EIGHTH_PASSENGER"
+
+
+def test_canon_endings_match_the_master_story(engine):
+    """ฉากจบตามเนื้อเรื่องต้องมีแปดแบบ ที่เกินมาต้องทำเครื่องหมายว่าไม่ใช่ของเนื้อเรื่อง
+
+    เอกสารเนื้อเรื่องกำหนดไว้แปด แต่ไม่ได้บอกว่าถ้ากล่าวหาคนที่ไม่มีเส้นเรื่องรองรับจะเกิดอะไร
+    เอนจินต้องมีคำตอบให้ทุกกรณี จึงต้องมีทางออกสำรอง แต่ต้องแยกให้ออกว่าอันไหนเป็นอันไหน
+    """
+    endings = engine.world["endings"]
+    canon = [e for e in endings if e.get("canon", True)]
+    assert len(canon) == 8, f"ฉากจบตามเนื้อเรื่องควรมี 8 แบบ แต่มี {len(canon)}"
+    for e in endings:
+        if not e.get("canon", True):
+            assert e.get("note"), f"{e['id']} ต้องเขียนกำกับว่าทำไมถึงมี"
+    # ทางออกสำรองต้องอยู่ล่างสุดของลิสต์ที่กล่าวหา ไม่งั้นจะบังฉากจบจริง
+    fallback = [i for i, e in enumerate(endings) if e.get("accuse") == "*"]
+    named = [i for i, e in enumerate(endings) if e.get("accuse") not in (None, "*")]
+    assert all(f > max(named) for f in fallback), "ทางออกสำรองต้องอยู่หลังฉากจบที่ระบุตัวคน"
