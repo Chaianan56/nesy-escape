@@ -73,11 +73,16 @@ def test_cannot_examine_evidence_in_another_car(engine):
 
 
 def test_hidden_evidence_requires_opening_container(engine):
-    s = GameState(current_location="service_pantry",
-                  discovered_evidence=["crime_scene_record", "latch_scratches"])
-    d = engine.decide(cmd(ActionType.EXAMINE, "copper_wire"), s)
-    assert not d.allowed
-    assert d.violated_rule_id == "R007_CONTAINER_OPENED"
+    """ของที่ซ่อนอยู่ต้องเปิดที่ซ่อนก่อน ไล่จากข้อมูลฉากเอง ไม่ฝัง id ไว้ในเทส"""
+    hidden = {o: v for o, v in engine.world["objects"].items() if v.get("hidden_in")}
+    assert hidden, "ฉากนี้ควรมีของที่ซ่อนอยู่อย่างน้อยหนึ่งชิ้น"
+    for oid, obj in hidden.items():
+        s = GameState(current_location=obj["location"],
+                      discovered_evidence=list(obj.get("requires_evidence", [])),
+                      interrogated_suspects=[obj["requires_suspect"]] if obj.get("requires_suspect") else [])
+        d = engine.decide(cmd(ActionType.EXAMINE, oid), s)
+        assert not d.allowed, f"{oid} ไม่ควรตรวจได้ทั้งที่ยังไม่เปิด {obj['hidden_in']}"
+        assert d.violated_rule_id == "R007_CONTAINER_OPENED"
 
 
 def test_evidence_prerequisite_enforced(engine):
@@ -105,10 +110,16 @@ def test_elias_requires_liora_first(engine):
 
 
 def test_testimony_requires_interrogation(engine):
-    s = GameState(current_location="luggage_van")
-    d = engine.decide(cmd(ActionType.EXAMINE, "elias_testimony"), s)
-    assert not d.allowed
-    assert d.violated_rule_id == "R009_TESTIMONY_PREREQ"
+    """หลักฐานที่ได้จากคำให้การ ต้องสอบปากคำเจ้าตัวก่อน"""
+    gated = {o: v for o, v in engine.world["objects"].items() if v.get("requires_suspect")}
+    assert gated, "ฉากนี้ควรมีหลักฐานที่ได้จากคำให้การอย่างน้อยหนึ่งชิ้น"
+    for oid, obj in gated.items():
+        s = GameState(current_location=obj["location"],
+                      discovered_evidence=list(obj.get("requires_evidence", [])),
+                      unlocked_objects=[obj["hidden_in"]] if obj.get("hidden_in") else [])
+        d = engine.decide(cmd(ActionType.EXAMINE, oid), s)
+        assert not d.allowed, f"{oid} ไม่ควรตรวจได้ก่อนสอบปากคำ {obj['requires_suspect']}"
+        assert d.violated_rule_id == "R009_TESTIMONY_PREREQ"
 
 
 def test_unknown_object_denied(engine):
@@ -118,7 +129,7 @@ def test_unknown_object_denied(engine):
 
 
 def test_time_limit_enforced(engine):
-    s = GameState(elapsed_seconds=4000)
+    s = GameState(elapsed_seconds=engine.world["time_limit_seconds"] + 1)
     d = engine.decide(cmd(ActionType.MOVE, "dining_car"), s)
     assert not d.allowed
     assert d.violated_rule_id == "R014_TIME_LIMIT"
@@ -218,9 +229,14 @@ def test_look_around_lists_only_what_is_reachable_now(engine):
     """'ดูรอบๆ' ต้องไม่สปอยล์ของที่ยังซ่อนอยู่หรือยังไม่มีหลักฐานนำทาง"""
     s = apply_changes(GameState(), {"move_to": "service_pantry"})
     msg = engine.decide(cmd(ActionType.EXAMINE, "service_pantry"), s).message
-    assert engine.world["objects"]["crime_scene_record"]["name_th"] in msg
-    assert engine.world["objects"]["latch_scratches"]["name_th"] not in msg   # ต้องพบบันทึกก่อน
-    assert engine.world["objects"]["copper_wire"]["name_th"] not in msg       # ซ่อนในช่องส่งของ
+    here = {o: v for o, v in engine.world["objects"].items()
+            if v.get("location") == "service_pantry"}
+    shown = [o for o, v in here.items() if v["name_th"] in msg]
+    assert shown, "ตู้นี้ควรมีของที่มองเห็นได้ตั้งแต่ยังไม่ทำอะไร"
+    for oid, obj in here.items():
+        gated = obj.get("requires_evidence") or obj.get("requires_suspect") or obj.get("hidden_in")
+        if gated:
+            assert obj["name_th"] not in msg, f"{oid} ยังไม่ควรถูกแสดง"
 
 
 def test_look_around_reveals_more_after_progress(engine):

@@ -2,8 +2,28 @@
   "note": "เส้นทางเฉลยของฉาก ใช้ในเทสเพื่อพิสูจน์ว่าเกมเดินได้จนจบจริง ทุกขั้นต้องอยู่ในตู้เดียวกับสิ่งหรือคนที่จะเข้าถึง",
   "steps": [
     [
+      "examine",
+      "seat_eight"
+    ],
+    [
       "interrogate",
       "mara_voss"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "wine_receipt_2316"
+    ],
+    [
+      "move",
+      "medical_bay"
+    ],
+    [
+      "examine",
+      "medical_key_log"
     ],
     [
       "move",
@@ -15,6 +35,10 @@
     ],
     [
       "examine",
+      "pantry_door"
+    ],
+    [
+      "examine",
       "elias_button"
     ],
     [
@@ -23,43 +47,7 @@
     ],
     [
       "examine",
-      "latch_scratches"
-    ],
-    [
-      "examine",
-      "supply_hatch"
-    ],
-    [
-      "examine",
-      "copper_wire"
-    ],
-    [
-      "move",
-      "luggage_van"
-    ],
-    [
-      "examine",
-      "elias_ticket"
-    ],
-    [
-      "examine",
-      "bellwether_documents"
-    ],
-    [
-      "examine",
-      "project_nocturne_file"
-    ],
-    [
-      "move",
-      "dining_car"
-    ],
-    [
-      "examine",
-      "wine_receipt_2316"
-    ],
-    [
-      "interrogate",
-      "liora_venn"
+      "service_hatch"
     ],
     [
       "move",
@@ -71,7 +59,7 @@
     ],
     [
       "examine",
-      "master_key_record"
+      "mara_incident_note"
     ],
     [
       "move",
@@ -83,19 +71,171 @@
     ],
     [
       "examine",
+      "oil_footprints"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
+      "examine",
+      "elias_ticket"
+    ],
+    [
+      "examine",
+      "bellwether_record"
+    ],
+    [
+      "examine",
+      "letter_nine"
+    ],
+    [
+      "move",
+      "passenger_car"
+    ],
+    [
+      "examine",
+      "coat_missing_button"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "gideon_table_note"
+    ],
+    [
+      "examine",
+      "unfinished_wine_glass"
+    ],
+    [
+      "interrogate",
+      "gideon_hart"
+    ],
+    [
+      "move",
+      "medical_bay"
+    ],
+    [
+      "interrogate",
+      "liora_venn"
+    ],
+    [
+      "move",
+      "service_pantry"
+    ],
+    [
+      "examine",
+      "latch_scratches"
+    ],
+    [
+      "examine",
+      "hatch_scuff_marks"
+    ],
+    [
+      "move",
+      "conductor_office"
+    ],
+    [
+      "examine",
+      "master_key_record"
+    ],
+    [
+      "examine",
+      "mara_sighting_note"
+    ],
+    [
+      "examine",
+      "anselm_draft"
+    ],
+    [
+      "move",
+      "electrical_compartment"
+    ],
+    [
+      "examine",
       "removed_fuse"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
+      "examine",
+      "project_nocturne_file"
+    ],
+    [
+      "interrogate",
+      "elias_venn"
+    ],
+    [
+      "move",
+      "dining_car"
+    ],
+    [
+      "examine",
+      "gideon_cane"
+    ],
+    [
+      "examine",
+      "narin_report_1931"
+    ],
+    [
+      "interrogate",
+      "halm"
+    ],
+    [
+      "move",
+      "service_pantry"
+    ],
+    [
+      "examine",
+      "holdback_tampered"
+    ],
+    [
+      "move",
+      "electrical_compartment"
     ],
     [
       "examine",
       "blackout_log_46s"
     ],
     [
+      "interrogate",
+      "ilya_renn"
+    ],
+    [
+      "move",
+      "luggage_van"
+    ],
+    [
       "examine",
-      "oil_footprints"
+      "nocturne_page_19"
+    ],
+    [
+      "examine",
+      "nocturne_page_41"
+    ],
+    [
+      "examine",
+      "letter_ten"
+    ],
+    [
+      "examine",
+      "elias_testimony"
+    ],
+    [
+      "move",
+      "passenger_car"
     ],
     [
       "interrogate",
-      "ilya_renn"
+      "mira_solen"
+    ],
+    [
+      "move",
+      "electrical_compartment"
     ],
     [
       "examine",
@@ -104,18 +244,6 @@
     [
       "examine",
       "gideon_seal"
-    ],
-    [
-      "move",
-      "luggage_van"
-    ],
-    [
-      "interrogate",
-      "elias_venn"
-    ],
-    [
-      "examine",
-      "elias_testimony"
     ]
   ]
 }
