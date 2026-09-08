@@ -23,7 +23,9 @@ from app.schemas import (
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
-PILLARS = ("motive", "means", "opportunity", "corroboration")
+# เสาหลักของคดีไม่ได้ตายตัวในโค้ด อ่านจาก story.json
+# คดีนี้ใช้ TIMELINE แทน MEANS เพราะแก่นของคดีคือการลวงเวลาตาย
+DEFAULT_PILLARS = ("timeline", "motive", "opportunity", "corroboration")
 
 
 # ============================================================
@@ -80,14 +82,80 @@ def _in_same_location(cmd, state, world, p):
     return True, ""
 
 
+def _condition_met(cond: dict, evidence: set, held: set) -> bool:
+    """เงื่อนไขหนึ่งข้อเป็นจริงหรือยัง
+
+    รองรับสามแบบที่สเปกใช้จริง
+        requires_evidence    ต้องมีหลักฐานครบทุกชิ้นที่ระบุ
+        requires_deductions  ต้องสรุปข้อก่อนหน้าได้ครบทุกข้อ
+        at_least / of        ต้องได้อย่างน้อย n ข้อจากรายการที่ให้มา
+    ทั้งสามอย่างต้องผ่านพร้อมกัน ถ้าไม่ได้ระบุข้อไหนถือว่าข้อนั้นผ่าน
+    """
+    if any(e not in evidence for e in cond.get("requires_evidence", [])):
+        return False
+    if any(d not in held for d in cond.get("requires_deductions", [])):
+        return False
+    need = cond.get("at_least")
+    if need is not None:
+        pool = cond.get("of", [])
+        got = sum(1 for x in pool if x in held or x in evidence)
+        if got < need:
+            return False
+    return True
+
+
+def deductions_held(state: GameState, world: dict) -> set:
+    """ข้อสรุปทั้งหมดที่ผู้เล่นมีสิทธิ์สรุปได้จากหลักฐานที่หามาได้จริง
+
+    ข้อสรุปไม่ได้ถูกเก็บใน GameState แต่คำนวณสดจาก discovered_evidence ทุกครั้ง
+    เพื่อไม่ให้มีสองแหล่งความจริงที่หลุดจากกันได้ ถ้าเก็บไว้ในสถานะ
+    จะมีทางที่ใครสักคนเซ็ตข้อสรุปโดยไม่มีหลักฐานรองรับ ซึ่งเป็นสิ่งที่งานนี้ห้าม
+
+    ข้อสรุปอ้างข้อสรุปอื่นได้ จึงต้องวนจนกว่าจะไม่มีอะไรเพิ่ม
+    """
+    evidence = set(state.discovered_evidence)
+    rules = world.get("deductions", {})
+    held: set = set()
+    changed = True
+    while changed:
+        changed = False
+        for did, cond in rules.items():
+            if did not in held and _condition_met(cond, evidence, held):
+                held.add(did)
+                changed = True
+    return held
+
+
 def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, List[str]]:
-    found = {k: [] for k in PILLARS}
-    for ev_id in state.discovered_evidence:
-        ev = world["objects"].get(ev_id, {})
-        pillar = ev.get("supports", {}).get(target)
-        if pillar in found:
-            found[pillar].append(ev_id)
+    """เสาหลักของผู้ถูกกล่าวหา คืนเป็น เสา -> รายการข้อสรุปที่ค้ำเสานั้น
+
+    เสาไหนไม่มีข้อสรุปค้ำเลย ถือว่ายังไม่ครบ
+    ผู้ต้องสงสัยที่ฉากไม่ได้กำหนดเสาไว้ให้ จะได้เสาว่างทั้งหมด
+    ซึ่งแปลว่ากล่าวหาได้แต่พิสูจน์ไม่ได้ ตรงตามที่สเปกต้องการ
+    """
+    spec = world.get("pillars", {}).get(target, {})
+    held = deductions_held(state, world)
+    found = {}
+    for pillar in pillar_names(world):
+        need = spec.get(pillar, {}).get("requires_deductions", [])
+        found[pillar] = [d for d in need if d in held] if need and all(d in held for d in need) else []
     return found
+
+
+def pillar_names(world: dict) -> tuple:
+    """ชื่อเสาหลักของฉากนี้ อ่านจากฉากก่อน ถ้าไม่ได้กำหนดค่อยใช้ค่าเริ่มต้น"""
+    order = world.get("pillar_order")
+    return tuple(order) if order else DEFAULT_PILLARS
+
+
+def _four_pillars(cmd, state, world, p):
+    """กฎสี่เสา ตรวจว่าคำกล่าวหามีหลักฐานครบทุกด้านหรือยัง"""
+    found = _collect_pillars(cmd.target, state, world)
+    names = pillar_names(world)
+    missing = [k for k in names if not found[k]]
+    if missing:
+        return False, f"ขาดเสา: {', '.join(missing)}"
+    return True, "; ".join(f"{k}={len(found[k])}" for k in names)
 
 
 def _game_not_over(cmd, state, world, p):
@@ -117,6 +185,7 @@ CHECKERS: Dict[str, Callable] = {
     "suspect_exists": _suspect_exists,
     "in_same_location": _in_same_location,
     "within_time_limit": _within_time_limit,
+    "four_pillars": _four_pillars,
     "game_not_over": _game_not_over,
 }
 
@@ -220,10 +289,15 @@ class SymbolicEngine:
             # ฉากจบถูกเลือกที่นี่ครั้งเดียว แล้วบันทึกลง state เพื่อปิดคดี
             return {"ending": self.ending_for(cmd.target, state).get("id")}
         if cmd.action == ActionType.INTERROGATE:
+            sus = self.world["suspects"].get(cmd.target, {})
             changes = {"interrogated_add": cmd.target}
-            granted = self.world["suspects"].get(cmd.target, {}).get("grants_object")
+            granted = sus.get("grants_object")
             if granted:
                 changes["inventory_add"] = granted
+            # คำให้การบางอย่างมีค่าเป็นหลักฐาน เช่นคำประเมินเวลาตายของแพทย์
+            # หลักฐานพวกนี้ไม่มีที่อยู่ในโลก ผู้เล่นจึงหาเจอได้ทางเดียวคือถามเจ้าตัว
+            if sus.get("grants_evidence"):
+                changes["discovered_evidence_add"] = list(sus["grants_evidence"])
             return changes
         return {}
 
@@ -318,49 +392,51 @@ class SymbolicEngine:
         return templates.get(cmd.action, "ดำเนินการเรียบร้อย")
 
     def pillars_complete(self, suspect_id: str, state: GameState) -> bool:
-        """ผู้ถูกกล่าวหาคนนี้มีหลักฐานครบทั้งสี่ด้านแล้วหรือยัง"""
+        """ผู้ถูกกล่าวหาคนนี้มีหลักฐานครบทุกเสาแล้วหรือยัง"""
         found = _collect_pillars(suspect_id, state, self.world)
-        return all(found[p] for p in PILLARS)
+        return all(found[p] for p in pillar_names(self.world))
+
+    def deductions(self, state: GameState) -> set:
+        """ข้อสรุปที่ผู้เล่นมีสิทธิ์สรุปได้ ณ ตอนนี้ ใช้กับ UI และการอธิบาย"""
+        return deductions_held(state, self.world)
 
     def ending_for(self, suspect_id: str = None, state: GameState = None,
                    on_timeout: bool = False) -> dict:
-        """เลือกฉากจบจากสถานะจริงของผู้เล่น ตามเงื่อนไขของ Nocturne Express 1938"""
+        """เลือกฉากจบจากเงื่อนไขที่เขียนไว้ใน story.json
+
+        ไล่จากบนลงล่างแล้วหยิบอันแรกที่เข้าเงื่อนไข จึงต้องเรียงจากเฉพาะไปกว้าง
+        ทุกเงื่อนไขอ่านจาก GameState กับ story.json เท่านั้น ไม่มี LLM เกี่ยวข้อง
+        และไม่มีเงื่อนไขไหนเขียนตายในโค้ด เพิ่มฉากจบใหม่จึงไม่ต้องแก้ไฟล์นี้
+        """
         endings = self.world.get("endings", {})
-        if on_timeout:
-            return endings.get("tragic_ending", {"id": "tragic_ending", "title": "หมดเวลาการสืบสวน"})
+        order = self.world.get("ending_order") or list(endings)
+        held = deductions_held(state, self.world) if state else set()
 
-        if suspect_id == "vincent_gray":
-            res = dict(endings.get("bad_ending_a", {"id": "bad_ending_a"}))
-            res["id"] = "bad_ending_a"
-            return res
-        elif suspect_id == "dr_liora_venn":
-            res = dict(endings.get("bad_ending_b", {"id": "bad_ending_b"}))
-            res["id"] = "bad_ending_b"
-            return res
-        elif suspect_id == "gideon_hart":
-            # ตรวจสอบว่าหักล้างเวลาตายสำเร็จหรือไม่
-            timeline_broken = "pocket_watch" in state.discovered_evidence or "pocket_watch" in state.inventory
-            
-            # นับหลักฐานกายภาพ 5 ชิ้น (Flexible Evidence Threshold >= 3)
-            evidence_pool = ["burnt_folder_c", "wax_seal_imprint", "obsidian_cufflink", "second_teacup", "red_soot"]
-            collected = [e for e in evidence_pool if e in state.discovered_evidence or e in state.inventory]
-
-            if timeline_broken and len(collected) >= 3:
-                res = dict(endings.get("true_ending", {"id": "true_ending"}))
-                res["id"] = "true_ending"
-                return res
-            elif timeline_broken:
-                res = dict(endings.get("tragic_ending", {"id": "tragic_ending"}))
-                res["id"] = "tragic_ending"
-                return res
-            else:
-                res = dict(endings.get("bad_ending_a", {"id": "bad_ending_a"}))
-                res["id"] = "bad_ending_a"
-                return res
-
-        res = dict(endings.get("tragic_ending", {"id": "tragic_ending"}))
-        res["id"] = "tragic_ending"
-        return res
+        for eid in order:
+            e = endings.get(eid)
+            if not e:
+                continue
+            if bool(e.get("on_timeout")) != on_timeout:
+                continue
+            if on_timeout:
+                return {**e, "id": eid}
+            who = e.get("accuse", "*")
+            if who != "*" and who != suspect_id:
+                continue
+            need_p = e.get("requires_pillars", [])
+            deny_p = e.get("denies_pillars", [])
+            if any(not _collect_pillars(suspect_id, state, self.world)[p] for p in need_p):
+                continue
+            if any(_collect_pillars(suspect_id, state, self.world)[p] for p in deny_p):
+                continue
+            if any(d not in held for d in e.get("requires_deductions", [])):
+                continue
+            if any(d in held for d in e.get("denies_deductions", [])):
+                continue
+            if any(x not in state.discovered_evidence for x in e.get("requires_evidence", [])):
+                continue
+            return {**e, "id": eid}
+        return {}
 
     def _render_ending(self, ending: dict, body: List[str]) -> str:
         head = [f"=== {ending.get('title', 'จบเกม')} ({ending.get('rank', '')}) ===", ""]
@@ -376,24 +452,28 @@ class SymbolicEngine:
         """
         sus = self.world["suspects"].get(suspect_id, {})
         found = _collect_pillars(suspect_id, state, self.world)
-        label = {
-            "motive": "แรงจูงใจ",
-            "means": "วิธีการ",
-            "opportunity": "โอกาส",
-            "corroboration": "หลักฐานสนับสนุน",
-        }
+        names = pillar_names(self.world)
+        spec = self.world.get("pillars", {}).get(suspect_id, {})
+        rules = self.world.get("deductions", {})
 
-        body = [f"คุณเรียกทุกคนมารวมกันที่ตู้เสบียง แล้วชี้ไปที่{sus.get('name_th', suspect_id)}", ""]
-        for pillar in PILLARS:
-            names = [self.world["objects"][e].get("name_th", e) for e in found[pillar]]
-            body.append(f"  {label[pillar]}")
-            for n in names:
-                body.append(f"    - {n}")
-            if not names:
-                body.append("    - ไม่มีหลักฐานด้านนี้")
+        body = [f"คุณเรียกทุกคนมารวมกัน แล้วชี้ไปที่{sus.get('name_th', suspect_id)}", ""]
+        for pillar in names:
+            label = self.world.get("pillar_labels", {}).get(pillar, pillar)
+            body.append(f"  {label}")
+            if found[pillar]:
+                for d in found[pillar]:
+                    body.append(f"    - {rules.get(d, {}).get('name_th', d)}")
+            else:
+                need = spec.get(pillar, {}).get("requires_deductions", [])
+                if need:
+                    miss = [rules.get(d, {}).get("name_th", d) for d in need]
+                    body.append(f"    - ยังสรุปไม่ได้ ต้องมี {', '.join(miss)}")
+                else:
+                    body.append("    - ไม่มีหลักฐานด้านนี้")
         body.append("")
-        body.append(f"รวมหลักฐาน {sum(len(v) for v in found.values())} ชิ้น "
-                    f"ครบ {sum(1 for p in PILLARS if found[p])} จาก 4 ด้าน "
+        body.append(f"หลักฐานที่หามาได้ {len(state.discovered_evidence)} ชิ้น "
+                    f"สรุปได้ {len(self.deductions(state))} ข้อ "
+                    f"เสาครบ {sum(1 for p in names if found[p])} จาก {len(names)} "
                     f"ใช้เวลาไป {state.elapsed_seconds // 60} นาที จาก "
                     f"{self.world.get('time_limit_seconds', 3600) // 60} นาที")
         return self._render_ending(self.ending_for(suspect_id, state), body)
@@ -450,8 +530,11 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
     }
     for key, lst in mapping.items():
         v = changes.get(key)
-        if v and v not in lst:
-            lst.append(v)
+        if not v:
+            continue
+        for item in (v if isinstance(v, list) else [v]):
+            if item not in lst:
+                lst.append(item)
     burned = changes.get("burned_add")
     if burned:
         if burned not in s.burned_objects:

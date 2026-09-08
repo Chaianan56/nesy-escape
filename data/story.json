@@ -8,14 +8,7 @@
   "seconds_per_turn": 60,
   "briefing": "คืนวันที่ 14 พฤศจิกายน 1938 บนขบวนรถไฟด่วน Nocturne Express คุณคือ นรินทร์ เวล (Narin Vale) เจ้าหน้าที่สืบสวนรุ่นใหม่จากสำนักงานอัยการ ขึ้นรถไฟ ณ สถานีฮัลเบิร์ดเพื่อรับมอบเอกสารคดีสำคัญจาก แคสเซียน รีด (Cassian Reed) ทว่าเมื่อขึ้นรถไฟมา กลับพบว่าแคสเซียนถูกสังหารเสียชีวิตในห้องพักตู้ 4 ท่ามกลางเหตุไฟดับ และคดีนี้เชื่อมโยงกับปริศนาโศกนาฏกรรม 'ผู้โดยสารคนที่แปด' เมื่อ 15 ปีก่อน!",
   "initial_state": {
-    "current_location": "lounge_car",
-    "inventory": [],
-    "visited_locations": ["lounge_car"],
-    "evidence_collected": [],
-    "interrogated_suspects": [],
-    "game_over": false,
-    "ending": null,
-    "turns_count": 0
+    "current_location": "lounge_car"
   },
   "locations": {
     "locomotive": {
@@ -47,17 +40,30 @@
     "gideon_hart": {
       "name_th": "กิเดียน ฮาร์ต (Gideon Hart)",
       "location": "lounge_car",
-      "description": "ข้าราชการระดับสูง บุคลิกภูมิฐานและสงบนิ่ง สวมชุดสูทสั่งตัดเรียบหรู ทว่ากระดุมข้อมือซ้ายหลุดหายไป 1 เม็ด และพกตลับยาอมโลหะติดตัว"
+      "description": "ข้าราชการระดับสูง บุคลิกภูมิฐานและสงบนิ่ง สวมชุดสูทสั่งตัดเรียบหรู ทว่ากระดุมข้อมือซ้ายหลุดหายไป 1 เม็ด และพกตลับยาอมโลหะติดตัว",
+      "grants_evidence": [
+        "gideon_blackout_alibi",
+        "gideon_no_early_alibi"
+      ]
     },
     "vincent_gray": {
       "name_th": "วินเซนต์ เกรย์ (Vincent Gray)",
       "location": "second_class_car",
-      "description": "ชายแปลกหน้าท่าทางลุกลี้ลุกลน แขนเสื้อมีคราบเลือดสด ซ่อนคีมตัดสายไฟไว้ในเสื้อโค้ต"
+      "description": "ชายแปลกหน้าท่าทางลุกลี้ลุกลน แขนเสื้อมีคราบเลือดสด ซ่อนคีมตัดสายไฟไว้ในเสื้อโค้ต",
+      "grants_evidence": [
+        "vincent_body_testimony",
+        "vincent_blackout_confession",
+        "vincent_theft_motive"
+      ]
     },
     "dr_liora_venn": {
       "name_th": "ดร. ลิโอรา เวนน์ (Dr. Liora Venn)",
       "location": "first_class_car",
-      "description": "แพทย์หญิงประจำขบวน บุตรสาวของเอเลียส เวนน์ มีท่าทีหวาดระแวงและวิตกกังวลตลอดเวลา"
+      "description": "แพทย์หญิงประจำขบวน บุตรสาวของเอเลียส เวนน์ มีท่าทีหวาดระแวงและวิตกกังวลตลอดเวลา",
+      "grants_evidence": [
+        "liora_time_estimate",
+        "liora_medical_access"
+      ]
     }
   },
   "objects": {
@@ -65,71 +71,471 @@
       "name_th": "นาฬิกาพกกลไก",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "นาฬิกาพกระบบกลไกลานหมุนในอกเสื้อ Cassian หน้าปัดกระจกแตกละเอียดจากแรงกระแทก เข็มหยุดเดินที่เวลา 20:25 น."
+      "description": "นาฬิกาพกระบบกลไกลานหมุนในอกเสื้อ Cassian หน้าปัดกระจกแตกละเอียดจากแรงกระแทก เข็มหยุดเดินที่เวลา 20:25 น.",
+      "spec_id": "E02"
     },
     "burnt_folder_c": {
       "name_th": "เศษเอกสารไหม้ไฟ [G.H.]",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "เศษเอกสารกระดาษเนื้อหนาถูกเผาในถาดเขี่ยบุหรี่ ปรากฏข้อความอนุมัติงบปี 1923 พร้อมลายเซ็น [G.H.] หมึกสีน้ำเงินอมเขียว"
+      "description": "เศษเอกสารกระดาษเนื้อหนาถูกเผาในถาดเขี่ยบุหรี่ ปรากฏข้อความอนุมัติงบปี 1923 พร้อมลายเซ็น [G.H.] หมึกสีน้ำเงินอมเขียว",
+      "spec_id": "E10"
     },
     "second_teacup": {
       "name_th": "ถ้วยชาใบที่สอง",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "ถ้วยชาบนโต๊ะห้องเกิดเหตุ พบคราบยาอมกลิ่นการบูร-สะระแหน่ละลายตกค้างอยู่ที่ขอบถ้วย"
+      "description": "ถ้วยชาบนโต๊ะห้องเกิดเหตุ พบคราบยาอมกลิ่นการบูร-สะระแหน่ละลายตกค้างอยู่ที่ขอบถ้วย",
+      "spec_id": "E13"
     },
     "wax_seal_imprint": {
       "name_th": "ก้อนขี้ผึ้งสีแดงพร้อมรอยตรา",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "ก้อนขี้ผึ้งผนึกซองจดหมายสีแดงใต้โต๊ะ มีรอยบุบกระแทกเป็นลวดลายเรขาคณิตตรงกับหน้าตัดแหวนตราประจำตระกูลของ Gideon"
+      "description": "ก้อนขี้ผึ้งผนึกซองจดหมายสีแดงใต้โต๊ะ มีรอยบุบกระแทกเป็นลวดลายเรขาคณิตตรงกับหน้าตัดแหวนตราประจำตระกูลของ Gideon",
+      "spec_id": "E16"
     },
     "obsidian_cufflink": {
       "name_th": "กระดุมออบซิเดียน",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "กระดุมข้อมือเงินฝังหินออบซิเดียน 1 เม็ด ตกอยู่ใต้ร่างของ Cassian ตรงกับกระดุมที่หลุดหายไปจากปลายแขนสูทซ้ายของ Gideon"
+      "description": "กระดุมข้อมือเงินฝังหินออบซิเดียน 1 เม็ด ตกอยู่ใต้ร่างของ Cassian ตรงกับกระดุมที่หลุดหายไปจากปลายแขนสูทซ้ายของ Gideon",
+      "spec_id": "E18"
     },
     "red_soot": {
       "name_th": "ละอองเขม่าถ่านหินสีแดง",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "ละอองฝุ่นซัลเฟอร์สีแดงจากอุโมงค์แบล็กโฮล (ช่วงเวลา 20:20-20:26 น.) ปลิวเข้าทางหน้าต่างเกาะบนกองเลือดและรอยพับแขนสูทของ Gideon"
+      "description": "ละอองฝุ่นซัลเฟอร์สีแดงจากอุโมงค์แบล็กโฮล (ช่วงเวลา 20:20-20:26 น.) ปลิวเข้าทางหน้าต่างเกาะบนกองเลือดและรอยพับแขนสูทของ Gideon",
+      "spec_id": "E20"
     },
     "wire_cutters": {
       "name_th": "คีมตัดสายไฟด้ามยาง",
       "location": "second_class_car",
       "type": "evidence",
-      "description": "คีมตัดสายไฟในกระเป๋าเสื้อโค้ตของ Vincent มีรอยเขม่าคัตเอาต์และเศษลวดทองแดงจากตู้สัมภาระ"
+      "description": "คีมตัดสายไฟในกระเป๋าเสื้อโค้ตของ Vincent มีรอยเขม่าคัตเอาต์และเศษลวดทองแดงจากตู้สัมภาระ",
+      "spec_id": "E06"
     },
     "secret_file": {
       "name_th": "เวชระเบียบลับปี 1923",
       "location": "first_class_car",
       "type": "evidence",
-      "description": "เอกสารเวชระเบียบเก่าของ ดร. ลิโอรา ระบุว่าเหยื่อในเหตุการณ์รถชนปี 1923 ถูกยาพิษก่อนเกิดอุบัติเหตุ"
+      "description": "เอกสารเวชระเบียบเก่าของ ดร. ลิโอรา ระบุว่าเหยื่อในเหตุการณ์รถชนปี 1923 ถูกยาพิษก่อนเกิดอุบัติเหตุ",
+      "spec_id": "E24"
+    },
+    "wall_clock": {
+      "name_th": "นาฬิกาไฟฟ้าบนผนัง",
+      "type": "evidence",
+      "spec_id": "E01",
+      "description": "นาฬิกาไฟฟ้าบนผนังห้องหยุดเดินที่ 21:15 น. ตรงกับเวลาที่ไฟดับทั้งขบวน มันบอกได้แค่ว่าไฟดับตอนไหน ไม่ได้บอกว่าคนตายตอนไหน",
+      "location": "first_class_car"
+    },
+    "dossier_missing_file_c": {
+      "name_th": "แฟ้มคดีเบลล์เวเธอร์ที่ขาดแฟ้ม C",
+      "type": "evidence",
+      "spec_id": "E09",
+      "description": "แฟ้มคดีเบลล์เวเธอร์วางอยู่ครบทุกส่วน ยกเว้นแฟ้มย่อย C ที่ถูกดึงออกไปทั้งชุด คนที่หยิบรู้ว่าจะหยิบอะไร ไม่ใช่คนที่คว้าไปทั้งกอง",
+      "location": "first_class_car"
+    },
+    "file_c_initials": {
+      "name_th": "ตัวย่อ [G.H.] บนเศษแฟ้ม C",
+      "type": "evidence",
+      "spec_id": "E11",
+      "description": "บนเศษกระดาษที่ไหม้ไม่หมด ยังอ่านออกเป็นรหัสอนุมัติงบปี 1923 กำกับด้วยตัวย่อ [G.H.] หมึกสีน้ำเงินอมเขียวแบบที่ใช้กันในสำนักงานกฎหมายส่วนกลาง",
+      "location": "first_class_car"
+    },
+    "judicial_transfer_order": {
+      "name_th": "หนังสือนำส่งสำนวนถึงหน่วยงานตุลาการ",
+      "type": "evidence",
+      "spec_id": "E12",
+      "description": "หนังสือนำส่งลงวันที่วันนี้ ระบุว่าแคสเซียนกำลังนำแฟ้มคดีเบลล์เวเธอร์ไปมอบให้หน่วยงานตุลาการ ถ้าแฟ้มถึงมือศาล เรื่องที่ถูกปิดไว้สิบห้าปีจะถูกรื้อ",
+      "location": "first_class_car"
+    },
+    "tea_lozenge_trace": {
+      "name_th": "คราบยาอมในถ้วยชาใบที่สอง",
+      "type": "evidence",
+      "spec_id": "E14",
+      "description": "ก้นถ้วยใบที่สองมีคราบยาอมกลิ่นการบูรผสมสะระแหน่ ละลายค้างอยู่ คนที่ดื่มถ้วยนี้อมยาไว้ในปากขณะดื่ม",
+      "location": "first_class_car"
+    },
+    "gideon_lozenge_tin": {
+      "name_th": "ตลับยาอมของกิเดียน",
+      "type": "evidence",
+      "spec_id": "E15",
+      "description": "ตลับโลหะในกระเป๋าเสื้อกิเดียน บรรจุยาอมการบูรผสมสะระแหน่ ชนิดเดียวกับคราบในถ้วยชาใบที่สอง",
+      "location": "lounge_car"
+    },
+    "gideon_signet_ring": {
+      "name_th": "แหวนตราประจำตระกูลของกิเดียน",
+      "type": "evidence",
+      "spec_id": "E17",
+      "description": "แหวนตราที่นิ้วก้อยขวาของกิเดียน ลวดลายเรขาคณิตบนหน้าตัดตรงกับรอยกดบนก้อนขี้ผึ้งในห้องผู้ตาย",
+      "location": "lounge_car"
+    },
+    "gideon_missing_button": {
+      "name_th": "ปลายแขนเสื้อกิเดียนที่กระดุมหาย",
+      "type": "evidence",
+      "spec_id": "E19",
+      "description": "ปลายแขนเสื้อสูทข้างซ้ายมีด้ายขาดใหม่ กระดุมเงินฝังออบซิเดียนหายไปหนึ่งเม็ด ชุดนี้สั่งตัด กระดุมจึงไม่ใช่แบบที่หาซื้อทั่วไป",
+      "location": "lounge_car"
+    },
+    "gideon_sleeve_soot": {
+      "name_th": "ละอองเขม่าสีแดงบนแขนเสื้อกิเดียน",
+      "type": "evidence",
+      "spec_id": "E21",
+      "description": "รอยพับปลายแขนเสื้อมีละอองเขม่าถ่านหินซัลเฟอร์สีแดง ชนิดเดียวกับที่พบในห้องผู้ตาย เขม่าแบบนี้ปลิวเข้าขบวนเฉพาะช่วงที่รถลอดอุโมงค์แบล็กโฮล",
+      "location": "lounge_car"
+    },
+    "vincent_blood": {
+      "name_th": "คราบเลือดบนปลายแขนเสื้อวินเซนต์",
+      "type": "evidence",
+      "spec_id": "E05",
+      "description": "ปลายแขนเสื้อวินเซนต์มีคราบเลือดของแคสเซียน ยังไม่แห้งสนิทตอนถูกพบ",
+      "location": "second_class_car"
+    },
+    "liora_patient_log": {
+      "name_th": "สมุดบันทึกการรักษาผู้โดยสาร",
+      "type": "evidence",
+      "spec_id": "E26",
+      "description": "สมุดบันทึกของแพทย์ประจำขบวน ลงเวลาไว้ว่าช่วง 20:20 ถึง 20:25 น. ลิโอรากำลังดูแลผู้โดยสารอีกคนที่มีอาการหอบ",
+      "location": "dining_car_staff"
+    },
+    "liora_patient_witness": {
+      "name_th": "คำยืนยันของผู้โดยสารที่ถูกรักษา",
+      "type": "evidence",
+      "spec_id": "E27",
+      "description": "ผู้โดยสารที่ถูกบันทึกไว้ในสมุดยืนยันว่าแพทย์อยู่กับตนตลอดช่วงเวลานั้น และไม่ได้ออกจากห้องไปไหนเลย",
+      "location": "dining_car_staff"
+    },
+    "liora_time_estimate": {
+      "name_th": "คำประเมินเวลาตายของลิโอรา",
+      "type": "evidence",
+      "spec_id": "E03",
+      "description": "ลิโอราตรวจสภาพศพแล้วยืนยันว่าเสียชีวิตมาแล้วไม่น้อยกว่าหนึ่งชั่วโมงก่อนถูกพบ รอยตกตะกอนของเลือดและอุณหภูมิร่างกายไปด้วยกัน",
+      "from_testimony": "dr_liora_venn"
+    },
+    "liora_medical_access": {
+      "name_th": "สิทธิ์เข้าถึงการตรวจศพของลิโอรา",
+      "type": "evidence",
+      "spec_id": "E25",
+      "description": "ลิโอราเป็นแพทย์คนเดียวบนขบวน มีความรู้และมีสิทธิ์เข้าถึงร่างผู้ตายก่อนใคร ข้อนี้ทำให้เธอน่าสงสัย แต่ความน่าสงสัยไม่ใช่หลักฐาน",
+      "from_testimony": "dr_liora_venn"
+    },
+    "vincent_body_testimony": {
+      "name_th": "คำให้การของวินเซนต์เรื่องสภาพศพ",
+      "type": "evidence",
+      "spec_id": "E04",
+      "description": "วินเซนต์ให้การว่าตอนย่องเข้าไปในความมืด เขาเผลอไปแตะร่างแคสเซียน และร่างนั้นเย็นไปแล้วตั้งแต่ตอนนั้น",
+      "from_testimony": "vincent_gray"
+    },
+    "vincent_blackout_confession": {
+      "name_th": "คำรับสารภาพว่าเป็นคนตัดไฟ",
+      "type": "evidence",
+      "spec_id": "E07",
+      "description": "วินเซนต์ยอมรับว่าเขาเป็นคนตัดไฟตอน 21:15 น. เพื่อให้ทั้งขบวนมืดสามนาที",
+      "from_testimony": "vincent_gray"
+    },
+    "vincent_theft_motive": {
+      "name_th": "คำรับสารภาพว่าตั้งใจขโมยแฟ้ม",
+      "type": "evidence",
+      "spec_id": "E08",
+      "description": "วินเซนต์ยอมรับว่าเข้าไปเพื่อขโมยแฟ้มคดีเบลล์เวเธอร์ตามที่ถูกว่าจ้าง ไม่ได้ตั้งใจไปฆ่าใคร",
+      "from_testimony": "vincent_gray"
+    },
+    "gideon_blackout_alibi": {
+      "name_th": "ที่อยู่ของกิเดียนตอนไฟดับ",
+      "type": "evidence",
+      "spec_id": "E22",
+      "description": "ตอน 21:15 น. กิเดียนอยู่กับคุณเองในตู้เลานจ์ ข้อนี้เป็นความจริงและตรวจสอบได้ คำถามคือมันครอบคลุมเวลาที่เกิดเหตุจริงหรือเปล่า",
+      "from_testimony": "gideon_hart"
+    },
+    "gideon_no_early_alibi": {
+      "name_th": "ช่องว่างที่อยู่ของกิเดียนช่วงสองทุ่ม",
+      "type": "evidence",
+      "spec_id": "E23",
+      "description": "ช่วง 20:00 ถึง 20:40 น. ไม่มีใครยืนยันที่อยู่ของกิเดียนได้เลย เขาบอกว่าอยู่ในห้องพักของตัวเอง แต่ไม่มีพยาน",
+      "from_testimony": "gideon_hart"
     }
   },
   "endings": {
     "true_ending": {
-      "title": "True Ending: ความจริงใต้เถ้าถ่าน (The Unburied Truth)",
-      "description": "คุณหักล้างเวลาตายลวงตา 21:15 น. ได้สำเร็จ และมัดตัว Gideon Hart ด้วยหลักฐานกายภาพอย่างน้อย 3 ชิ้น Gideon จานนต่อหลักฐาน คดีปี 1923 ได้รับการรื้อฟื้นคืนความบริสุทธิ์ให้แก่ผู้บริสุทธิ์!"
+      "title": "ความจริงใต้เถ้าถ่าน (The Unburied Truth)",
+      "rank": "ฉากจบแท้",
+      "solved": true,
+      "accuse": "gideon_hart",
+      "requires_pillars": [
+        "timeline",
+        "motive",
+        "opportunity",
+        "corroboration"
+      ],
+      "requires_deductions": [
+        "D08_VINCENT_CLEARED",
+        "D09_LIORA_CLEARED"
+      ],
+      "text": "คุณหักล้างเวลาตายลวงตา 21:15 น. ลงได้ด้วยนาฬิกาพกที่หยุดตั้งแต่ 20:25 น.\nที่อยู่ของกิเดียนตอนไฟดับเป็นความจริงทุกประการ แต่มันไม่ได้ครอบคลุมเวลาที่แคสเซียนตาย\n\nแฟ้ม C ที่หายไปและถูกเผา ตัวย่อบนเศษกระดาษ กระดุมใต้ร่าง รอยตราบนขี้ผึ้ง และเขม่าสีแดงบนแขนเสื้อ ทั้งหมดชี้ไปทางเดียวกันโดยไม่ต้องอาศัยคำพูดของใคร\nวินเซนต์ผิดเรื่องตัดไฟและพยายามขโมย แต่พ้นข้อหาฆ่า ลิโอรามีความลับ แต่ความลับไม่ใช่ความผิด\n\nกิเดียนไม่เถียงสักคำ เขาเพียงถอดแหวนตราออกวางบนโต๊ะ\nคดีเบลล์เวเธอร์ปี 1923 ถูกรื้อขึ้นมาใหม่ และชื่อของคนที่ถูกลบไปได้กลับเข้าสู่บันทึกอีกครั้ง"
     },
-    "bad_ending_a": {
-      "title": "Bad Ending A: แพะรับบาปในความมืด (The Scapegoat)",
-      "description": "คุณตกหลุมพรางเวลาไฟดับ 21:15 น. และกล่าวหา Vincent Gray ว่าเป็นฆาตกร Vincent ถูกประหารชีวิต ส่วน Gideon ลอยนวลและทลายเอกสารคดีทั้งหมด ความจริงถูกฝังกลบตลอดกาล"
+    "cold_justice": {
+      "title": "อำนาจเหนือกฎหมาย (Cold Justice)",
+      "rank": "จบแบบขมขื่น",
+      "solved": false,
+      "accuse": "gideon_hart",
+      "requires_pillars": [
+        "timeline",
+        "motive",
+        "opportunity"
+      ],
+      "denies_pillars": [
+        "corroboration"
+      ],
+      "text": "คุณชี้ถูกคน คุณรู้ว่าเขาทำ และคุณอธิบายได้ว่าเขาทำเมื่อไรและทำไม\nแต่หลักฐานอิสระยังไม่ครบพอจะยืนในทางคดี\n\nกิเดียนฟังจนจบ แล้วถามเพียงว่าคุณมีอะไรที่ไม่ต้องอาศัยการอนุมานบ้าง\nคุณตอบไม่ได้ทั้งหมด\n\nชี้ถูกคน ไม่เท่ากับ พิสูจน์ได้"
     },
-    "bad_ending_b": {
-      "title": "Bad Ending B: กับดักความระแวง (The Paranoia Trap)",
-      "description": "คุณกล่าวหา ดร. ลิโอรา เวนน์ จากปมขัดแย้งในอดีต Liora ถูกจับกุม ความจริงของ Project Nocturne ถูกทำลายโดย Gideon"
+    "the_scapegoat": {
+      "title": "แพะรับบาปในความมืด (The Scapegoat)",
+      "rank": "จบแบบผิดพลาด",
+      "solved": false,
+      "accuse": "vincent_gray",
+      "denies_deductions": [
+        "D01_TRUE_MURDER_WINDOW"
+      ],
+      "requires_evidence": [
+        "vincent_blood",
+        "wire_cutters"
+      ],
+      "text": "วินเซนต์ตัดไฟ วินเซนต์มีเลือดติดตัว ดังนั้นวินเซนต์ฆ่าแคสเซียน\nข้อสรุปนี้เรียงกันอย่างเรียบร้อย และผิดตั้งแต่ขั้นแรก\n\nคุณยังไม่เคยหักล้างเวลาตายลวงตา จึงยังเชื่อว่าคนตายตอนไฟดับ\nเลือดบนแขนเสื้อเขามาจากการที่เขาไปแตะร่างที่เย็นไปแล้ว\n\nวินเซนต์รับสารภาพเรื่องตัดไฟ แล้วรับข้อหาที่หนักกว่านั้นไปด้วย\nกิเดียนลงจากรถที่ปลายทางพร้อมผู้โดยสารคนอื่น"
     },
-    "tragic_ending": {
-      "title": "Tragic Ending: อำนาจเหนือกฎหมาย (Cold Justice)",
-      "description": "คุณรู้ว่า Gideon คือฆาตกร แต่หลักฐานกายภาพมัดตัวมีไม่ถึง 3 ชิ้น Gideon ใช้ข้อกฎหมายและอิทธิพลรอดพ้นข้อกล่าวหา ส่วนคุณถูกสั่งย้ายด่วน"
+    "the_paranoia_trap": {
+      "title": "กับดักความระแวง (The Paranoia Trap)",
+      "rank": "จบแบบผิดพลาด",
+      "solved": false,
+      "accuse": "dr_liora_venn",
+      "denies_deductions": [
+        "D01_TRUE_MURDER_WINDOW"
+      ],
+      "requires_evidence": [
+        "secret_file",
+        "liora_medical_access"
+      ],
+      "text": "เธอมีความลับ เธอมีความรู้ทางการแพทย์ เธอเข้าถึงศพก่อนใคร\nสามข้อนี้จริงทั้งหมด และไม่มีข้อไหนแปลว่าเธอฆ่าคน\n\nลิโอราไม่แก้ต่างมากนัก เพราะสิ่งที่เธอปกป้องไม่ใช่ตัวเอง\nเวชระเบียนลับนั้นเป็นของคนที่ตายไปแล้วเมื่อสิบห้าปีก่อน\n\nความลับไม่ใช่หลักฐาน และความระแวงไม่ใช่การสืบสวน"
     },
-    "secret_ending": {
-      "title": "Secret Ending: รอยแผลเป็นแห่งประวัติศาสตร์ (The Faustian Bargain)",
-      "description": "คุณยอมรับข้อเสนอคุ้มครองตำแหน่งและอำนาจจาก Gideon ปิดคดีเป็นอุบัติเหตุ คุณเลือกรอดชีวิตแต่กลายเป็นส่วนหนึ่งของระบบอันฉ้อฉล"
+    "unproven": {
+      "title": "คำกล่าวหาที่พิสูจน์ไม่ได้",
+      "rank": "จบแบบไม่มีข้อสรุป",
+      "solved": false,
+      "accuse": "*",
+      "canon": false,
+      "note": "ไม่ใช่ฉากจบในเอกสารสเปก แต่เอนจินต้องมีคำตอบให้ทุกกรณี เช่นกล่าวหาคนที่ยังไม่มีอะไรรองรับเลย หรือกล่าวหาทั้งที่รู้เวลาตายจริงแล้ว",
+      "text": "คุณเอ่ยชื่อออกไป แล้วห้องก็เงียบ\nไม่มีใครต้องแก้ต่าง เพราะยังไม่มีอะไรให้แก้\n\nรถไฟเทียบชานชาลา ตำรวจรับสำนวนไปอ่าน แล้ววางมันลง\nคดีถูกโอนออกไปและไม่มีใครถูกดำเนินคดี"
+    },
+    "cold_arrival": {
+      "title": "ถึงปลายทาง (Arrival)",
+      "rank": "หมดเวลา",
+      "solved": false,
+      "on_timeout": true,
+      "canon": false,
+      "text": "รถไฟเทียบชานชาลาปลายทาง ผู้โดยสารทยอยลงจากขบวนไปทีละคน\nรวมถึงคนที่คุณกำลังจะไปคุยด้วยเป็นคนต่อไป\n\nคดีถูกโอนไปยังหน่วยงานปลายทาง และหลายเดือนต่อมาถูกยุติ\nด้วยเหตุผลว่าพยานหลักฐานไม่เพียงพอ"
     }
+  },
+  "deductions": {
+    "D01_TRUE_MURDER_WINDOW": {
+      "name_th": "เวลาตายจริงคือ 20:20 ถึง 20:25 น.",
+      "spec_id": "R-TIME-01",
+      "requires_evidence": [
+        "pocket_watch",
+        "liora_time_estimate"
+      ],
+      "description": "นาฬิกาพกกลไกหยุดที่ 20:25 และคำประเมินของแพทย์ไปด้วยกัน นาฬิกาไฟฟ้าที่หยุด 21:15 บอกแค่เวลาไฟดับ ไม่ใช่เวลาตาย"
+    },
+    "D02_BLACKOUT_ALIBI_IRRELEVANT": {
+      "name_th": "ที่อยู่ตอนไฟดับของกิเดียนไม่เกี่ยวกับคดี",
+      "spec_id": "R-TIME-02",
+      "requires_deductions": [
+        "D01_TRUE_MURDER_WINDOW"
+      ],
+      "requires_evidence": [
+        "gideon_blackout_alibi"
+      ],
+      "description": "ที่อยู่นั้นเป็นความจริง แต่ครอบคลุมเวลา 21:15 ซึ่งอยู่นอกช่วงเวลาที่เกิดเหตุ"
+    },
+    "D03_GIDEON_MOTIVE": {
+      "name_th": "กิเดียนมีเหตุต้องหยุดแคสเซียน",
+      "spec_id": "R-MOTIVE-01",
+      "requires_evidence": [
+        "judicial_transfer_order",
+        "dossier_missing_file_c",
+        "burnt_folder_c",
+        "file_c_initials"
+      ],
+      "description": "แฟ้ม C โยงถึงกิเดียน แคสเซียนกำลังจะส่งสำนวนให้ศาล และแฟ้ม C ถูกเจาะจงเอาออกไปเผา"
+    },
+    "D04_GIDEON_TEA_LINK": {
+      "name_th": "กิเดียนคือคนที่ดื่มชาถ้วยที่สอง",
+      "requires_evidence": [
+        "second_teacup",
+        "tea_lozenge_trace",
+        "gideon_lozenge_tin"
+      ],
+      "description": "คราบยาอมในถ้วยตรงกับยาอมที่กิเดียนพกติดตัว"
+    },
+    "D05_GIDEON_BUTTON_LINK": {
+      "name_th": "กระดุมใต้ร่างผู้ตายเป็นของกิเดียน",
+      "requires_evidence": [
+        "obsidian_cufflink",
+        "gideon_missing_button"
+      ],
+      "description": "กระดุมเงินฝังออบซิเดียนใต้ร่าง ตรงกับกระดุมที่หายไปจากแขนเสื้อกิเดียน"
+    },
+    "D06_GIDEON_WAX_LINK": {
+      "name_th": "รอยตราบนขี้ผึ้งเป็นของแหวนกิเดียน",
+      "requires_evidence": [
+        "wax_seal_imprint",
+        "gideon_signet_ring"
+      ],
+      "description": "ลวดลายบนหน้าตัดแหวนตรงกับรอยกดบนก้อนขี้ผึ้งในห้องผู้ตาย"
+    },
+    "D07_GIDEON_IN_CASSIAN_ROOM": {
+      "name_th": "กิเดียนอยู่ในห้องผู้ตายช่วงเวลาที่เกิดเหตุ",
+      "spec_id": "R-OPP-01",
+      "requires_evidence": [
+        "gideon_no_early_alibi"
+      ],
+      "at_least": 2,
+      "of": [
+        "D04_GIDEON_TEA_LINK",
+        "D05_GIDEON_BUTTON_LINK",
+        "D06_GIDEON_WAX_LINK"
+      ],
+      "description": "การไม่มีที่อยู่อย่างเดียวไม่พอ ต้องมีร่องรอยที่โยงตัวเขาเข้ากับห้องอย่างน้อยสองทาง"
+    },
+    "C01_DOCUMENT_LINK": {
+      "name_th": "ช่องเอกสาร",
+      "requires_evidence": [
+        "dossier_missing_file_c",
+        "burnt_folder_c",
+        "file_c_initials"
+      ],
+      "description": "แฟ้มที่หายไป เศษที่ถูกเผา และตัวย่อบนเศษนั้น เป็นชุดเดียวกัน"
+    },
+    "C02_PERSONAL_LINK": {
+      "name_th": "ช่องของใช้ส่วนตัว",
+      "requires_deductions": [
+        "D05_GIDEON_BUTTON_LINK",
+        "D06_GIDEON_WAX_LINK"
+      ],
+      "description": "กระดุมและรอยตราเป็นของเฉพาะตัว ไม่ใช่ของที่ใครก็มีได้"
+    },
+    "C03_SCENE_DUST_LINK": {
+      "name_th": "ช่องร่องรอยจากที่เกิดเหตุ",
+      "requires_evidence": [
+        "red_soot",
+        "gideon_sleeve_soot"
+      ],
+      "description": "เขม่าสีแดงชนิดเดียวกันอยู่ทั้งในห้องผู้ตายและบนแขนเสื้อกิเดียน"
+    },
+    "D08_VINCENT_CLEARED": {
+      "name_th": "วินเซนต์ไม่ใช่คนฆ่า",
+      "spec_id": "R-VIN-02",
+      "requires_deductions": [
+        "D01_TRUE_MURDER_WINDOW"
+      ],
+      "requires_evidence": [
+        "vincent_blackout_confession"
+      ],
+      "description": "เขาตัดไฟตอน 21:15 ซึ่งอยู่หลังเวลาที่เกิดเหตุไปแล้วเกือบชั่วโมง เขาผิดเรื่องตัดไฟและพยายามขโมยจริง แต่ไม่ใช่เรื่องฆ่า"
+    },
+    "D09_LIORA_CLEARED": {
+      "name_th": "ลิโอราไม่ใช่คนฆ่า",
+      "requires_deductions": [
+        "D01_TRUE_MURDER_WINDOW"
+      ],
+      "requires_evidence": [
+        "liora_patient_log",
+        "liora_patient_witness"
+      ],
+      "description": "ช่วงเวลาที่เกิดเหตุเธออยู่กับผู้ป่วยอีกคน และมีทั้งบันทึกและพยานยืนยัน"
+    },
+    "D10_VINCENT_SUSPICION": {
+      "name_th": "ข้อสงสัยต่อวินเซนต์",
+      "spec_id": "R-VIN-01",
+      "requires_evidence": [
+        "vincent_blood",
+        "wire_cutters"
+      ],
+      "description": "มีเลือดติดตัวและมีคีมตัดไฟ ทำให้ดูน่าสงสัย แต่ความน่าสงสัยไม่ใช่หลักฐานว่าฆ่า"
+    },
+    "D11_LIORA_SUSPICION": {
+      "name_th": "ข้อสงสัยต่อลิโอรา",
+      "requires_evidence": [
+        "secret_file",
+        "liora_medical_access"
+      ],
+      "description": "มีความลับและเข้าถึงศพได้ก่อนใคร ทำให้ดูน่าสงสัย แต่ความลับไม่ใช่หลักฐานว่าฆ่า"
+    }
+  },
+  "pillar_order": [
+    "timeline",
+    "motive",
+    "opportunity",
+    "corroboration"
+  ],
+  "pillars": {
+    "gideon_hart": {
+      "timeline": {
+        "name_th": "เส้นเวลา",
+        "requires_deductions": [
+          "D01_TRUE_MURDER_WINDOW"
+        ]
+      },
+      "motive": {
+        "name_th": "แรงจูงใจ",
+        "requires_deductions": [
+          "D03_GIDEON_MOTIVE"
+        ]
+      },
+      "opportunity": {
+        "name_th": "โอกาส",
+        "requires_deductions": [
+          "D07_GIDEON_IN_CASSIAN_ROOM"
+        ]
+      },
+      "corroboration": {
+        "name_th": "หลักฐานสนับสนุนจากหลายทาง",
+        "requires_deductions": [
+          "C01_DOCUMENT_LINK",
+          "C02_PERSONAL_LINK",
+          "C03_SCENE_DUST_LINK"
+        ]
+      }
+    },
+    "vincent_gray": {
+      "opportunity": {
+        "name_th": "โอกาส",
+        "requires_deductions": [
+          "D10_VINCENT_SUSPICION"
+        ]
+      }
+    },
+    "dr_liora_venn": {
+      "opportunity": {
+        "name_th": "โอกาส",
+        "requires_deductions": [
+          "D11_LIORA_SUSPICION"
+        ]
+      }
+    }
+  },
+  "ending_order": [
+    "true_ending",
+    "cold_justice",
+    "the_scapegoat",
+    "the_paranoia_trap",
+    "unproven",
+    "cold_arrival"
+  ],
+  "pillar_labels": {
+    "timeline": "เส้นเวลา",
+    "motive": "แรงจูงใจ",
+    "opportunity": "โอกาส",
+    "corroboration": "หลักฐานสนับสนุนจากหลายทาง"
   }
 }

@@ -3,51 +3,87 @@
     {
       "id": "R000_KNOWN_ACTION",
       "description": "คำสั่งต้องเป็นหนึ่งในกริยาที่ระบบรู้จัก",
-      "applies_to": ["*"],
+      "applies_to": [
+        "*"
+      ],
       "check": "action_is_known",
       "message_fail": "ไม่เข้าใจคำสั่งนี้"
     },
     {
       "id": "R001_GAME_NOT_OVER",
       "description": "คดียังไม่ปิด",
-      "applies_to": ["*"],
+      "applies_to": [
+        "*"
+      ],
       "check": "game_not_over",
       "message_fail": "คดีนี้ปิดไปแล้ว ไม่สามารถดำเนินการต่อได้"
     },
     {
       "id": "R002_TARGET_EXISTS",
       "description": "เป้าหมายต้องมีอยู่จริงในฉาก",
-      "applies_to": ["examine", "take", "unlock", "use", "interrogate", "accuse", "burn"],
+      "applies_to": [
+        "examine",
+        "take",
+        "unlock",
+        "use",
+        "interrogate",
+        "accuse",
+        "burn"
+      ],
       "check": "target_exists",
       "message_fail": "ไม่พบสิ่งที่อ้างถึงบนขบวนรถไฟนี้"
     },
     {
       "id": "R003_LOCATION_EXISTS",
       "description": "ตู้รถไฟจุดหมายต้องมีอยู่จริง",
-      "applies_to": ["move"],
+      "applies_to": [
+        "move"
+      ],
       "check": "location_exists",
       "message_fail": "ไม่มีตู้รถไฟนี้บนขบวน"
     },
     {
       "id": "R004_SUSPECT_EXISTS",
       "description": "ผู้ต้องสงสัยต้องมีตัวตนบนขบวน",
-      "applies_to": ["interrogate", "accuse"],
+      "applies_to": [
+        "interrogate",
+        "accuse"
+      ],
       "check": "suspect_exists",
       "message_fail": "ไม่พบผู้ต้องสงสัยชื่อนี้บนขบวนรถไฟ"
     },
     {
       "id": "R005_SAME_LOCATION",
       "description": "ต้องอยู่ในตู้รถไฟเดียวกันกับเป้าหมาย",
-      "applies_to": ["examine", "take", "unlock", "use", "interrogate"],
+      "applies_to": [
+        "examine",
+        "take",
+        "unlock",
+        "use",
+        "interrogate"
+      ],
       "check": "in_same_location",
       "message_fail": "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
     },
     {
       "id": "R014_TIME_LIMIT",
       "description": "ต้องอยู่ภายในกรอบเวลาการสืบสวน",
-      "applies_to": ["*"],
+      "applies_to": [
+        "*"
+      ],
       "check": "within_time_limit",
       "message_fail": "หมดเวลาการสืบสวนแล้ว!"
+    },
+    {
+      "id": "R013_ACCUSE_FOUR_PILLARS",
+      "description": "คำกล่าวหาต้องมีหลักฐานครบทุกเสา คือ เส้นเวลา แรงจูงใจ โอกาส และหลักฐานสนับสนุน",
+      "applies_to": [
+        "accuse"
+      ],
+      "check": "four_pillars",
+      "params": {},
+      "message_fail": "หลักฐานยังไม่ครบทุกเสา",
+      "blocking": false
     }
   ]
 }
