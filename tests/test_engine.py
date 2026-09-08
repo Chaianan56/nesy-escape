@@ -364,3 +364,36 @@ def test_vincent_can_be_cleared_without_his_own_confession(engine):
     by_confession = ev(engine, "pocket_watch", "liora_time_estimate", "vincent_blackout_confession")
     assert D08 in engine.deductions(by_evidence)
     assert D08 in engine.deductions(by_confession)
+
+
+# ---------- บทพูดของผู้ต้องสงสัย ----------
+
+def test_every_suspect_has_testimony(engine):
+    """สอบปากคำแล้วต้องได้ยินอะไรสักอย่าง ไม่ใช่ข้อความสำรอง
+
+    เคยพลาดมาแล้ว ผู้ต้องสงสัยไม่มีฟิลด์ testimony เลยสักคน
+    ระบบแอบเติมหลักฐานเข้ากระเป๋าเงียบๆ แล้วตอบว่าไม่ได้ข้อมูลเพิ่ม
+    ผู้เล่นได้ของโดยไม่รู้ว่าได้มายังไง
+    """
+    for sid, sus in engine.world["suspects"].items():
+        assert sus.get("testimony", "").strip(), f"{sid} ไม่มีบทพูด"
+        d = engine.decide(cmd(ActionType.INTERROGATE, sid),
+                          GameState(current_location=sus["location"]))
+        assert d.allowed
+        assert "ไม่ได้ข้อมูลเพิ่ม" not in d.message, f"{sid} ยังตกไปใช้ข้อความสำรอง"
+
+
+def test_testimony_does_not_name_evidence_the_speaker_does_not_give(engine):
+    """บทพูดต้องไม่เอ่ยชื่อหลักฐานชิ้นอื่นที่ผู้เล่นอาจยังไม่เจอ
+
+    ถ้าเอ่ยได้ ตัวละครก็เฉลยเกมแทนผู้เล่น ซึ่งเป็นสิ่งที่ R-SYS-01 ห้ามไว้
+    บอกใบ้เป็นทิศทางได้ แต่ห้ามเรียกชื่อเต็มของหลักฐาน
+    """
+    w = engine.world
+    for sid, sus in w["suspects"].items():
+        mine = set(sus.get("grants_evidence", []))
+        for oid, o in w["objects"].items():
+            if oid in mine or o["type"] != "evidence":
+                continue
+            assert o["name_th"] not in sus["testimony"], \
+                f"บทพูดของ {sid} เอ่ยชื่อ {oid} ซึ่งไม่ใช่หลักฐานที่เขาให้"
