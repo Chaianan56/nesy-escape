@@ -203,3 +203,89 @@ def test_accusation_is_allowed_but_recorded_as_unproven(engine):
     step = next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS")
     assert not step.passed
     assert "ขาดเสา" in step.description
+
+
+# ---------- กันทางตัน ----------
+
+def test_every_car_tells_you_where_else_you_can_go(engine):
+    """เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าคำบรรยายไม่บอกชื่อตู้อื่น ผู้เล่นจะออกจากตู้แรกไม่เป็น"""
+    locs = engine.world["locations"]
+    for lid, loc in locs.items():
+        desc = loc["description"]
+        named = [x for x in locs if x != lid
+                 and any(part in desc for part in locs[x]["name_th"].split(":")[0].split("(")[0].strip().split())]
+        assert named, f"คำบรรยายของ {lid} ไม่ได้เอ่ยถึงตู้อื่นเลย"
+
+
+def test_evidence_that_needs_a_partner_says_where_to_look(engine):
+    """หลักฐานที่ต้องเอาไปจับคู่กับของในตู้อื่น ต้องบอกด้วยว่าให้ไปดูที่ไหน
+
+    ข้อสรุปหลายข้อต้องใช้หลักฐานสองชิ้นที่อยู่คนละตู้ ถ้าคำบรรยายไม่ชี้ทาง
+    ผู้เล่นต้องเดาเอาเอง ซึ่งกลายเป็นทางตันที่มองด้วยตาไม่เห็น
+    """
+    w = engine.world
+    locs = w["locations"]
+    for did, cond in w["deductions"].items():
+        need = cond.get("requires_evidence", [])
+        placed = [(e, w["objects"][e].get("location")) for e in need]
+        cars = {loc for _, loc in placed if loc}
+        if len(cars) < 2:
+            continue
+        for eid, where in placed:
+            if not where:
+                continue
+            others = {loc for _, loc in placed if loc and loc != where}
+            desc = w["objects"][eid]["description"]
+            assert any(locs[o]["name_th"] in desc for o in others), (
+                f"{eid} ต้องใช้คู่กับของในตู้อื่นเพื่อสรุป {did} "
+                f"แต่คำบรรยายไม่ได้บอกว่าให้ไปดูที่ตู้ไหน")
+
+
+def test_a_player_who_only_reads_the_game_can_finish(engine):
+    """จำลองผู้เล่นที่ทำตามข้อความในเกมอย่างเดียว ไม่ใช้เฉลย ต้องเก็บหลักฐานได้ครบ
+
+    เทสนี้จับทางตันที่เทสอื่นไม่เห็น เพราะมันไม่รู้ล่วงหน้าว่าอะไรอยู่ที่ไหน
+    รู้เท่าที่เกมบอกเท่านั้น เหมือนคนเล่นจริง
+    """
+    w = engine.world
+    s = GameState(**w.get("initial_state", {}))
+    cars = {v["name_th"]: k for k, v in w["locations"].items()}
+    cars.update({v["name_th"].split(":")[0].strip(): k for k, v in w["locations"].items()})
+    seen = w["briefing"] + w["locations"][s.current_location]["description"]
+    examined, progress = set(), True
+    while progress:
+        progress = False
+        for th, loc in cars.items():
+            if th not in seen and loc != s.current_location:
+                continue
+            if s.current_location != loc:
+                d = engine.decide(cmd(ActionType.MOVE, loc), s)
+                if not d.allowed:
+                    continue
+                s = apply_changes(s, d.state_changes)
+            for _ in range(2):
+                # ของที่ "มองเห็นตอนนี้" ต้องดูจากตู้ที่ยืนอยู่ ไม่ใช่ข้อความสะสมทั้งเกม
+                view = engine.look_around(loc, s)
+                seen += view
+                for oid, o in w["objects"].items():
+                    if o.get("name_th") in view and oid not in examined:
+                        examined.add(oid)
+                        d = engine.decide(cmd(ActionType.EXAMINE, oid), s)
+                        if d.allowed and oid not in s.discovered_evidence:
+                            s = apply_changes(s, d.state_changes)
+                            seen += o["description"]
+                            progress = True
+                for sid, sus in w["suspects"].items():
+                    if sus["name_th"] in view and sid not in s.interrogated_suspects:
+                        d = engine.decide(cmd(ActionType.INTERROGATE, sid), s)
+                        if d.allowed:
+                            s = apply_changes(s, d.state_changes)
+                            seen += sus.get("testimony", "") + " ".join(
+                                w["objects"][x]["description"] for x in sus.get("grants_evidence", []))
+                            progress = True
+
+    missing = [o for o, v in w["objects"].items()
+               if v["type"] == "evidence" and o not in s.discovered_evidence]
+    assert not missing, f"ผู้เล่นที่อ่านข้อความอย่างเดียวหาไม่เจอ: {missing}"
+    assert engine.ending_for("gideon_hart", s)["id"] == "true_ending"
+    assert s.elapsed_seconds <= w["time_limit_seconds"], "เก็บครบแต่หมดเวลาก่อน"
