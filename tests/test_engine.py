@@ -151,8 +151,11 @@ def test_true_ending_needs_the_other_two_suspects_cleared(engine):
     full = ev(engine, *all_evidence(engine))
     assert engine.ending_for("gideon_hart", full)["id"] == "true_ending"
 
-    for drop in ("vincent_blackout_confession", "liora_patient_witness"):
-        short = ev(engine, *[x for x in all_evidence(engine) if x != drop])
+    # ล้างข้อสงสัยวินเซนต์ได้สองทาง คำสารภาพของเขาเอง หรือบันทึกเวลาของระบบไฟ
+    # จึงต้องตัดทั้งสองทางพร้อมกันถึงจะเห็นว่าฉากจบแท้หลุด
+    for drop in (("vincent_blackout_confession", "maintenance_log"),
+                 ("liora_patient_witness",)):
+        short = ev(engine, *[x for x in all_evidence(engine) if x not in drop])
         assert engine.ending_for("gideon_hart", short)["id"] != "true_ending",             f"ขาด {drop} แล้วยังได้ฉากจบแท้"
 
 
@@ -289,3 +292,75 @@ def test_a_player_who_only_reads_the_game_can_finish(engine):
     assert not missing, f"ผู้เล่นที่อ่านข้อความอย่างเดียวหาไม่เจอ: {missing}"
     assert engine.ending_for("gideon_hart", s)["id"] == "true_ending"
     assert s.elapsed_seconds <= w["time_limit_seconds"], "เก็บครบแต่หมดเวลาก่อน"
+
+
+# ---------- ตู้ 2 สายสืบสวนเรื่องไฟดับ ----------
+
+def test_locomotive_is_on_the_map_but_cannot_be_entered(engine):
+    """หัวรถจักรเห็นบนแผนที่ได้ แต่ไม่ใช่พื้นที่เล่น และไม่มีวันเข้าได้"""
+    restricted = [k for k, v in engine.world["locations"].items() if v.get("restricted")]
+    assert restricted, "ฉากนี้ควรมีพื้นที่หวงห้ามอย่างน้อยหนึ่งที่"
+    for lid in restricted:
+        d = engine.decide(cmd(ActionType.MOVE, lid), GameState())
+        assert not d.allowed
+        assert d.violated_rule_id == "R006_LOCATION_RESTRICTED"
+        assert not any(o.get("location") == lid for o in engine.world["objects"].values()), \
+            f"{lid} เข้าไม่ได้ แต่มีหลักฐานวางอยู่ ผู้เล่นจะเก็บไม่ได้"
+        assert not any(s["location"] == lid for s in engine.world["suspects"].values())
+
+
+def test_blackout_sabotage_chain_needs_the_whole_panel(engine):
+    """ต้องตรวจทั้งแผงไฟ กล่องฟิวส์ และสายที่ถูกตัด ถึงจะสรุปว่าเป็นวินาศกรรม
+
+    ถ้าดูอย่างเดียวแล้วสรุปได้ ผู้เล่นก็ไม่ต้องสืบ แค่เดินเข้าไปมองก็จบ
+    """
+    D12 = "D12_BLACKOUT_WAS_SABOTAGE"
+    need = engine.world["deductions"][D12]["requires_evidence"]
+    for drop in need:
+        partial = ev(engine, *[x for x in need if x != drop])
+        assert D12 not in engine.deductions(partial), f"ขาด {drop} แล้วยังสรุปได้"
+    assert D12 in engine.deductions(ev(engine, *need))
+
+
+def test_matching_the_tool_marks_is_what_names_the_saboteur(engine):
+    """รอยเครื่องมือกับคีมต้องมาคู่กัน มีอย่างเดียวยังชี้ตัวใครไม่ได้"""
+    D13 = "D13_VINCENT_CUT_THE_POWER"
+    base = ["power_panel", "fuse_box", "cut_copper_wire"]
+    assert D13 not in engine.deductions(ev(engine, *base, "tool_marks"))
+    assert D13 not in engine.deductions(ev(engine, *base, "wire_cutters"))
+    assert D13 in engine.deductions(ev(engine, *base, "tool_marks", "wire_cutters"))
+
+
+def test_cutting_the_power_is_never_the_same_as_killing(engine):
+    """แก่นของเรื่อง พิสูจน์ได้ว่าวินเซนต์ตัดไฟ ต้องไม่ทำให้เขากลายเป็นฆาตกร
+
+    VINCENT CUT THE POWER = TRUE  ไม่ได้แปลว่า  VINCENT KILLED CASSIAN = TRUE
+    """
+    proved = ev(engine, "power_panel", "fuse_box", "cut_copper_wire",
+                "tool_marks", "wire_cutters", "maintenance_log")
+    assert "D13_VINCENT_CUT_THE_POWER" in engine.deductions(proved)
+    assert not engine.ending_for("vincent_gray", proved).get("solved", False)
+    assert not all(engine.pillar_status("vincent_gray", proved).values())
+
+
+def test_blackout_window_does_not_overlap_the_murder_window(engine):
+    """บันทึกเวลาของระบบไฟกับเวลาตายจริง ต้องประกอบกันเป็นข้อสรุปว่าสองช่วงนี้คนละช่วง"""
+    D15 = "D15_BLACKOUT_IS_NOT_MURDER_TIME"
+    only_blackout = ev(engine, "maintenance_log")
+    only_murder = ev(engine, "pocket_watch", "liora_time_estimate")
+    both = ev(engine, "maintenance_log", "pocket_watch", "liora_time_estimate")
+    assert D15 not in engine.deductions(only_blackout)
+    assert D15 not in engine.deductions(only_murder)
+    assert D15 in engine.deductions(both)
+
+
+def test_vincent_can_be_cleared_without_his_own_confession(engine):
+    """ต้องล้างข้อสงสัยวินเซนต์ได้ด้วยหลักฐาน ไม่ใช่ต้องรอให้เขายอมพูดเท่านั้น
+
+    ถ้าทางเดียวคือคำสารภาพ ผู้เล่นก็ต้องเชื่อคำพูดของผู้ต้องสงสัย ซึ่งขัดกับ PLAYER_CLAIM != FACT
+    """
+    D08 = "D08_VINCENT_CLEARED"
+    by_evidence = ev(engine, "pocket_watch", "liora_time_estimate", "maintenance_log")
+    by_confession = ev(engine, "pocket_watch", "liora_time_estimate", "vincent_blackout_confession")
+    assert D08 in engine.deductions(by_evidence)
+    assert D08 in engine.deductions(by_confession)
