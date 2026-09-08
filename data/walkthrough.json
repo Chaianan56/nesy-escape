@@ -1,24 +1,113 @@
 {
-  "note": "เส้นทางเฉลยสำหรับ Nocturne Express 1938 (True Ending)",
-  "checkpoints": {
-    "start": 0,
-    "before_accuse": 13,
-    "end": 14
-  },
+  "note": "เส้นทางเฉลย เก็บหลักฐานครบทุกชิ้นแล้วกล่าวหา ใช้ในเทสเพื่อพิสูจน์ว่าเกมเดินได้จนจบจริง",
   "steps": [
-    ["interrogate", "gideon_hart"],
-    ["move", "first_class_car"],
-    ["examine", "pocket_watch"],
-    ["examine", "burnt_folder_c"],
-    ["examine", "second_teacup"],
-    ["examine", "wax_seal_imprint"],
-    ["examine", "obsidian_cufflink"],
-    ["examine", "red_soot"],
-    ["examine", "secret_file"],
-    ["interrogate", "dr_liora_venn"],
-    ["move", "second_class_car"],
-    ["examine", "wire_cutters"],
-    ["interrogate", "vincent_gray"],
-    ["accuse", "gideon_hart"]
+    [
+      "examine",
+      "gideon_lozenge_tin"
+    ],
+    [
+      "examine",
+      "gideon_signet_ring"
+    ],
+    [
+      "examine",
+      "gideon_missing_button"
+    ],
+    [
+      "examine",
+      "gideon_sleeve_soot"
+    ],
+    [
+      "interrogate",
+      "gideon_hart"
+    ],
+    [
+      "move",
+      "first_class_car"
+    ],
+    [
+      "examine",
+      "pocket_watch"
+    ],
+    [
+      "examine",
+      "burnt_folder_c"
+    ],
+    [
+      "examine",
+      "second_teacup"
+    ],
+    [
+      "examine",
+      "wax_seal_imprint"
+    ],
+    [
+      "examine",
+      "obsidian_cufflink"
+    ],
+    [
+      "examine",
+      "red_soot"
+    ],
+    [
+      "examine",
+      "secret_file"
+    ],
+    [
+      "examine",
+      "wall_clock"
+    ],
+    [
+      "examine",
+      "dossier_missing_file_c"
+    ],
+    [
+      "examine",
+      "file_c_initials"
+    ],
+    [
+      "examine",
+      "judicial_transfer_order"
+    ],
+    [
+      "examine",
+      "tea_lozenge_trace"
+    ],
+    [
+      "interrogate",
+      "dr_liora_venn"
+    ],
+    [
+      "move",
+      "dining_car_staff"
+    ],
+    [
+      "examine",
+      "liora_patient_log"
+    ],
+    [
+      "examine",
+      "liora_patient_witness"
+    ],
+    [
+      "move",
+      "second_class_car"
+    ],
+    [
+      "examine",
+      "wire_cutters"
+    ],
+    [
+      "examine",
+      "vincent_blood"
+    ],
+    [
+      "interrogate",
+      "vincent_gray"
+    ],
+    [
+      "accuse",
+      "gideon_hart"
+    ]
   ]
 }
