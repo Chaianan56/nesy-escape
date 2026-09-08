@@ -4,9 +4,14 @@ test_engine.py — ทดสอบ Symbolic Engine ของ Nocturne Express 19
 รันด้วย:  python -m pytest -v
 """
 
+import json
+from pathlib import Path
+
 import pytest
 
-from app.scenario import STEPS
+STEPS = [tuple(x) for x in json.loads(
+    (Path(__file__).resolve().parents[1] / "data" / "walkthrough.json")
+    .read_text(encoding="utf-8"))["steps"]]
 from app.schemas import ActionType, ParsedCommand, GameState
 from app.symbolic.engine import SECONDS_PER_TURN, SymbolicEngine, apply_changes
 

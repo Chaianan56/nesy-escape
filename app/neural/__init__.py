@@ -1,20 +1,10 @@
 """
-app/neural/__init__.py — จุดเริ่มต้นของแพ็กเกจ Neuro AI Layer
+app/neural/__init__.py — Neuro AI Layer
 
-หน้าที่:
-- ประกาศให้ Python รับรู้ว่าโฟลเดอร์ `app/neural` เป็น Python Package
-- นำเข้า (Export) โมดูลสำคัญ:
-  1. interpret, decide_autonomously จาก gemini_client.py
-  2. preprocess_text, preprocessor จาก preprocessor.py
+ชั้นนี้มีหน้าที่เดียวคือแปลข้อความภาษาไทยของผู้เล่นให้เป็น ParsedCommand
+ไม่ตัดสินว่าคำสั่งถูกกฎหรือไม่ การตัดสินเป็นของ app/symbolic/engine.py เท่านั้น
 """
 
-from app.neural.gemini_client import interpret, decide_autonomously
-from app.neural.preprocessor import preprocess_text, preprocessor, PreprocessedFeature
+from app.neural.gemini_client import interpret
 
-__all__ = [
-    "interpret",
-    "decide_autonomously",
-    "preprocess_text",
-    "preprocessor",
-    "PreprocessedFeature",
-]
+__all__ = ["interpret"]
