@@ -158,6 +158,18 @@ def _four_pillars(cmd, state, world, p):
     return True, "; ".join(f"{k}={len(found[k])}" for k in names)
 
 
+def _location_accessible(cmd, state, world, p):
+    """บางพื้นที่บนขบวนผู้เล่นเข้าไม่ได้ และไม่มีวันเข้าได้
+
+    ต่างจากประตูล็อกตรงที่ไม่มีกุญแจให้หา มันคือขอบของโลกเกม
+    ยังแสดงบนแผนที่เพราะรถไฟจริงก็มีหัวรถจักร แต่ไม่ใช่พื้นที่เล่น
+    """
+    loc = world["locations"].get(cmd.target, {})
+    if loc.get("restricted"):
+        return False, loc.get("restricted_reason", "เป็นพื้นที่หวงห้าม")
+    return True, ""
+
+
 def _game_not_over(cmd, state, world, p):
     """คดีปิดแล้วก็จบ ไม่ให้สั่งอะไรต่อ
 
@@ -185,6 +197,7 @@ CHECKERS: Dict[str, Callable] = {
     "suspect_exists": _suspect_exists,
     "in_same_location": _in_same_location,
     "within_time_limit": _within_time_limit,
+    "location_accessible": _location_accessible,
     "four_pillars": _four_pillars,
     "game_not_over": _game_not_over,
 }

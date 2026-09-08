@@ -106,6 +106,34 @@
       "vincent_gray"
     ],
     [
+      "move",
+      "luggage_van_electrical"
+    ],
+    [
+      "examine",
+      "power_panel"
+    ],
+    [
+      "examine",
+      "fuse_box"
+    ],
+    [
+      "examine",
+      "cut_copper_wire"
+    ],
+    [
+      "examine",
+      "tool_marks"
+    ],
+    [
+      "examine",
+      "backup_switch"
+    ],
+    [
+      "examine",
+      "maintenance_log"
+    ],
+    [
       "accuse",
       "gideon_hart"
     ]

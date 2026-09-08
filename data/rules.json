@@ -43,6 +43,16 @@
       "message_fail": "ไม่มีตู้รถไฟนี้บนขบวน"
     },
     {
+      "id": "R006_LOCATION_RESTRICTED",
+      "description": "บางตู้เป็นพื้นที่หวงห้าม ผู้สืบสวนเข้าไปไม่ได้",
+      "applies_to": [
+        "move"
+      ],
+      "check": "location_accessible",
+      "params": {},
+      "message_fail": "ตู้นี้เป็นพื้นที่หวงห้าม เข้าไปไม่ได้"
+    },
+    {
       "id": "R004_SUSPECT_EXISTS",
       "description": "ผู้ต้องสงสัยต้องมีตัวตนบนขบวน",
       "applies_to": [
