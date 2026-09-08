@@ -62,11 +62,11 @@ class ParsedCommand(BaseModel):
 # 3) GAME STATE — สถานะเกมที่ Symbolic ต้องใช้ตรวจกฎ
 # ============================================================
 class GameState(BaseModel):
-    current_location: str = Field("passenger_car", description="id ของตู้รถที่ผู้เล่นอยู่")
+    current_location: str = Field("lounge_car", description="id ของตู้รถที่ผู้เล่นอยู่")
     inventory: List[str] = Field(default_factory=list)
     discovered_evidence: List[str] = Field(default_factory=list)
     unlocked_objects: List[str] = Field(default_factory=list)
-    visited_locations: List[str] = Field(default_factory=lambda: ["passenger_car"])
+    visited_locations: List[str] = Field(default_factory=lambda: ["lounge_car"])
     interrogated_suspects: List[str] = Field(default_factory=list)
     elapsed_seconds: int = 0
     turn_count: int = 0

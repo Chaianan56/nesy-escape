@@ -98,7 +98,8 @@ def violations(state: GameState, world: dict) -> List[str]:
         bad.append(f"ถือของที่ถูกเผาไปแล้ว: {', '.join(sorted(both))}")
 
     # ฉากจบที่บันทึกไว้ต้องเป็นฉากจบที่มีอยู่จริง
-    ending_ids = {e["id"] for e in world.get("endings", [])}
+    endings_data = world.get("endings", {})
+    ending_ids = set(endings_data.keys()) if isinstance(endings_data, dict) else {e["id"] for e in endings_data}
     if state.ending_id and state.ending_id not in ending_ids:
         bad.append(f"ปิดคดีด้วยฉากจบ '{state.ending_id}' ซึ่งไม่มีอยู่ในฉาก")
 

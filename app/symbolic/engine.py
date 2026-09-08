@@ -41,9 +41,8 @@ def _target_exists(cmd, state, world, p):
     if cmd.target is None:
         return False, "ไม่ได้ระบุเป้าหมาย"
     # ระบบนี้เล่นด้วยการพิมพ์ล้วน ไม่มีปุ่มให้กด "ดูรอบๆ ห้องนี้" จึงเป็นคำสั่งพื้นฐาน
-    # ที่ต้องใช้ได้ ดังนั้น examine จึงรับชื่อตู้รถเป็นเป้าหมายได้ด้วย
-    if cmd.target not in world["objects"] and cmd.target not in world["locations"]:
-        return False, f"ไม่รู้จัก object id '{cmd.target}'"
+    if cmd.target not in world["objects"] and cmd.target not in world["locations"] and cmd.target not in world["suspects"]:
+        return False, f"ไม่รู้จัก id '{cmd.target}'"
     return True, ""
 
 
@@ -399,7 +398,15 @@ class SymbolicEngine:
         if cmd.action == ActionType.EXAMINE:
             if cmd.target in self.world["locations"]:
                 return self.look_around(cmd.target, state)
+            doc_map = {
+                "burnt_folder_c": "burnt_memo_fragment.md",
+                "secret_file": "autopsy_report.md"
+            }
+            if cmd.target in doc_map:
+                from app.document_loader import load_in_game_document
+                return load_in_game_document(doc_map[cmd.target])
             return obj.get("description") or f"ตรวจสอบ{name}อย่างละเอียด แต่ไม่พบอะไรเพิ่มเติม"
+
         if cmd.action == ActionType.INTERROGATE:
             return sus.get("testimony") or f"สอบปากคำ {name} แต่ไม่ได้ข้อมูลเพิ่ม"
         if cmd.action == ActionType.MOVE:
@@ -421,32 +428,44 @@ class SymbolicEngine:
         return all(found[p] for p in PILLARS)
 
     def ending_for(self, suspect_id: str = None, state: GameState = None,
-                on_timeout: bool = False) -> dict:
-        """เลือกฉากจบจากสถานะจริงของผู้เล่น ตามเงื่อนไขที่เขียนไว้ใน story.json
+                   on_timeout: bool = False) -> dict:
+        """เลือกฉากจบจากสถานะจริงของผู้เล่น ตามเงื่อนไขของ Nocturne Express 1938"""
+        endings = self.world.get("endings", {})
+        if on_timeout:
+            return endings.get("tragic_ending", {"id": "tragic_ending", "title": "หมดเวลาการสืบสวน"})
 
-        เรียงจากเงื่อนไขเฉพาะที่สุดไปกว้างที่สุด หยิบอันแรกที่เข้าเงื่อนไข
-        ทุกเงื่อนไขอ่านจาก GameState และ story.json เท่านั้น ไม่มี LLM เกี่ยวข้อง
-        ฉากจบจึงตรวจย้อนกลับได้เหมือน reasoning_chain
-        """
-        culprit = self.world.get("culprit")
-        for ending in self.world.get("endings", []):
-            if bool(ending.get("on_timeout")) != on_timeout:
-                continue
-            if on_timeout:
-                return ending
-            who = ending.get("accuse", "*")
-            if who != "*" and who != suspect_id:
-                continue
-            if ending.get("requires_pillars") and not self.pillars_complete(suspect_id, state):
-                continue
-            if ending.get("requires_case_against_culprit") and not self.pillars_complete(culprit, state):
-                continue
-            if any(e not in state.discovered_evidence for e in ending.get("requires_evidence", [])):
-                continue
-            if any(i not in state.inventory for i in ending.get("requires_inventory", [])):
-                continue
-            return ending
-        return {}
+        if suspect_id == "vincent_gray":
+            res = dict(endings.get("bad_ending_a", {"id": "bad_ending_a"}))
+            res["id"] = "bad_ending_a"
+            return res
+        elif suspect_id == "dr_liora_venn":
+            res = dict(endings.get("bad_ending_b", {"id": "bad_ending_b"}))
+            res["id"] = "bad_ending_b"
+            return res
+        elif suspect_id == "gideon_hart":
+            # ตรวจสอบว่าหักล้างเวลาตายสำเร็จหรือไม่
+            timeline_broken = "pocket_watch" in state.discovered_evidence or "pocket_watch" in state.inventory
+            
+            # นับหลักฐานกายภาพ 5 ชิ้น (Flexible Evidence Threshold >= 3)
+            evidence_pool = ["burnt_folder_c", "wax_seal_imprint", "obsidian_cufflink", "second_teacup", "red_soot"]
+            collected = [e for e in evidence_pool if e in state.discovered_evidence or e in state.inventory]
+
+            if timeline_broken and len(collected) >= 3:
+                res = dict(endings.get("true_ending", {"id": "true_ending"}))
+                res["id"] = "true_ending"
+                return res
+            elif timeline_broken:
+                res = dict(endings.get("tragic_ending", {"id": "tragic_ending"}))
+                res["id"] = "tragic_ending"
+                return res
+            else:
+                res = dict(endings.get("bad_ending_a", {"id": "bad_ending_a"}))
+                res["id"] = "bad_ending_a"
+                return res
+
+        res = dict(endings.get("tragic_ending", {"id": "tragic_ending"}))
+        res["id"] = "tragic_ending"
+        return res
 
     def _render_ending(self, ending: dict, body: List[str]) -> str:
         head = [f"=== {ending.get('title', 'จบเกม')} ({ending.get('rank', '')}) ===", ""]
