@@ -57,19 +57,16 @@ flowchart LR
  ├── data/
  │   ├── story.json           # ข้อมูลฉาก สิ่งของ และข้อความในเกม
  │   ├── rules.json           # คลังกฎทั้งหมดของเกม (แก้กฎที่นี่)
- │   └── walkthrough.json     # ลำดับคำสั่งเฉลย 29 ตา
+ │   └── walkthrough.json     # ลำดับคำสั่งเฉลย 14 ตา
  ├── frontend/
  │   ├── index.html           # หน้าจอเกมแบบ Web Chat
  │   ├── style.css            # ตกแต่ง UI
  │   └── chat.js              # จัดการ GameState และสื่อสารกับ API
  ├── scripts/                 # สคริปต์ Helper และ Tooling
  │   ├── start_app.py         # สคริปต์เปิด Web Server พร้อมเปิดเบราว์เซอร์อัตโนมัติ
- │   ├── run_app.bat          # Batch script สำหรับสั่งรันเซิร์ฟเวอร์บน Windows
- │   └── make_symbolic_pdf.py # สคริปต์สร้างเอกสาร PDF อธิบาย Symbolic Layer
+ │   └── run_app.bat          # Batch script สำหรับสั่งรันเซิร์ฟเวอร์บน Windows
  ├── docs/                    # เอกสารระบบและไฟล์สรุปเชิงทฤษฎี
  ├── tests/                   # ชุดทดสอบด้วย pytest
- ├── run_experiment.py        # สคริปต์รันการทดลองเปรียบเทียบ (Benchmark)
- ├── run_episode.py           # สคริปต์จำลองการเล่น 1 Episode
  └── play.py                  # สคริปต์รันเล่นผ่าน CLI
 ```
 
@@ -141,19 +138,10 @@ python -m pytest -v
 ```
 *(หมายเหตุ: ชุดทดสอบที่ต้องใช้ LLM จะ Skip ให้อัตโนมัติหากไม่มี API Key)*
 
-### รันการทดลอง (Experiments)
-* **ทดลองเล่นผ่าน CLI**:
-  ```bash
-  python play.py
-  ```
-* **รัน Episode ซ้ำตาม Walkthrough**:
-  ```bash
-  python run_episode.py
-  ```
-* **รันการทดลองเปรียบเทียบ Benchmark**:
-  ```bash
-  python run_experiment.py
-  ```
+### เล่นผ่าน CLI
+```bash
+python play.py
+```
 
 ---
 
@@ -162,4 +150,4 @@ python -m pytest -v
 1. แก้ไขและเพิ่มกฎใน `data/rules.json` (กำหนด Rule ID เช่น `R006_...`)
 2. เขียนฟังก์ชัน Checker ใหม่ใน `app/symbolic/engine.py`
 3. ลงทะเบียน Checker ใหม่ในดิคชันนารี `CHECKERS` ของ `engine.py`
-4. รัน `python -m pytest` เพื่อยืนยันว่าไม่มี Invariant ใดถูกละเมิด
+4. รัน `python -m pytest` เพื่อยืนยันว่ากฎใหม่ไม่ทำให้เกมเดินไม่จบ

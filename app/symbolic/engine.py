@@ -62,16 +62,6 @@ def _suspect_exists(cmd, state, world, p):
     return True, ""
 
 
-def _location_unlocked(cmd, state, world, p):
-    loc = world["locations"].get(cmd.target, {})
-    if not loc.get("locked", False):
-        return True, ""
-    required = loc.get("requires")
-    if required and required not in state.inventory:
-        return False, f"ต้องมี '{required}' จึงจะเข้าได้"
-    return True, f"ใช้ '{required}' เปิดทาง"
-
-
 def _in_same_location(cmd, state, world, p):
     if cmd.target in world["locations"]:
         # มองรอบๆ ได้เฉพาะตู้ที่ยืนอยู่ ตู้อื่นต้องเดินไปก่อน
@@ -90,67 +80,6 @@ def _in_same_location(cmd, state, world, p):
     return True, ""
 
 
-def _target_is_takeable(cmd, state, world, p):
-    obj = world["objects"].get(cmd.target, {})
-    if not obj.get("takeable", False):
-        return False, f"'{cmd.target}' ไม่มีคุณสมบัติ takeable"
-    return True, ""
-
-
-def _container_unlocked(cmd, state, world, p):
-    obj = world["objects"].get(cmd.target, {})
-    container = obj.get("hidden_in")
-    if container and container not in state.unlocked_objects:
-        return False, f"ซ่อนอยู่ใน '{container}' ซึ่งยังไม่ได้ตรวจสอบ"
-    return True, ""
-
-
-def _evidence_prerequisites_met(cmd, state, world, p):
-    obj = world["objects"].get(cmd.target, {})
-    missing = [e for e in obj.get("requires_evidence", [])
-               if e not in state.discovered_evidence]
-    if missing:
-        return False, f"ยังขาดหลักฐานนำทาง: {', '.join(missing)}"
-    return True, ""
-
-
-def _testimony_prerequisite_met(cmd, state, world, p):
-    obj = world["objects"].get(cmd.target, {})
-    who = obj.get("requires_suspect")
-    if who and who not in state.interrogated_suspects:
-        return False, f"ต้องสอบปากคำ '{who}' ก่อน"
-    return True, ""
-
-
-def _suspect_available(cmd, state, world, p):
-    sus = world["suspects"].get(cmd.target, {})
-    missing = [e for e in sus.get("requires_evidence", [])
-               if e not in state.discovered_evidence]
-    if missing:
-        return False, f"ยังขาดหลักฐานตั้งประเด็น: {', '.join(missing)}"
-    prior = sus.get("requires_suspect")
-    if prior and prior not in state.interrogated_suspects:
-        return False, f"ต้องสอบปากคำ '{prior}' ก่อน"
-    return True, ""
-
-
-def _instrument_in_inventory(cmd, state, world, p):
-    if cmd.instrument is None:
-        return False, "ไม่ได้ระบุสิ่งที่จะใช้"
-    if cmd.instrument not in state.inventory:
-        return False, f"'{cmd.instrument}' ไม่อยู่ในครอบครอง"
-    return True, ""
-
-
-def _not_exculpated(cmd, state, world, p):
-    """ถ้าพบหลักฐานที่ยืนยันว่าบุคคลนี้ถูกบังคับ จะกล่าวหาไม่ได้"""
-    for ev_id in state.discovered_evidence:
-        ev = world["objects"].get(ev_id, {})
-        if ev.get("exculpates") == cmd.target:
-            return False, f"หลักฐาน '{ev_id}' ยืนยันว่าถูกบังคับ"
-    return True, ""
-
-
 def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, List[str]]:
     found = {k: [] for k in PILLARS}
     for ev_id in state.discovered_evidence:
@@ -161,16 +90,6 @@ def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, Li
     return found
 
 
-def _four_pillars(cmd, state, world, p):
-    required = p.get("required", list(PILLARS))
-    found = _collect_pillars(cmd.target, state, world)
-    missing = [k for k in required if not found[k]]
-    if missing:
-        return False, f"ขาดหลักฐานด้าน: {', '.join(missing)}"
-    summary = "; ".join(f"{k}={len(found[k])}" for k in required)
-    return True, summary
-
-
 def _game_not_over(cmd, state, world, p):
     """คดีปิดแล้วก็จบ ไม่ให้สั่งอะไรต่อ
 
@@ -179,19 +98,6 @@ def _game_not_over(cmd, state, world, p):
     """
     if state.ending_id:
         return False, f"คดีปิดไปแล้วด้วยฉากจบ '{state.ending_id}'"
-    return True, ""
-
-
-def _not_destroyed(cmd, state, world, p):
-    if cmd.target in state.burned_objects:
-        return False, f"'{cmd.target}' ถูกทำลายไปแล้ว"
-    return True, ""
-
-
-def _target_is_burnable(cmd, state, world, p):
-    obj = world["objects"].get(cmd.target, {})
-    if not obj.get("burnable", False):
-        return False, f"'{cmd.target}' ไม่มีคุณสมบัติ burnable"
     return True, ""
 
 
@@ -209,20 +115,9 @@ CHECKERS: Dict[str, Callable] = {
     "target_exists": _target_exists,
     "location_exists": _location_exists,
     "suspect_exists": _suspect_exists,
-    "location_unlocked": _location_unlocked,
     "in_same_location": _in_same_location,
-    "target_is_takeable": _target_is_takeable,
-    "container_unlocked": _container_unlocked,
-    "evidence_prerequisites_met": _evidence_prerequisites_met,
-    "testimony_prerequisite_met": _testimony_prerequisite_met,
-    "suspect_available": _suspect_available,
-    "instrument_in_inventory": _instrument_in_inventory,
-    "not_exculpated": _not_exculpated,
-    "four_pillars": _four_pillars,
     "within_time_limit": _within_time_limit,
     "game_not_over": _game_not_over,
-    "not_destroyed": _not_destroyed,
-    "target_is_burnable": _target_is_burnable,
 }
 
 

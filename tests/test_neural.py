@@ -2,7 +2,7 @@
 test_neural.py — ทดสอบ Neuro AI Layer ของ Nocturne Express 1938
 
 แบ่งเป็นสองชั้น:
-1. ทดสอบที่ไม่ต้องใช้ API Key — preprocessor, prompt builder, fallback parser
+1. ทดสอบที่ไม่ต้องใช้ API Key — prompt builder และสัญญาระหว่างสองชั้น
    และการต่อท่อ neural -> symbolic ชั้นนี้ต้องผ่านเสมอใน CI
 2. ทดสอบที่ต้องเรียก Gemini จริง — ถูก skip อัตโนมัติเมื่อไม่มี GEMINI_API_KEY
 
@@ -15,12 +15,10 @@ import re
 import pytest
 
 from app.schemas import ActionType, GameState, ParsedCommand
-from app.neural import interpret, decide_autonomously, preprocess_text
-from app.neural.gemini_client import STORY_DATA, RULES_DATA, NeuralUnavailable, llm_online
-from app.neural.prompts import build_interpret_system_prompt, build_baseline_decision_prompt
+from app.neural.gemini_client import STORY_DATA
+from app.neural.prompts import build_interpret_system_prompt
 from app.symbolic.engine import SymbolicEngine
 
-needs_llm = pytest.mark.skipif(not llm_online(), reason="ไม่มี GEMINI_API_KEY จึงข้ามการทดสอบที่เรียก LLM จริง")
 
 
 def llm_call(fn, *args):
@@ -35,17 +33,8 @@ def llm_call(fn, *args):
 
 # ---------- Preprocessor ----------
 
-def test_preprocessor_thai():
-    feat = preprocess_text("  ลอง ตรวจสอบ   pocket_watch  ")
-    assert feat.language in ("th", "mixed")
-    assert feat.normalized_text == "ลอง ตรวจสอบ pocket_watch"
-    assert feat.tokens
 
 
-def test_preprocessor_english():
-    feat = preprocess_text("examine pocket_watch")
-    assert feat.language in ("en", "mixed")
-    assert "pocket_watch" in feat.normalized_text
 
 
 # ---------- Prompt builders ----------
@@ -59,55 +48,6 @@ def test_entity_grounding_prompt_lists_every_id():
     assert "FEW-SHOT EXAMPLES" in prompt
 
 
-def test_rules_injection_prompt_builder():
-    prompt = build_baseline_decision_prompt(RULES_DATA, STORY_DATA)
-    for rule in RULES_DATA["rules"]:
-        assert rule["id"] in prompt
-
-
-# ---------- Fallback parser (ไม่ต้องใช้ API Key) ----------
-
-def fallback(text: str, state: GameState = None) -> ParsedCommand:
-    from app.neural.gemini_client import _fallback_parse
-    state = state or GameState()
-    return _fallback_parse(text, preprocess_text(text).normalized_text, state)
-
-
-@pytest.mark.parametrize("text, action, target", [
-    ("examine pocket_watch", ActionType.EXAMINE, "pocket_watch"),
-    ("move first_class_car", ActionType.MOVE, "first_class_car"),
-    ("ตรวจดูนาฬิกาพกกลไก", ActionType.EXAMINE, "pocket_watch"),
-    ("เดินไปที่ตู้โดยสารชั้นหนึ่ง", ActionType.MOVE, "first_class_car"),
-    ("ขอสอบปากคำกิเดียน ฮาร์ตหน่อย", ActionType.INTERROGATE, "gideon_hart"),
-    ("กล่าวหากิเดียน ฮาร์ต", ActionType.ACCUSE, "gideon_hart"),
-])
-def test_fallback_parses_action_and_grounds_target(text, action, target):
-    cmd = fallback(text)
-    assert cmd.action == action
-    assert cmd.target == target
-    assert cmd.raw_text == text
-
-
-def test_fallback_marks_command_without_target_as_ambiguous():
-    cmd = fallback("เปิดมันหน่อย")
-    assert cmd.action == ActionType.AMBIGUOUS
-    assert cmd.alternatives
-
-
-def test_fallback_marks_out_of_scope_as_unknown():
-    cmd = fallback("ร้องเพลงให้ฟังหน่อย")
-    assert cmd.action == ActionType.UNKNOWN
-
-
-def test_fallback_treats_look_around_as_examining_the_current_car():
-    cmd = fallback("ดูรอบๆ", GameState(current_location="first_class_car"))
-    assert cmd.action == ActionType.EXAMINE
-    assert cmd.target == "first_class_car"
-
-
-def test_move_never_grounds_to_a_non_location():
-    cmd = fallback("เดินไปที่ตู้เลานจ์")
-    assert cmd.target in STORY_DATA["locations"]
 
 
 # ---------- สัญญาระหว่างสองเลเยอร์ ----------

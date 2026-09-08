@@ -101,18 +101,8 @@ class Decision(BaseModel):
     state_changes: Dict[str, Any] = Field(default_factory=dict)
 
 
-# ============================================================
-# 5) API + LOGGING — สำหรับการทดลอง
-# ============================================================
-class SystemMode(str, Enum):
-    """ตัวแปรเดียวที่ต่างกันระหว่างสองระบบในการทดลอง"""
-    A_BASELINE = "A"    # LLM ตีความ + ตัดสินเอง
-    B_SYMBOLIC = "B"    # LLM ตีความ -> Symbolic ตัดสิน
-
-
 class CommandRequest(BaseModel):
     text: str
-    mode: SystemMode = SystemMode.B_SYMBOLIC
     state: GameState
 
 
@@ -122,13 +112,3 @@ class CommandResponse(BaseModel):
     new_state: GameState
 
 
-class ExperimentLog(BaseModel):
-    """หนึ่งบรรทัดใน .jsonl — ออกแบบให้อ่านเข้า pandas ได้ตรง"""
-    command_id: str
-    group: str = Field(..., description="A=ถูกกฎ, B=ผิดกฎ, C=หลอกระบบ, D=กำกวม")
-    mode: SystemMode
-    raw_text: str
-    parsed: ParsedCommand
-    decision: Decision
-    expected_allowed: bool = Field(..., description="ground truth ที่ label ไว้ล่วงหน้า")
-    latency_ms: int

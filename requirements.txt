@@ -6,10 +6,6 @@ python-dotenv==1.2.3
 pytest==9.1.1
 httpx==0.28.1
 
-# Neural Layer — ถ้าไม่ติดตั้ง/ไม่มี GEMINI_API_KEY ระบบจะใช้ fallback parser แทน
+# Neural Layer — จำเป็นต้องมี ถ้าไม่มี GEMINI_API_KEY เกมจะตีความคำสั่งไม่ได้
 google-genai==2.20.0
 
-# Preprocessor — optional ทั้งคู่ preprocessor.py มี fallback ในตัว
-pythainlp==5.1.2
-# spacy==3.8.7            # ภาษาอังกฤษเท่านั้น ต้องโหลดโมเดลเพิ่ม:
-# python -m spacy download en_core_web_sm
