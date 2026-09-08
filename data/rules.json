@@ -1,210 +1,53 @@
 {
-  "version": "0.2",
-  "scene": "nocturne_express",
-  "note": "กฎถูกตรวจตามลำดับใน array นี้ หยุดที่กฎแรกที่ไม่ผ่าน ลำดับจึงมีความหมาย กฎที่เป็นเงื่อนไขครอบทั้งเกม (ตีความได้ ยังไม่หมดเวลา) ต้องอยู่บนสุด ไม่งั้นจะถูกกฎเฉพาะทางบังจนไม่มีวันถูกรายงาน กฎที่มี blocking=false จะถูกตรวจและบันทึกลงสายเหตุผลตามจริง แต่ไม่ทำให้คำสั่งถูกปฏิเสธ ใช้จำแนกคุณภาพของคำกล่าวหาเพื่อเลือกฉากจบ",
   "rules": [
     {
       "id": "R000_KNOWN_ACTION",
-      "description": "คำสั่งต้องตีความได้และอยู่ในขอบเขตของสถานการณ์",
-      "applies_to": [
-        "*"
-      ],
+      "description": "คำสั่งต้องเป็นหนึ่งในกริยาที่ระบบรู้จัก",
+      "applies_to": ["*"],
       "check": "action_is_known",
-      "params": {},
-      "message_fail": "ระบบไม่เข้าใจคำสั่งนี้ หรือคำสั่งอยู่นอกขอบเขตของการสืบสวน"
+      "message_fail": "ไม่เข้าใจคำสั่งนี้"
     },
     {
-      "id": "R014_TIME_LIMIT",
-      "description": "การกระทำต้องอยู่ภายในกรอบเวลาของการสืบสวน",
-      "applies_to": [
-        "*"
-      ],
-      "check": "within_time_limit",
-      "params": {},
-      "message_fail": "หมดเวลาการสืบสวนแล้ว"
-    },
-    {
-      "id": "R015_GAME_NOT_OVER",
-      "description": "คดีต้องยังไม่ถูกปิด จึงจะสั่งอะไรต่อได้",
-      "applies_to": [
-        "*"
-      ],
+      "id": "R001_GAME_NOT_OVER",
+      "description": "คดียังไม่ปิด",
+      "applies_to": ["*"],
       "check": "game_not_over",
-      "params": {},
-      "message_fail": "คดีนี้ปิดไปแล้ว ถ้าอยากเล่นใหม่ให้เริ่มเกมใหม่"
+      "message_fail": "คดีนี้ปิดไปแล้ว ไม่สามารถดำเนินการต่อได้"
     },
     {
-      "id": "R001_TARGET_EXISTS",
-      "description": "เป้าหมายของคำสั่งต้องมีอยู่จริงบนขบวนรถ",
-      "applies_to": [
-        "examine",
-        "take",
-        "use",
-        "unlock"
-      ],
+      "id": "R002_TARGET_EXISTS",
+      "description": "เป้าหมายต้องมีอยู่จริงในฉาก",
+      "applies_to": ["examine", "take", "unlock", "use", "interrogate", "accuse", "burn"],
       "check": "target_exists",
-      "params": {},
-      "message_fail": "ไม่พบสิ่งที่ระบุบนขบวนรถนี้"
+      "message_fail": "ไม่พบสิ่งที่อ้างถึงบนขบวนรถไฟนี้"
     },
     {
-      "id": "R016_NOT_DESTROYED",
-      "description": "สิ่งที่ถูกทำลายไปแล้ว เข้าถึงอีกไม่ได้",
-      "applies_to": [
-        "examine",
-        "take",
-        "use",
-        "burn"
-      ],
-      "check": "not_destroyed",
-      "params": {},
-      "message_fail": "สิ่งนี้ถูกทำลายไปแล้ว ไม่เหลืออะไรให้ตรวจอีก"
-    },
-    {
-      "id": "R002_LOCATION_EXISTS",
-      "description": "จุดหมายของการเคลื่อนที่ต้องเป็นตู้รถที่มีอยู่จริง",
-      "applies_to": [
-        "move"
-      ],
+      "id": "R003_LOCATION_EXISTS",
+      "description": "ตู้รถไฟจุดหมายต้องมีอยู่จริง",
+      "applies_to": ["move"],
       "check": "location_exists",
-      "params": {},
-      "message_fail": "ไม่พบตู้รถที่ระบุ"
+      "message_fail": "ไม่มีตู้รถไฟนี้บนขบวน"
     },
     {
-      "id": "R003_SUSPECT_EXISTS",
-      "description": "ผู้ถูกสอบปากคำหรือถูกกล่าวหาต้องเป็นบุคคลบนขบวนรถ",
-      "applies_to": [
-        "interrogate",
-        "accuse"
-      ],
+      "id": "R004_SUSPECT_EXISTS",
+      "description": "ผู้ต้องสงสัยต้องมีตัวตนบนขบวน",
+      "applies_to": ["interrogate", "accuse"],
       "check": "suspect_exists",
-      "params": {},
-      "message_fail": "บุคคลดังกล่าวไม่อยู่ในรายชื่อผู้เกี่ยวข้องกับคดีนี้"
-    },
-    {
-      "id": "R004_LOCATION_ACCESS",
-      "description": "ตู้รถที่ล็อกอยู่ต้องมีกุญแจที่ถูกต้องจึงจะเข้าได้",
-      "applies_to": [
-        "move"
-      ],
-      "check": "location_unlocked",
-      "params": {},
-      "message_fail": "ตู้รถนี้ถูกล็อก ต้องมีกุญแจที่ถูกต้องก่อน"
+      "message_fail": "ไม่พบผู้ต้องสงสัยชื่อนี้บนขบวนรถไฟ"
     },
     {
       "id": "R005_SAME_LOCATION",
-      "description": "ต้องอยู่ในตู้รถเดียวกับสิ่งหรือคนที่ต้องการเข้าถึง",
-      "applies_to": [
-        "examine",
-        "take",
-        "use",
-        "interrogate"
-      ],
+      "description": "ต้องอยู่ในตู้รถไฟเดียวกันกับเป้าหมาย",
+      "applies_to": ["examine", "take", "unlock", "use", "interrogate"],
       "check": "in_same_location",
-      "params": {},
-      "message_fail": "สิ่งหรือคนที่ระบุไม่ได้อยู่ในตู้รถนี้ ต้องเดินไปหาก่อน"
+      "message_fail": "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
     },
     {
-      "id": "R006_TAKEABLE",
-      "description": "เก็บได้เฉพาะสิ่งที่เคลื่อนย้ายได้",
-      "applies_to": [
-        "take"
-      ],
-      "check": "target_is_takeable",
-      "params": {},
-      "message_fail": "สิ่งนี้ไม่สามารถเก็บติดตัวไปได้"
-    },
-    {
-      "id": "R017_BURNABLE",
-      "description": "ทำลายได้เฉพาะเอกสารที่ระบุไว้ว่าทำลายได้",
-      "applies_to": [
-        "burn"
-      ],
-      "check": "target_is_burnable",
-      "params": {},
-      "message_fail": "สิ่งนี้ทำลายทิ้งไม่ได้"
-    },
-    {
-      "id": "R007_CONTAINER_OPENED",
-      "description": "สิ่งที่ซ่อนอยู่ต้องเปิดที่ซ่อนก่อนจึงจะเข้าถึงได้",
-      "applies_to": [
-        "examine",
-        "take",
-        "use"
-      ],
-      "check": "container_unlocked",
-      "params": {},
-      "message_fail": "ยังไม่พบสิ่งนี้ เนื่องจากยังไม่ได้ตรวจสอบจุดที่ซ่อนอยู่"
-    },
-    {
-      "id": "R008_EVIDENCE_PREREQ",
-      "description": "หลักฐานบางชิ้นจะเข้าถึงได้ก็ต่อเมื่อพบหลักฐานที่นำไปสู่มันก่อน",
-      "applies_to": [
-        "examine",
-        "take"
-      ],
-      "check": "evidence_prerequisites_met",
-      "params": {},
-      "message_fail": "ยังไม่มีเหตุอันควรให้ตรวจสอบสิ่งนี้ ต้องพบหลักฐานที่เกี่ยวข้องก่อน"
-    },
-    {
-      "id": "R009_TESTIMONY_PREREQ",
-      "description": "หลักฐานที่ได้จากคำให้การ ต้องสอบปากคำบุคคลนั้นก่อน",
-      "applies_to": [
-        "examine",
-        "take"
-      ],
-      "check": "testimony_prerequisite_met",
-      "params": {},
-      "message_fail": "ยังไม่ได้รับข้อมูลนี้ ต้องสอบปากคำบุคคลที่เกี่ยวข้องก่อน"
-    },
-    {
-      "id": "R010_INTERROGATE_PREREQ",
-      "description": "การสอบปากคำต้องมีหลักฐานเพียงพอที่จะตั้งคำถามได้",
-      "applies_to": [
-        "interrogate"
-      ],
-      "check": "suspect_available",
-      "params": {},
-      "message_fail": "ยังไม่มีประเด็นเพียงพอที่จะสอบปากคำบุคคลนี้"
-    },
-    {
-      "id": "R011_INSTRUMENT_OWNED",
-      "description": "สิ่งที่นำมาใช้ต้องอยู่ในครอบครองก่อน",
-      "applies_to": [
-        "use"
-      ],
-      "check": "instrument_in_inventory",
-      "params": {},
-      "message_fail": "ไม่มีสิ่งที่ระบุอยู่ในครอบครอง"
-    },
-    {
-      "id": "R012_NO_ACCUSE_COERCED",
-      "description": "ผู้ถูกกล่าวหาต้องไม่มีหลักฐานยืนยันว่าถูกบังคับให้กระทำ",
-      "applies_to": [
-        "accuse"
-      ],
-      "check": "not_exculpated",
-      "params": {},
-      "message_fail": "มีหลักฐานยืนยันว่าบุคคลนี้ถูกบังคับให้กระทำ",
-      "blocking": false
-    },
-    {
-      "id": "R013_ACCUSE_FOUR_PILLARS",
-      "description": "คำกล่าวหาต้องมีหลักฐานครบทั้งสี่ด้าน คือ แรงจูงใจ วิธีการ โอกาส และหลักฐานสนับสนุน",
-      "applies_to": [
-        "accuse"
-      ],
-      "check": "four_pillars",
-      "params": {
-        "required": [
-          "motive",
-          "means",
-          "opportunity",
-          "corroboration"
-        ]
-      },
-      "message_fail": "หลักฐานยังไม่ครบทั้งสี่ด้าน",
-      "blocking": false
+      "id": "R014_TIME_LIMIT",
+      "description": "ต้องอยู่ภายในกรอบเวลาการสืบสวน",
+      "applies_to": ["*"],
+      "check": "within_time_limit",
+      "message_fail": "หมดเวลาการสืบสวนแล้ว!"
     }
   ]
 }

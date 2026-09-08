@@ -207,9 +207,10 @@ def _build_entity_index(world: dict) -> List[tuple]:
                 # "ห้องเก็บของบริการ (จุดเกิดเหตุ)" ผู้เล่นอาจเรียกด้วยชื่อไหนก็ได้
                 # จึงลงทะเบียนทั้งชื่อเต็ม ชื่อที่ตัดวงเล็บออก และข้อความในวงเล็บ
                 for part in [re.sub(r"\s*\(.*?\)\s*", "", name), *re.findall(r"\((.*?)\)", name)]:
-                    part = part.strip().lower()
-                    if part:
-                        index.setdefault(part, eid)
+                    for sub in part.split(":"):
+                        sub = sub.strip().lower()
+                        if sub:
+                            index.setdefault(sub, eid)
             # คนมักเรียกผู้ต้องสงสัยด้วยตำแหน่งมากกว่าชื่อ เช่น "พนักงานควบคุมรถ"
             role = info.get("role", "").strip().lower()
             if role:
