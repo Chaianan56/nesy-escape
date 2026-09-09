@@ -106,6 +106,7 @@ async function initGame() {
     suspectsMap = sceneData.suspects || {};
     objectsMap = sceneData.objects || {};
     rulesCount = sceneData.rules_count || null;
+    if (typeof PixelUI !== 'undefined') PixelUI.refresh();
 
     // อัปเดต HUD (ตำแหน่งและนาฬิกา)
     updateLocationHUD();
@@ -274,6 +275,7 @@ async function submit(text, opts = {}) {
     updateClock();
     removeLoading();
     renderSystem(data.decision, data.parsed, opts.isRoomLook);
+    if (typeof PixelUI !== 'undefined') PixelUI.refresh();
 
     // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
     // กล่าวหาผ่านเงื่อนไขแล้วจึงปิดคดี ส่วนคำสั่งที่หลักฐานไม่พอยังเล่นต่อได้
@@ -324,6 +326,7 @@ async function sendMessage(e) {
 function showGameOver() {
   if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
   gameOver = true;
+  if (typeof PixelUI !== 'undefined') PixelUI.refresh();
   if (clockTimer !== null) clearInterval(clockTimer);
   const input = document.getElementById("chatInput");
   const btn = document.getElementById("sendBtn");

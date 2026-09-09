@@ -112,6 +112,28 @@ def pillars(state: GameState):
     return {sid: engine.pillar_status(sid, state) for sid in engine.world["suspects"]}
 
 
+@app.post("/journal")
+def journal(state: GameState):
+    """Player-facing information only; undiscovered evidence stays hidden."""
+    w = engine.world
+    return {
+        "evidence": [{"id": eid, "name": w["objects"][eid]["name_th"],
+                      "description": w["objects"][eid].get("description", "")}
+                     for eid in state.discovered_evidence if eid in w["objects"]],
+        "deductions": [{"id": did, "name": w["deductions"][did]["name_th"]}
+                       for did in sorted(engine.deductions(state))],
+        "visible": [{"id": eid, "name": obj["name_th"]} for eid, obj in w["objects"].items()
+                    if not state.ending_id and obj.get("location") == state.current_location
+                    and engine.offerable(eid, state)],
+        "people": [{"id": sid, "name": sus["name_th"],
+                    "here": sus.get("location") == state.current_location,
+                    "interrogated": sid in state.interrogated_suspects}
+                   for sid, sus in w["suspects"].items()],
+        "pillars": {sid: engine.pillar_status(sid, state) for sid in w["suspects"]},
+        "pillar_labels": w.get("pillar_labels", {}),
+    }
+
+
 @app.post("/command", response_model=CommandResponse)
 def handle_command(req: CommandRequest):
     """ข้อความไทยหนึ่งประโยค -> คำตัดสินหนึ่งครั้ง -> สถานะใหม่หนึ่งก้อน"""
