@@ -20,6 +20,7 @@ let suspectsMap = {};
 let objectsMap = {};
 let rulesCount = null;
 let gameOver = false;   // ปิดคดีแล้วหรือหมดเวลาแล้ว ห้ามรับคำสั่งอีก
+let busy = false;       // มีคำสั่งค้างอยู่ในสาย ห้ามส่งซ้อน
 
 
 // ============================================================
@@ -102,28 +103,8 @@ function renderBriefing(briefingText) {
 }
 
 // ข้อ 2: ยิงคำสั่ง "ดูรอบๆ" อัตโนมัติเพื่อแสดงคำบรรยายห้องที่ยืนอยู่
-async function executeInitialLookAround() {
-  try {
-    const res = await fetch(`${API_BASE}/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: "ดูรอบๆ",
-        state: gameState
-      })
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.new_state) gameState = data.new_state;
-      updateLocationHUD();
-      updateClock();
-
-      renderSystem(data.decision, data.parsed, true);
-    }
-  } catch (e) {
-    console.warn("Auto look_around failed:", e);
-  }
+function executeInitialLookAround() {
+  return locked(() => submit("ดูรอบๆ", { isRoomLook: true }));
 }
 
 // ============================================================
@@ -180,24 +161,77 @@ function fillInput(text) {
 // ============================================================
 // 6. ลูปการส่งคำสั่ง (Send Message & Lock Input)
 // ============================================================
-async function sendMessage(e) {
-  e.preventDefault();
+// ล็อกตัวเดียวคุมทุกเส้นทาง ทั้งพิมพ์เอง กดปุ่มคำสั่งพ่วง และดูรอบๆ ตอนเริ่มเกม
+// เคยพลาดตรงนี้มาแล้ว ไปเช็ค input.disabled ซึ่งถูกตั้งเป็น true ตอนเริ่มส่งอยู่แล้ว
+// เงื่อนไขจึงเป็นเท็จตลอด ปุ่มค้างที่ ประมวลผล... และพิมพ์ได้ครั้งเดียวทั้งเกม
+// คราวนี้เก็บสถานะไว้ในตัวแปรของตัวเอง ไม่ไปอ่านจากหน้าจอ
+function setBusy(on) {
+  busy = on;
   const input = document.getElementById("chatInput");
   const btn = document.getElementById("sendBtn");
   const btnText = document.getElementById("sendBtnText");
-  const text = input.value.trim();
+  if (!input || !btn) return;
+  const lock = on || gameOver;
+  input.disabled = lock;
+  btn.disabled = lock;
+  if (btnText) btnText.textContent = gameOver ? "จบเกม" : (on ? "ประมวลผล..." : "ส่งคำสั่ง");
+  if (!lock) input.focus();
+}
 
-  if (!text) return;
+// ถือล็อกตลอดทั้งงาน ไม่ใช่ต่อหนึ่งคำสั่ง
+// คำสั่งพ่วงหลายขั้นจึงเดินจนจบโดยไม่มีคำสั่งอื่นแทรกกลางทาง
+async function locked(fn) {
+  if (busy || gameOver) return false;
+  setBusy(true);
+  try {
+    await fn();
+  } finally {
+    setBusy(false);
+  }
+  return true;
+}
 
-  // ล็อกช่องพิมพ์ทันที ป้องกัน Race Condition
-  input.disabled = true;
-  btn.disabled = true;
-  btnText.textContent = "ประมวลผล...";
+// เส้นทางเดียวของทุกคำสั่ง คืน data ถ้าสำเร็จ คืน null ถ้าเรียกไม่ได้
+// เดิมมีสามเส้นทางแยกกัน แต่ละเส้นตรวจไม่เหมือนกัน ปุ่มคำสั่งพ่วงจึงไม่ดักเน็ตหลุด
+// และไม่ปิดหน้าจอตอนคดีปิด กล่าวหาผ่านปุ่มแล้วยังพิมพ์ต่อได้
+async function submit(text, opts = {}) {
+  if (gameOver) return null;
+  showLoading();
+  try {
+    if (!gameState) {
+      const sRes = await fetch(`${API_BASE}/scene`);
+      if (!sRes.ok) throw new Error(`HTTP ${sRes.status}`);
+      gameState = (await sRes.json()).initial_state;
+    }
 
-  renderUser(text);
-  input.value = "";
+    const res = await fetch(`${API_BASE}/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text, state: gameState }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
 
-  // แสดง Loading Bubble
+    if (data.new_state) gameState = data.new_state;
+    updateLocationHUD();
+    updateClock();
+    removeLoading();
+    renderSystem(data.decision, data.parsed, opts.isRoomLook);
+
+    // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
+    // กล่าวหาใครก็จบได้ ไม่ใช่จบทางเดียวเหมือนเดิม จึงต้องปิดหน้าจอจริงๆ
+    // หมดเวลาก็ปิดคดีเหมือนกัน ฝั่งกฎเป็นคนใส่ ending_id มาให้ในสถานะ
+    // จึงดูที่ ending_id ที่เดียวพอ ไม่ต้องไปจำชื่อกฎข้อไหนไว้ในหน้าเว็บ
+    if (gameState && gameState.ending_id) showGameOver();
+    return data;
+  } catch (err) {
+    removeLoading();
+    renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
+    return null;
+  }
+}
+
+function showLoading() {
   const feed = document.getElementById("chatFeed");
   const loadingDiv = document.createElement("div");
   loadingDiv.className = "msg-loading";
@@ -208,71 +242,30 @@ async function sendMessage(e) {
   `;
   feed.appendChild(loadingDiv);
   feed.scrollTop = feed.scrollHeight;
+}
 
-  try {
-    if (!gameState) {
-      const sRes = await fetch(`${API_BASE}/scene`);
-      if (sRes.ok) {
-        const sData = await sRes.json();
-        gameState = sData.initial_state;
-      }
-    }
+async function sendMessage(e) {
+  e.preventDefault();
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
 
-    const res = await fetch(`${API_BASE}/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: text,
-        state: gameState
-      })
-    });
-
-    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-    const data = await res.json();
-
-    // อัปเดตสถานะเกม
-    if (data.new_state) {
-      gameState = data.new_state;
-    }
-
-    // อัปเดต HUD (ตำแหน่งและนาฬิกา)
-    updateLocationHUD();
-    updateClock();
-
-    removeLoading();
-    renderSystem(data.decision, data.parsed);
-
-    // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
-    // ตอนนี้กล่าวหาใครก็จบได้ ไม่ใช่จบทางเดียวเหมือนเดิม จึงต้องปิดหน้าจอจริงๆ
-    // หมดเวลาก็จบเหมือนกัน ต่างกันแค่ไม่ได้ชี้ตัวใคร จึงไม่มี ending_id ใน state
-    const over = gameState.ending_id
-      || (data.decision && data.decision.violated_rule_id === "R014_TIME_LIMIT");
-    if (over) { showGameOver(); return; }
-
+  await locked(async () => {
+    renderUser(text);
+    input.value = "";
+    const data = await submit(text);
+    if (!data || gameOver) return;
 
     // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
     // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
     // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
     const steps = parseSteps(data.parsed);
     if (steps.length > 1) offerSteps(steps);
-
-  } catch (err) {
-    removeLoading();
-    renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
-  } finally {
-    // ปลดล็อกเสมอ ยกเว้นคดีปิดไปแล้ว
-    // เคยพลาดตรงนี้มาแล้ว ไปเช็ค input.disabled ซึ่งถูกตั้งเป็น true ตอนเริ่มส่งอยู่แล้ว
-    // เงื่อนไขจึงเป็นเท็จตลอด ปุ่มค้างที่ ประมวลผล... และพิมพ์ได้ครั้งเดียวทั้งเกม
-    if (!gameOver) {
-      input.disabled = false;
-      btn.disabled = false;
-      btnText.textContent = "ส่งคำสั่ง";
-      input.focus();
-    }
-  }
+  });
 }
 
 function showGameOver() {
+  if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
   gameOver = true;
   const input = document.getElementById("chatInput");
   const btn = document.getElementById("sendBtn");
@@ -342,28 +335,24 @@ function offerSteps(steps) {
   feed.scrollTop = feed.scrollHeight;
 }
 
+// ใช้เส้นทางเดียวกับการพิมพ์เอง จึงได้การล็อก การดักเน็ตหลุด และการปิดหน้าจอตอนคดีปิด
+// มาเหมือนกันทั้งหมด โดยไม่ต้องเขียนซ้ำ
 async function runSteps(steps) {
-  for (const [i, st] of steps.entries()) {
-    const res = await fetch(`${API_BASE}/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: `${st.action} ${st.target}`, state: gameState }),
-    });
-    if (!res.ok) { renderError(`⚠️ ขั้นที่ ${i + 1} ล้มเหลว: HTTP ${res.status}`); return; }
-    const data = await res.json();
-    if (data.new_state) gameState = data.new_state;
-    updateLocationHUD();
-    updateClock();
-    renderUser(steps.length > 1 ? `(ขั้นที่ ${i + 1}) ${st.label}` : st.label);
-    renderSystem(data.decision, data.parsed);
-
-    // ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
-    if (!data.decision.allowed) {
+  const started = await locked(async () => {
+    for (const [i, st] of steps.entries()) {
+      renderUser(steps.length > 1 ? `(ขั้นที่ ${i + 1}) ${st.label}` : st.label);
+      const data = await submit(`${st.action} ${st.target}`);
       const left = steps.length - i - 1;
-      if (left > 0) renderError(`ยกเลิกอีก ${left} ขั้นที่รออยู่ เพราะขั้นนี้ทำไม่ได้`);
-      return;
+
+      // ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
+      // คดีปิดกลางทางก็หยุดเหมือนกัน ที่เหลือไม่มีความหมายแล้ว
+      if (!data || !data.decision.allowed || gameOver) {
+        if (left > 0) renderError(`ยกเลิกอีก ${left} ขั้นที่รออยู่ เพราะขั้นนี้ไปต่อไม่ได้`);
+        return;
+      }
     }
-  }
+  });
+  if (!started) renderError("มีคำสั่งกำลังประมวลผลอยู่ รอให้เสร็จก่อนแล้วค่อยกดใหม่");
 }
 
 function removeLoading() {

@@ -170,6 +170,25 @@ def _location_accessible(cmd, state, world, p):
     return True, ""
 
 
+def _object_supports_action(cmd, state, world, p):
+    """ของชิ้นนี้รองรับการกระทำนี้หรือเปล่า อ่านจากฟิลด์ supports ใน story.json
+
+    ฉากนี้ไม่มีของชิ้นไหนประกาศ supports ไว้เลย เก็บ ใช้ ปลดล็อก เผา จึงถูกปฏิเสธทั้งหมด
+    ซึ่งตรงกับความจริงของคดี ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว
+
+    ไม่ได้ลบสี่ action นี้ทิ้ง เพราะหน้าที่ของชั้น neural คือสกัดเจตนาให้ได้ก่อน
+    แล้วให้ชั้น symbolic เป็นคนปฏิเสธพร้อมบอกว่าติดกฎข้อไหน ถ้าลบ action ออกจาก enum
+    การปฏิเสธจะย้ายไปอยู่ที่ LLM ซึ่งเป็นสิ่งที่งานนี้ตั้งใจไม่ให้เกิด
+
+    วันไหนฉากอยากมีของที่หยิบได้จริง ก็เติม "supports": ["take"] ลง story.json พอ
+    ไม่ต้องแก้ไฟล์นี้
+    """
+    obj = world["objects"].get(cmd.target, {})
+    if cmd.action.value in obj.get("supports", []):
+        return True, ""
+    return False, f"'{obj.get('name_th', cmd.target)}' ไม่ได้ประกาศว่ารองรับ {cmd.action.value}"
+
+
 def _game_not_over(cmd, state, world, p):
     """คดีปิดแล้วก็จบ ไม่ให้สั่งอะไรต่อ
 
@@ -185,8 +204,11 @@ def _within_time_limit(cmd, state, world, p):
     # กรอบเวลาเป็นสมบัติของฉาก จึงอยู่ใน story.json ที่เดียว
     # params ใน rules.json ใช้ override ได้ถ้าอยากทดลองค่าอื่นโดยไม่แตะฉาก
     limit = p.get("limit_seconds") or world.get("time_limit_seconds", 3600)
-    if state.elapsed_seconds > limit:
-        return False, f"ใช้เวลาไปแล้ว {state.elapsed_seconds} วินาที"
+    # ใช้เวลาครบพอดีก็คือหมดแล้ว ไม่ใช่ยังเหลืออีกหนึ่งตา
+    # เดิมเป็น > ทำให้ตอนนาฬิกาบนหน้าเว็บขึ้น 00:00 กฎยังรับคำสั่งได้อีกหนึ่งครั้ง
+    # สองฝั่งจึงบอกผู้เล่นคนละเรื่อง
+    if state.elapsed_seconds >= limit:
+        return False, f"ใช้เวลาไปแล้ว {state.elapsed_seconds} วินาที จากที่มี {limit} วินาที"
     return True, ""
 
 
@@ -197,6 +219,7 @@ CHECKERS: Dict[str, Callable] = {
     "suspect_exists": _suspect_exists,
     "in_same_location": _in_same_location,
     "within_time_limit": _within_time_limit,
+    "object_supports_action": _object_supports_action,
     "location_accessible": _location_accessible,
     "four_pillars": _four_pillars,
     "game_not_over": _game_not_over,
@@ -241,6 +264,7 @@ class SymbolicEngine:
                 # กฎข้อแรกครอบทั้ง unknown และ ambiguous ด้วยข้อความเดียว แต่ผู้เล่นต้องการ
                 # คำแนะนำคนละแบบ เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าบอกแค่ว่าไม่เข้าใจ ผู้เล่นจะตันทันที
                 message = rule["message_fail"]
+                closes = {}
                 if cmd.action is ActionType.AMBIGUOUS:
                     message = ("คำสั่งนี้กว้างเกินไป ระบบจะไม่เดาแทนผู้เล่น "
                                "ลองบอกให้เจาะจงว่าจะทำกับสิ่งไหน "
@@ -256,9 +280,13 @@ class SymbolicEngine:
                         message += (f" {entity.get('name_th', cmd.target)} อยู่ที่"
                                     f"{self.world['locations'].get(where, {}).get('name_th', where)}")
                 elif rule["id"] == "R014_TIME_LIMIT":
+                    # หมดเวลาไม่ใช่แค่คำสั่งถูกปฏิเสธ แต่คือคดีปิด
+                    # เดิมคืนแค่ข้อความฉากจบ ส่วนสถานะไม่ถูกปิด ผู้เล่นจึงยิงคำสั่งต่อได้เรื่อยๆ
+                    # แล้วได้ข้อความฉากจบซ้ำทุกครั้ง จึงต้องส่ง ending กลับไปให้บันทึกลงสถานะด้วย
                     timeout = self.ending_for(on_timeout=True)
                     if timeout:
                         message = self._render_ending(timeout, [])
+                        closes = {"ending": timeout["id"]}
                 elif cmd.action is ActionType.UNKNOWN:
                     message += (" สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น "
                                 "ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ")
@@ -267,7 +295,7 @@ class SymbolicEngine:
                     message=message,
                     reasoning_chain=chain,
                     violated_rule_id=rule["id"],
-                    state_changes={},
+                    state_changes=closes,
                 )
 
         return Decision(
@@ -503,8 +531,9 @@ class SymbolicEngine:
         """หมดเวลาแล้วหรือยัง ใช้ตัดสินว่าเกมจบ ไม่ใช่ตัดสินว่าคำสั่งผ่านไหม
 
         เงื่อนไขตรงกับ _within_time_limit เพื่อไม่ให้ UI กับกฎบอกคนละอย่าง
+        เหลือศูนย์คือหมดแล้ว เท่ากับที่นาฬิกาบนหน้าเว็บขึ้น 00:00 พอดี
         """
-        return self.seconds_left(state) < 0
+        return self.seconds_left(state) <= 0
 
     def ending_message(self, state: GameState) -> str:
         """ข้อความปิดเกมกรณีหมดเวลา ดึงจากฉากจบที่ทำเครื่องหมาย on_timeout ไว้

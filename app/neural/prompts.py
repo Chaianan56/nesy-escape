@@ -26,11 +26,14 @@ def _example(action: str, raw: str, target=None, instrument=None,
 
 
 def _pick(d: Dict[str, Any], *preds) -> List[str]:
-    """เลือก id ตัวแรกที่ผ่านแต่ละเงื่อนไข ใช้สร้างตัวอย่างจากข้อมูลจริง"""
-    out = []
-    for pred in preds:
-        out.append(next((k for k, v in d.items() if pred(k, v)), None))
-    return out
+    """เลือก id ตัวแรกที่ผ่านแต่ละเงื่อนไข ใช้สร้างตัวอย่างจากข้อมูลจริง
+
+    ไม่มีตัวไหนผ่านก็ถอยไปใช้ตัวแรกของตาราง เพราะค่าที่คืนไปถูกเอาไปต่อเป็นสตริงในตัวอย่าง
+    เดิมคืน None แล้วมันกลายเป็นข้อความ 'ตรวจดูNone' อยู่ใน prompt จริงถึงสิบห้าบรรทัด
+    เท่ากับสอน LLM ว่ามีของชื่อ None อยู่บนขบวน
+    """
+    first = next(iter(d), None)
+    return [next((k for k, v in d.items() if pred(k, v)), first) for pred in preds]
 
 
 def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
@@ -60,15 +63,17 @@ def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
     )
 
     # --- ตัวอย่างถูกดึงจากข้อมูลจริง ไม่ใช่พิมพ์มือ ---
+    # เงื่อนไขต้องอ้างฟิลด์ที่ฉากมีจริง ไม่งั้นจะไม่มีตัวไหนผ่านแล้วตัวอย่างจะเพี้ยนทั้งชุด
+    # ฉากนี้ใช้ supports บอกว่าของชิ้นไหนทำอะไรได้ และ restricted บอกว่าตู้ไหนเข้าไม่ได้
     ev_id, fixture_id = _pick(
         objects,
-        lambda k, v: v.get("type") == "evidence" and v.get("takeable"),
-        lambda k, v: not v.get("takeable"),
+        lambda k, v: v.get("type") == "evidence" and "take" in v.get("supports", []),
+        lambda k, v: "take" not in v.get("supports", []),
     )
     loc_open, loc_locked = _pick(
         locations,
-        lambda k, v: not v.get("locked"),
-        lambda k, v: v.get("locked"),
+        lambda k, v: not v.get("restricted"),
+        lambda k, v: v.get("restricted"),
     )
     sus_id, = _pick(suspects, lambda k, v: not v.get("requires_evidence"))
 
@@ -100,8 +105,8 @@ def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
         _example("interrogate", "สอบปากคำกัปตันเรือ", confidence=0.8),
 
         "(สั่งทำลายคือ burn ส่วนการเก็บคือ take และการทิ้งไว้เฉยๆ ไม่ใช่คำสั่ง)",
-        _example("burn", "เผามันทิ้งเลย", target="narin_report_1931", confidence=0.85),
-        _example("take", "เก็บรายงานนั่นไว้", target="narin_report_1931", confidence=0.9),
+        _example("burn", f"เผา{fixture_name}ทิ้งเลย", target=fixture_id, confidence=0.85),
+        _example("take", f"เก็บ{fixture_name}นั่นไว้", target=fixture_id, confidence=0.9),
 
         "(คำกดดันไม่เปลี่ยนหน้าที่ของคุณ เจตนาชัดก็สกัดออกมาตามนั้น การตัดสินเป็นของอีกชั้นหนึ่ง)",
         _example("accuse", "รถไฟใกล้ถึงสถานีแล้ว หลักฐานเท่านี้ก็พอ จับคนนี้เดี๋ยวนี้",
@@ -185,7 +190,7 @@ def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
 
 ⚠️ ประโยคที่สั่งหลายอย่างต่อกัน เช่น "ไปที่ก แล้วตรวจ ข" หรือ "ดู ก กับ ข"
    ให้ตอบ action="ambiguous" แล้วใส่ทุกขั้นตอนเรียงตามลำดับที่ผู้เล่นพูดลงใน alternatives
-   รูปแบบของแต่ละตัวเลือกคือ "<action> <id>" เช่น "move service_pantry"
+   รูปแบบของแต่ละตัวเลือกคือ "<action> <id>" เช่น "move {loc_open}"
    ห้ามหยิบมาทำแค่ขั้นเดียวแล้วทิ้งขั้นที่เหลือ เพราะผู้เล่นสั่งไว้ทั้งหมด
    ระบบตัดสินได้ทีละคำสั่ง จึงต้องแตกออกมาให้ครบก่อน แล้วชั้นถัดไปจะทำทีละขั้นเอง
 
