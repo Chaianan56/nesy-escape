@@ -19,6 +19,15 @@
       "message_fail": "คดีนี้ปิดไปแล้ว ไม่สามารถดำเนินการต่อได้"
     },
     {
+      "id": "R014_TIME_LIMIT",
+      "description": "ต้องอยู่ภายในกรอบเวลาการสืบสวน",
+      "applies_to": [
+        "*"
+      ],
+      "check": "within_time_limit",
+      "message_fail": "หมดเวลาการสืบสวนแล้ว!"
+    },
+    {
       "id": "R002_TARGET_EXISTS",
       "description": "เป้าหมายต้องมีอยู่จริงในฉาก",
       "applies_to": [
@@ -70,19 +79,23 @@
         "take",
         "unlock",
         "use",
+        "burn",
         "interrogate"
       ],
       "check": "in_same_location",
       "message_fail": "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
     },
     {
-      "id": "R014_TIME_LIMIT",
-      "description": "ต้องอยู่ภายในกรอบเวลาการสืบสวน",
+      "id": "R007_ACTION_SUPPORTED",
+      "description": "สิ่งของต้องประกาศไว้ในฉากว่ารองรับการกระทำนี้",
       "applies_to": [
-        "*"
+        "take",
+        "unlock",
+        "use",
+        "burn"
       ],
-      "check": "within_time_limit",
-      "message_fail": "หมดเวลาการสืบสวนแล้ว!"
+      "check": "object_supports_action",
+      "message_fail": "สิ่งนี้ทำแบบนั้นไม่ได้ ในคดีนี้ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว ห้ามหยิบ ห้ามเคลื่อนย้าย และห้ามทำลาย สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ"
     },
     {
       "id": "R013_ACCUSE_FOUR_PILLARS",

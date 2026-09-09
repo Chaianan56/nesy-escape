@@ -123,7 +123,15 @@ def handle_command(req: CommandRequest):
     decision = engine.decide(parsed, req.state)
 
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
-    new_state = apply_changes(req.state, decision.state_changes) if decision.allowed else req.state
+    if decision.allowed:
+        new_state = apply_changes(req.state, decision.state_changes)
+    elif decision.state_changes.get("ending"):
+        # คำสั่งที่ถูกปฏิเสธไม่กินเวลาและไม่เปลี่ยนอะไร ยกเว้นกรณีที่ตัวกฎเองเป็นคนปิดคดี
+        # (หมดเวลา) ตรงนั้นสถานะต้องปิดจริง ไม่ใช่แค่ขึ้นข้อความฉากจบแล้วเล่นต่อได้เรื่อยๆ
+        # เช็คจาก state_changes ไม่ใช่จากชื่อกฎ เพิ่มกฎที่ปิดคดีได้ในอนาคตจึงไม่ต้องแก้ไฟล์นี้
+        new_state = req.state.model_copy(update={"ending_id": decision.state_changes["ending"]})
+    else:
+        new_state = req.state
 
     # ตัวเลือกที่ยื่นกลับไปต้องไม่เอ่ยชื่อของที่ผู้เล่นยังหาไม่เจอ
     # ไม่งั้นคำสั่งกว้างๆ อย่าง "ปลดทุกอย่าง" จะกลายเป็นเมนูเฉลยชื่อของทั้งขบวน

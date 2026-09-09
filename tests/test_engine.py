@@ -397,3 +397,85 @@ def test_testimony_does_not_name_evidence_the_speaker_does_not_give(engine):
                 continue
             assert o["name_th"] not in sus["testimony"], \
                 f"บทพูดของ {sid} เอ่ยชื่อ {oid} ซึ่งไม่ใช่หลักฐานที่เขาให้"
+
+
+# ---------- กลุ่ม E: การกระทำที่ฉากนี้ไม่รองรับ ----------
+
+UNSUPPORTED = [ActionType.TAKE, ActionType.USE, ActionType.UNLOCK, ActionType.BURN]
+
+
+def _an_object_in(engine, loc):
+    return next(oid for oid, o in engine.world["objects"].items()
+                if o.get("location") == loc)
+
+
+@pytest.mark.parametrize("action", UNSUPPORTED)
+def test_nothing_in_this_scene_can_be_taken_used_unlocked_or_burned(engine, action):
+    """สี่คำสั่งนี้เคยไม่มีกฎเฉพาะคุมเลย หยิบอะไรก็ได้ เผาอะไรก็ได้
+
+    ฉากนี้ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว การปฏิเสธจึงต้องมาจากกฎที่ตรวจจริง
+    ไม่ใช่ปล่อยผ่านเงียบๆ แล้วขึ้นข้อความว่าทำสำเร็จ
+    """
+    here = GameState().current_location
+    s = GameState()
+    d = engine.decide(cmd(action, _an_object_in(engine, here)), s)
+    assert not d.allowed, f"{action.value} ไม่ควรผ่าน"
+    assert d.violated_rule_id == "R007_ACTION_SUPPORTED"
+
+
+def test_burning_something_in_another_car_is_caught_by_the_location_rule(engine):
+    """burn เคยหลุดจากกฎตำแหน่ง เผาของข้ามขบวนได้โดยไม่ต้องเดินไปหา"""
+    far = next(oid for oid, o in engine.world["objects"].items()
+               if o.get("location") and o["location"] != GameState().current_location)
+    d = engine.decide(cmd(ActionType.BURN, far), GameState())
+    assert d.violated_rule_id == "R005_SAME_LOCATION"
+
+
+def test_a_scene_can_re_enable_an_action_without_touching_the_code(engine):
+    """กฎอ่านจากข้อมูล ฉากไหนอยากมีของที่หยิบได้ก็เติม supports ลง story.json พอ
+
+    ข้อนี้คือหลักฐานว่ากฎ R007 ไม่ได้ปิดตายสี่คำสั่งนั้นไว้ในโค้ด
+    """
+    here = GameState().current_location
+    oid = _an_object_in(engine, here)
+    engine.world["objects"][oid]["supports"] = ["take"]
+    try:
+        assert engine.decide(cmd(ActionType.TAKE, oid), GameState()).allowed
+        assert not engine.decide(cmd(ActionType.BURN, oid), GameState()).allowed
+    finally:
+        del engine.world["objects"][oid]["supports"]
+
+
+def test_the_last_minute_of_the_clock_is_playable_and_the_next_one_is_not(engine):
+    """ขอบเขตเวลาต้องอยู่ที่เดียวกับที่นาฬิกาบนหน้าเว็บขึ้น 00:00
+
+    เดิมกฎใช้ > ผู้เล่นจึงสั่งได้อีกหนึ่งครั้งหลังนาฬิกาขึ้นหมดเวลาไปแล้ว
+    """
+    limit = engine.world["time_limit_seconds"]
+    last = GameState(elapsed_seconds=limit - SECONDS_PER_TURN)
+    assert engine.decide(cmd(ActionType.EXAMINE, last.current_location), last).allowed
+    assert not engine.is_out_of_time(last)
+
+    over = GameState(elapsed_seconds=limit)
+    d = engine.decide(cmd(ActionType.EXAMINE, over.current_location), over)
+    assert d.violated_rule_id == "R014_TIME_LIMIT"
+    assert engine.is_out_of_time(over)
+
+
+def test_running_out_of_time_hands_back_the_ending_that_closes_the_case(engine):
+    """กฎหมดเวลาต้องส่งฉากจบกลับมาให้บันทึกลงสถานะ ไม่ใช่คืนแค่ข้อความ"""
+    over = GameState(elapsed_seconds=engine.world["time_limit_seconds"])
+    d = engine.decide(cmd(ActionType.EXAMINE, over.current_location), over)
+    eid = d.state_changes.get("ending")
+    assert eid, "หมดเวลาแล้วต้องมี ending ใน state_changes"
+    assert engine.world["endings"][eid].get("on_timeout"), "ต้องเป็นฉากจบแบบหมดเวลา"
+
+
+def test_time_runs_out_before_the_command_is_even_inspected(engine):
+    """หมดเวลาแล้วพิมพ์อะไรมั่วๆ ก็ต้องได้ยินว่าหมดเวลา ไม่ใช่ว่าไม่รู้จักของชิ้นนั้น
+
+    กฎที่ถามว่า 'ยังเล่นได้อยู่ไหม' ต้องมาก่อนกฎที่ถามว่า 'คำสั่งนี้สมเหตุสมผลไหม'
+    """
+    over = GameState(elapsed_seconds=engine.world["time_limit_seconds"])
+    d = engine.decide(cmd(ActionType.EXAMINE, "ของที่ไม่มีอยู่จริง"), over)
+    assert d.violated_rule_id == "R014_TIME_LIMIT"
