@@ -20,6 +20,18 @@ from app.schemas import ActionType, GameState, ParsedCommand
 client = TestClient(main.app)
 
 
+def test_journal_shows_only_discovered_evidence_and_earned_deductions():
+    empty = client.post('/journal', json=GameState().model_dump()).json()
+    assert empty['evidence'] == []
+    assert empty['deductions'] == []
+    assert all(main.engine.world['objects'][o['id']].get('location') == 'lounge_car'
+               for o in empty['visible'])
+    state = GameState(discovered_evidence=['pocket_watch', 'liora_time_estimate'])
+    found = client.post('/journal', json=state.model_dump()).json()
+    assert {e['id'] for e in found['evidence']} == set(state.discovered_evidence)
+    assert 'D01_TRUE_MURDER_WINDOW' in {d['id'] for d in found['deductions']}
+
+
 @pytest.mark.parametrize("action", [ActionType.UNKNOWN, ActionType.AMBIGUOUS])
 def test_timeout_and_closed_case_take_priority_over_unknown_intent(fake_llm, action):
     fake_llm(action)

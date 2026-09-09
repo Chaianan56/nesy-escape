@@ -1,86 +1,22 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeSy-Escape — ระบบสืบสวนคดีฆาตกรรมบนรถไฟ (Alliance UI)</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nocturne Express — คดีบนรถไฟ</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-  <!-- ================= TOP NAVBAR ================= -->
-  <header class="navbar">
-    <!-- Brand Logo -->
-    <div class="brand">
-      <span class="brand-icon">🚂</span>
-      <div class="brand-text">
-        <span class="brand-name">NeSy-Escape</span>
-        <span class="brand-sub">นอกเทิร์นเอกซ์เพรส 1938</span>
-      </div>
-    </div>
-
-    <!-- HUD Center: Location, Clock, Four Pillars -->
-    <div class="nav-hud">
-      <!-- ตำแหน่งปัจจุบันของผู้เล่น -->
-      <div id="locWidget" class="hud-pill loc-pill" title="ตำแหน่งตู้รถที่ยืนอยู่ปัจจุบัน">
-        <span class="hud-icon">📍</span>
-        <span id="locText">ตู้โดยสาร</span>
-      </div>
-
-      <!-- FE-3: นาฬิกาการสืบสวน -->
-      <div id="clockWidget" class="hud-pill clock-pill" title="เวลาที่เหลือในการสืบสวน (ลดลงตาละ 60 วินาที)">
-        <span class="hud-icon">⏱️</span>
-        <span id="clockText">60:00</span>
-      </div>
-
-    </div>
-  </header>
-
-  <!-- ================= MAIN CHAT CONTAINER ================= -->
-  <main class="chat-container">
-    <!-- Stream ของข้อความสนทนาและเนื้อเรื่อง -->
-    <div id="chatFeed" class="chat-feed">
-      <!-- บรีฟคดี -> คำบรรยายห้องตอนเริ่ม -> การโต้ตอบของผู้เล่น -->
-    </div>
-
-    <!-- ข้อ 1: แถบตัวอย่างคำสั่งที่พิมพ์ได้ (Quick Suggestions Bar) -->
-    <div class="quick-chips-wrapper">
-      <span class="chips-label">💡 คำสั่งแนะนำ:</span>
-      <div class="chips-scroll">
-        <button type="button" class="chip-btn" onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button>
-        <button type="button" class="chip-btn" onclick="fillInput('สอบปากคำกิเดียน ฮาร์ต')">สอบปากคำกิเดียน ฮาร์ต</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ไปที่ห้องเกิดเหตุ')">ไปที่ห้องเกิดเหตุ</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ตรวจดูนาฬิกาพกของผู้ตาย')">ตรวจดูนาฬิกาพกของผู้ตาย</button>
-        <button type="button" class="chip-btn chip-danger" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
-      </div>
-    </div>
-
-    <!-- Pinned Bottom Input Form -->
-    <form onsubmit="sendMessage(event)" class="chat-input-bar">
-      <div class="input-inner">
-        <input 
-          id="chatInput" 
-          type="text" 
-          placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย (หรือคลิกตัวอย่างคำสั่งด้านบน)..." 
-          autocomplete="off" 
-        />
-        <button type="submit" id="sendBtn" class="send-button">
-          <span id="sendBtnText">ส่งคำสั่ง</span>
-          <svg class="send-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
-      </div>
-      <div class="input-hint">
-        <span>คำสั่งถูกส่งไปประมวลผลผ่าน Neural Interpretation Layer &amp; Symbolic Rule Engine</span>
-      </div>
-    </form>
-  </main>
-
-  <script src="chat.js"></script>
-</body>
-</html>
+<header class="masthead"><a class="monogram" href="#" aria-label="Nocturne Express">NE</a><div class="wordmark"><span>NOCTURNE EXPRESS</span><small>THE EIGHTH PASSENGER · 1938</small></div><div class="header-right"><span class="edition">แฟ้มคดี  /  01</span><div id="clockWidget" class="hud-pill" title="เวลาเล่นจริง รวมเวลาคิดและอ่าน"><span class="clock-icon">◷</span><span id="clockText">90:00</span></div></div></header>
+<main class="game-layout">
+<aside class="case-panel panel"><div class="eyebrow">THE INVESTIGATION</div><h1>กระดานคดี</h1><div class="case-number">คดีฆาตกรรมแคสเซียน รีด</div><div class="divider"></div><p class="small-heading">สิ่งที่ต้องพิสูจน์</p><ol class="questions"><li><b>01</b><span>เวลาตายที่แท้จริง</span></li><li><b>02</b><span>ใครมีแรงจูงใจ?</span></li><li><b>03</b><span>ใครมีโอกาสลงมือ?</span></li><li><b>04</b><span>ร่องรอยเชื่อมโยงถึงใคร?</span></li></ol><div class="divider"></div><label class="small-heading" for="suspectSelect">ความคืบหน้าของผู้ต้องสงสัย</label><select id="suspectSelect" aria-label="เลือกผู้ต้องสงสัยบนกระดานคดี"></select><div id="pillarBoard" class="pillar-board"><p class="muted">กำลังเปิดแฟ้มคดี…</p></div><div class="case-stats"><div><strong id="evidenceCount">0</strong><span>หลักฐานที่พบ</span></div><div><strong id="deductionCount">0</strong><span>ข้อสรุป</span></div></div><blockquote>“ความน่าสงสัย<br>ยังไม่ใช่ข้อพิสูจน์”<span>— บันทึกของผู้สืบสวน</span></blockquote></aside>
+<section class="center-column">
+<div class="scene-frame"><div class="scene-topline"><span><i class="live-dot"></i>กำลังสืบสวน</span><span id="locText">ตู้เลานจ์</span></div><canvas id="sceneCanvas" width="640" height="300" role="img" aria-label="ฉากรถไฟแบบพิกเซล"></canvas><div class="scene-caption"><span id="sceneLabel">THE LOUNGE CAR</span><span>14 NOVEMBER 1938 · NIGHT</span></div></div>
+<div class="interaction-strip"><span>สำรวจตรงหน้า</span><div id="visibleObjects" class="chips-scroll"><span class="muted">กำลังสำรวจ…</span></div></div>
+<section class="dialogue-panel panel" aria-label="บทสนทนาและผลการสืบสวน"><div class="section-bar"><span>บันทึกการสืบสวน</span><span class="muted">ทุกคำตอบมีเหตุผล</span></div><div id="chatFeed" class="chat-feed" role="log" aria-live="polite"></div></section>
+<nav class="train-map" aria-label="แผนผังขบวนรถไฟ"><div class="route-label">เส้นทางบนขบวน <span>เลือกตู้เพื่อเดินทาง</span></div><div id="trainCars" class="train-cars"></div></nav>
+</section>
+<aside class="journal-panel panel"><div class="eyebrow">DETECTIVE'S JOURNAL</div><div class="journal-tabs" role="tablist" aria-label="สมุดสืบสวน"><button id="evidenceTab" role="tab" aria-selected="true" aria-controls="journalContent" data-tab="evidence">หลักฐาน</button><button id="peopleTab" role="tab" aria-selected="false" aria-controls="journalContent" data-tab="people">บุคคล</button><button id="notesTab" role="tab" aria-selected="false" aria-controls="journalContent" data-tab="notes">ข้อสรุป</button></div><div id="journalContent" role="tabpanel" aria-labelledby="evidenceTab" class="journal-content"></div><div class="journal-foot"><span class="live-dot"></span><span id="journalStatus">กำลังโหลดบันทึก</span></div></aside>
+</main>
+<footer class="command-dock"><div class="dock-label"><span class="eyebrow">YOUR NEXT MOVE</span><strong>คุณจะทำอะไรต่อ?</strong></div><div class="command-body"><div class="quick-actions"><button onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button><button id="talkHere">สอบปากคำ</button><button id="accuseSelected">กล่าวหาผู้ต้องสงสัย</button><span>เลือกคำแนะนำ แล้วกดส่ง</span></div><form onsubmit="sendMessage(event)" class="chat-input-bar"><label class="sr-only" for="chatInput">คำสั่งสืบสวนภาษาไทย</label><input id="chatInput" type="text" placeholder="พิมพ์สิ่งที่ต้องการตรวจสอบ หรือถามใครสักคน…" autocomplete="off"><button type="submit" id="sendBtn"><span id="sendBtnText">ส่งคำสั่ง</span><span aria-hidden="true"> ↗</span></button></form></div><div class="dock-note">พิมพ์เป็นภาษาไทย<br><span>ENTER เพื่อส่งคำสั่ง</span></div></footer>
+<script src="chat.js"></script><script src="pixel.js"></script>
+</body></html>
