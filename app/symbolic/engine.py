@@ -148,6 +148,31 @@ def pillar_names(world: dict) -> tuple:
     return tuple(order) if order else DEFAULT_PILLARS
 
 
+def _ending_matches(ending, suspect_id, state, world):
+    if ending.get("on_timeout") or ending.get("accuse", "*") not in ("*", suspect_id):
+        return False
+    pillars = _collect_pillars(suspect_id, state, world)
+    held = deductions_held(state, world)
+    return (
+        all(pillars.get(p) for p in ending.get("requires_pillars", []))
+        and not any(pillars.get(p) for p in ending.get("denies_pillars", []))
+        and all(d in held for d in ending.get("requires_deductions", []))
+        and not any(d in held for d in ending.get("denies_deductions", []))
+        and all(e in state.discovered_evidence for e in ending.get("requires_evidence", []))
+        and not any(e in state.discovered_evidence for e in ending.get("denies_evidence", []))
+    )
+
+
+def _accusation_ready(cmd, state, world, p):
+    # Only an actual ending for this suspect can authorize an accusation.
+    # The wildcard fallback must never make an unsupported accusation playable.
+    candidates = [e for e in world.get("endings", {}).values()
+                  if e.get("accuse") == cmd.target]
+    if any(_ending_matches(e, cmd.target, state, world) for e in candidates):
+        return True, "หลักฐานและข้อสรุปเข้าเงื่อนไขฉากจบของผู้ต้องสงสัยแล้ว"
+    return False, "หลักฐานหรือข้อสรุปยังไม่เข้าเงื่อนไข ต้องสืบสวนต่อก่อนกล่าวหา"
+
+
 def _four_pillars(cmd, state, world, p):
     """กฎสี่เสา ตรวจว่าคำกล่าวหามีหลักฐานครบทุกด้านหรือยัง"""
     found = _collect_pillars(cmd.target, state, world)
@@ -193,7 +218,7 @@ def _game_not_over(cmd, state, world, p):
     """คดีปิดแล้วก็จบ ไม่ให้สั่งอะไรต่อ
 
     เดิมไม่ต้องมีกฎข้อนี้ เพราะจบเกมได้ทางเดียวคือกล่าวหาถูกตอนหลักฐานครบ
-    พอมีฉากจบหลายแบบ ผู้เล่นกล่าวหาใครก็จบได้ตั้งแต่ตาแรก จึงต้องมีตัวปิดฉากจริงๆ
+    เมื่อกล่าวหาผ่านเงื่อนไขฉากจบแล้ว คดีต้องปิดและไม่รับคำสั่งเพิ่มเติม
     """
     if state.ending_id:
         return False, f"คดีปิดไปแล้วด้วยฉากจบ '{state.ending_id}'"
@@ -213,6 +238,7 @@ def _within_time_limit(cmd, state, world, p):
 
 
 CHECKERS: Dict[str, Callable] = {
+    "accusation_ready": _accusation_ready,
     "action_is_known": _action_is_known,
     "target_exists": _target_exists,
     "location_exists": _location_exists,
@@ -265,7 +291,7 @@ class SymbolicEngine:
                 # คำแนะนำคนละแบบ เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าบอกแค่ว่าไม่เข้าใจ ผู้เล่นจะตันทันที
                 message = rule["message_fail"]
                 closes = {}
-                if cmd.action is ActionType.AMBIGUOUS:
+                if rule["id"] == "R000_KNOWN_ACTION" and cmd.action is ActionType.AMBIGUOUS:
                     message = ("คำสั่งนี้กว้างเกินไป ระบบจะไม่เดาแทนผู้เล่น "
                                "ลองบอกให้เจาะจงว่าจะทำกับสิ่งไหน "
                                "หรือพิมพ์ 'ดูรอบๆ' เพื่อดูว่าตอนนี้มีอะไรอยู่ตรงหน้าบ้าง")
@@ -287,7 +313,7 @@ class SymbolicEngine:
                     if timeout:
                         message = self._render_ending(timeout, [])
                         closes = {"ending": timeout["id"]}
-                elif cmd.action is ActionType.UNKNOWN:
+                elif rule["id"] == "R000_KNOWN_ACTION" and cmd.action is ActionType.UNKNOWN:
                     message += (" สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น "
                                 "ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ")
                 return Decision(
@@ -298,12 +324,14 @@ class SymbolicEngine:
                     state_changes=closes,
                 )
 
+        changes = self._state_changes(cmd, state)
+        message = self._success_message(cmd, state)
         return Decision(
             allowed=True,
-            message=self._success_message(cmd, state),
+            message=message,
             reasoning_chain=chain,
             violated_rule_id=None,
-            state_changes=self._state_changes(cmd, state),
+            state_changes=changes,
         )
 
     def _state_changes(self, cmd: ParsedCommand, state: GameState) -> dict:
@@ -410,7 +438,7 @@ class SymbolicEngine:
                 return self.look_around(cmd.target, state)
             doc_map = {
                 "burnt_folder_c": "burnt_memo_fragment.md",
-                "secret_file": "autopsy_report.md"
+                "secret_file": "liora_project_nocturne.md"
             }
             if cmd.target in doc_map:
                 from app.document_loader import load_in_game_document
@@ -461,20 +489,7 @@ class SymbolicEngine:
                 continue
             if on_timeout:
                 return {**e, "id": eid}
-            who = e.get("accuse", "*")
-            if who != "*" and who != suspect_id:
-                continue
-            need_p = e.get("requires_pillars", [])
-            deny_p = e.get("denies_pillars", [])
-            if any(not _collect_pillars(suspect_id, state, self.world)[p] for p in need_p):
-                continue
-            if any(_collect_pillars(suspect_id, state, self.world)[p] for p in deny_p):
-                continue
-            if any(d not in held for d in e.get("requires_deductions", [])):
-                continue
-            if any(d in held for d in e.get("denies_deductions", [])):
-                continue
-            if any(x not in state.discovered_evidence for x in e.get("requires_evidence", [])):
+            if not _ending_matches(e, suspect_id, state, self.world):
                 continue
             return {**e, "id": eid}
         return {}
@@ -549,19 +564,10 @@ class SymbolicEngine:
         return _collect_pillars(target, state, self.world)
 
 
-_STORY = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
-
-# เวลาที่หมดไปต่อหนึ่งตา — ปรับที่ story.json ไม่ปรับในโค้ด
-# ponytail: คิดเท่ากันทุก action ถ้าอยากให้เดินข้ามตู้แพงกว่าตรวจของ ค่อยทำเป็น dict ต่อ action
-SECONDS_PER_TURN: int = _STORY.get("seconds_per_turn", 60)
-
-
 def apply_changes(state: GameState, changes: dict) -> GameState:
     """คืน state ใหม่ ไม่แก้ของเดิม เพื่อให้ยิงคำสั่งชุดเดิมซ้ำได้ผลเหมือนกัน
 
-    เวลาเดินทุกตาโดยไม่ขึ้นกับว่าใครเป็นผู้ตัดสิน จงใจให้อยู่ตรงนี้ไม่ใช่ใน state_changes
-    เพราะถ้าปล่อยให้คำตัดสินเป็นตัวกำหนด โหมด A (LLM ตัดสินเอง) จะคุมเวลาของตัวเองได้
-    แล้วสองโหมดจะเดินด้วยนาฬิกาคนละเรือน เทียบกันไม่ได้
+    เวลาเล่นจริงถูกอัปเดตโดย interaction layer การทำคำสั่งไม่เพิ่มเวลาเอง
     """
     s = state.model_copy(deep=True)
     mapping = {
@@ -592,5 +598,4 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
         if dest not in s.visited_locations:
             s.visited_locations.append(dest)
     s.turn_count += 1
-    s.elapsed_seconds += SECONDS_PER_TURN
     return s

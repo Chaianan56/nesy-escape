@@ -14,7 +14,7 @@ test_neural.py — ทดสอบ Neuro AI Layer ของ Nocturne Express 193
 import pytest
 
 from app.schemas import ActionType, GameState, ParsedCommand
-from app.neural.gemini_client import STORY_DATA, NeuralUnavailable, interpret
+from app.neural.gemini_client import STORY_DATA, NeuralUnavailable, NeuralNotConfigured, NeuralQuotaExceeded, interpret
 from app.neural.prompts import build_interpret_system_prompt
 from app.symbolic.engine import SymbolicEngine, apply_changes
 
@@ -22,18 +22,51 @@ from app.symbolic.engine import SymbolicEngine, apply_changes
 def say(text: str, state: GameState = None) -> ParsedCommand:
     """ส่งข้อความไทยหนึ่งประโยคให้ Gemini ตีความจริง
 
-    เรียกไม่ได้ก็ข้ามข้อนั้นไป ไม่ใช่ฟ้องว่าโค้ดพัง เพราะโควตาหมดหรือเน็ตล่ม
-    ไม่ได้แปลว่าใครเขียนอะไรผิด
+    ข้ามเฉพาะเมื่อไม่ได้ตั้งค่าหรือโควตาหมด ข้อผิดพลาดอื่นต้องทำให้เทสไม่ผ่าน
     """
     try:
         return interpret(text, state or GameState())
-    except NeuralUnavailable as e:
+    except (NeuralNotConfigured, NeuralQuotaExceeded) as e:
         pytest.skip(f"เรียก LLM ไม่ได้: {str(e)[:120]}")
 
 
 # ============================================================
 # ชั้นที่ 1 — ไม่ใช้คีย์
 # ============================================================
+
+@pytest.mark.parametrize("response_text", ["", "not json", '{"action":"invalid"}'])
+def test_bad_model_responses_fail_instead_of_skipping(monkeypatch, response_text):
+    from types import SimpleNamespace
+    from app.neural import gemini_client
+    client = SimpleNamespace(models=SimpleNamespace(
+        generate_content=lambda **kwargs: SimpleNamespace(text=response_text)))
+    monkeypatch.setattr(gemini_client, "_clients", lambda: [client])
+    with pytest.raises(NeuralUnavailable) as error:
+        say("ดูรอบๆ")
+    assert not isinstance(error.value, (NeuralNotConfigured, NeuralQuotaExceeded))
+
+
+@pytest.mark.parametrize("configured", [False, True])
+def test_only_missing_configuration_or_quota_skips(monkeypatch, configured):
+    from types import SimpleNamespace
+    from app.neural import gemini_client
+    def exhausted(**kwargs):
+        raise RuntimeError("RESOURCE_EXHAUSTED")
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=exhausted))
+    monkeypatch.setattr(gemini_client, "_clients", lambda: [client] if configured else [])
+    with pytest.raises(pytest.skip.Exception):
+        say("ดูรอบๆ")
+
+
+def test_other_provider_errors_do_not_skip(monkeypatch):
+    from types import SimpleNamespace
+    from app.neural import gemini_client
+    def broken(**kwargs):
+        raise RuntimeError("model not found")
+    monkeypatch.setattr(gemini_client, "_clients", lambda: [
+        SimpleNamespace(models=SimpleNamespace(generate_content=broken))])
+    with pytest.raises(NeuralUnavailable):
+        say("ดูรอบๆ")
 
 def test_entity_grounding_prompt_lists_every_id():
     """ทุก id ในโลกต้องอยู่ใน prompt ไม่งั้น LLM จะ ground ไม่ได้"""

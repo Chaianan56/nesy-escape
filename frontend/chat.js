@@ -21,6 +21,57 @@ let objectsMap = {};
 let rulesCount = null;
 let gameOver = false;   // ปิดคดีแล้วหรือหมดเวลาแล้ว ห้ามรับคำสั่งอีก
 let busy = false;       // มีคำสั่งค้างอยู่ในสาย ห้ามส่งซ้อน
+let clockTimer = null;
+let clockPending = false;
+let deadlineReached = false;
+let clockAnchor = null;
+let clockElapsed = 0;
+
+function anchorClock() {
+  clockElapsed = gameState.elapsed_seconds || 0;
+  clockAnchor = Date.now();
+}
+
+function elapsedNow() {
+  return clockAnchor === null ? (gameState?.elapsed_seconds || 0)
+    : clockElapsed + Math.floor((Date.now() - clockAnchor) / 1000);
+}
+
+async function tickClock() {
+  if (!gameState || gameOver) return;
+  updateClock();
+  if (elapsedNow() < timeLimitSeconds) return;
+  deadlineReached = true;
+  setBusy(busy);
+  if (clockPending) return;
+  clockPending = true;
+  try {
+    const res = await fetch(`${API_BASE}/clock`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(gameState), signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (gameOver) return;
+    // Keep action state if a command completed while this clock request was pending.
+    if (data.new_state.ending_id) {
+      gameState = { ...gameState, ending_id: data.new_state.ending_id,
+        elapsed_seconds: data.new_state.elapsed_seconds };
+      renderSystem(data.decision, data.parsed);
+      showGameOver();
+    } else {
+      gameState.elapsed_seconds = data.new_state.elapsed_seconds;
+      anchorClock();
+      deadlineReached = false;
+      setBusy(busy);
+    }
+  } catch (err) {
+    // Retry on the next tick; input stays locked at the deadline.
+    document.getElementById("clockText").textContent = "00:00 (กำลังยืนยันฉากจบ...)";
+  } finally {
+    clockPending = false;
+  }
+}
 
 
 // ============================================================
@@ -46,6 +97,10 @@ async function initGame() {
 
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
+    anchorClock();
+    deadlineReached = false;
+    if (clockTimer !== null) clearInterval(clockTimer);
+    clockTimer = setInterval(tickClock, 1000);
     timeLimitSeconds = sceneData.time_limit_seconds || 3600;
     locationsMap = sceneData.locations || {};
     suspectsMap = sceneData.suspects || {};
@@ -95,7 +150,7 @@ function renderBriefing(briefingText) {
         <div>• <code>ไปที่จุดเกิดเหตุ</code> — เดินทางไปยังห้องเก็บของบริการ</div>
         <div>• <code>ตรวจดูสมุดบันทึกของผู้ตาย</code> — ตรวจสอบวัตถุหรือหลักฐานในห้อง</div>
         <div>• <code>ขอสอบปากคำพนักงานควบคุมรถหน่อย</code> — พูดคุยกับพยานหรือผู้ต้องสงสัย</div>
-        <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — ตั้งข้อกล่าวหา (เมื่อรวบรวมหลักฐานครบ 4 เสา)</div>
+        <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — ต้องมีหลักฐานเข้าเงื่อนไขฉากจบของบุคคลนั้นก่อน หากยังไม่ครบให้สืบสวนต่อ</div>
       </div>
     </div>
   `;
@@ -122,7 +177,7 @@ function updateClock() {
   const clockWidget = document.getElementById("clockWidget");
   if (!clockText || !clockWidget) return;
 
-  const elapsed = gameState ? (gameState.elapsed_seconds || 0) : 0;
+  const elapsed = elapsedNow();
   const remaining = Math.max(0, timeLimitSeconds - elapsed);
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
@@ -171,7 +226,7 @@ function setBusy(on) {
   const btn = document.getElementById("sendBtn");
   const btnText = document.getElementById("sendBtnText");
   if (!input || !btn) return;
-  const lock = on || gameOver;
+  const lock = on || gameOver || deadlineReached;
   input.disabled = lock;
   btn.disabled = lock;
   if (btnText) btnText.textContent = gameOver ? "จบเกม" : (on ? "ประมวลผล..." : "ส่งคำสั่ง");
@@ -181,7 +236,7 @@ function setBusy(on) {
 // ถือล็อกตลอดทั้งงาน ไม่ใช่ต่อหนึ่งคำสั่ง
 // คำสั่งพ่วงหลายขั้นจึงเดินจนจบโดยไม่มีคำสั่งอื่นแทรกกลางทาง
 async function locked(fn) {
-  if (busy || gameOver) return false;
+  if (busy || gameOver || deadlineReached) return false;
   setBusy(true);
   try {
     await fn();
@@ -195,7 +250,7 @@ async function locked(fn) {
 // เดิมมีสามเส้นทางแยกกัน แต่ละเส้นตรวจไม่เหมือนกัน ปุ่มคำสั่งพ่วงจึงไม่ดักเน็ตหลุด
 // และไม่ปิดหน้าจอตอนคดีปิด กล่าวหาผ่านปุ่มแล้วยังพิมพ์ต่อได้
 async function submit(text, opts = {}) {
-  if (gameOver) return null;
+  if (gameOver || deadlineReached) return null;
   showLoading();
   try {
     if (!gameState) {
@@ -212,14 +267,16 @@ async function submit(text, opts = {}) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
+    if (gameOver) return null; // Ignore late responses after the deadline closed the case.
     if (data.new_state) gameState = data.new_state;
+    anchorClock();
     updateLocationHUD();
     updateClock();
     removeLoading();
     renderSystem(data.decision, data.parsed, opts.isRoomLook);
 
     // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
-    // กล่าวหาใครก็จบได้ ไม่ใช่จบทางเดียวเหมือนเดิม จึงต้องปิดหน้าจอจริงๆ
+    // กล่าวหาผ่านเงื่อนไขแล้วจึงปิดคดี ส่วนคำสั่งที่หลักฐานไม่พอยังเล่นต่อได้
     // หมดเวลาก็ปิดคดีเหมือนกัน ฝั่งกฎเป็นคนใส่ ending_id มาให้ในสถานะ
     // จึงดูที่ ending_id ที่เดียวพอ ไม่ต้องไปจำชื่อกฎข้อไหนไว้ในหน้าเว็บ
     if (gameState && gameState.ending_id) showGameOver();
@@ -267,6 +324,7 @@ async function sendMessage(e) {
 function showGameOver() {
   if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
   gameOver = true;
+  if (clockTimer !== null) clearInterval(clockTimer);
   const input = document.getElementById("chatInput");
   const btn = document.getElementById("sendBtn");
   input.disabled = true;
@@ -395,7 +453,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     if (decision.allowed) {
       reasoningHtml = `
         <details class="reasoning-details">
-          <summary>🔍 ดูการตรวจกฎ (${steps.length} ขั้นผ่าน)</summary>
+          <summary>🔍 ดูการตรวจกฎ (${steps.length} ขั้น)</summary>
           <div class="rule-table">${renderRules(steps)}</div>
         </details>
       `;

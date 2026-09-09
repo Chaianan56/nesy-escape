@@ -56,6 +56,14 @@ class NeuralUnavailable(RuntimeError):
     """Exception แจ้งเตือนเมื่อเรียกใช้งาน LLM ไม่สำเร็จ"""
 
 
+class NeuralNotConfigured(NeuralUnavailable):
+    """Missing credentials or SDK; live tests may skip."""
+
+
+class NeuralQuotaExceeded(NeuralUnavailable):
+    """All configured clients exhausted their quota."""
+
+
 def _is_quota_error(e: Exception) -> bool:
     """โควตาหมดของคีย์นี้หรือเปล่า ถ้าใช่ค่อยคุ้มที่จะเปลี่ยนไปคีย์อื่น"""
     text = str(e)
@@ -115,7 +123,7 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     """
     clients = _clients()
     if not clients:
-        raise NeuralUnavailable("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
+        raise NeuralNotConfigured("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
 
     # ประกอบ Prompt พร้อมบริบทตำแหน่งของผู้เล่น ไอเทมในกระเป๋า และหลักฐานที่พบ
     prompt_content = (
@@ -150,5 +158,6 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
             last_error = e
             if not _is_quota_error(e):
                 break
-    raise NeuralUnavailable(
-        f"เรียก Gemini API ล้มเหลว (ลองแล้ว {len(clients)} คีย์): {last_error}")
+    error_type = NeuralQuotaExceeded if _is_quota_error(last_error) else NeuralUnavailable
+    raise error_type(
+        f"เรียก Gemini API ล้มเหลว: {last_error}") from last_error

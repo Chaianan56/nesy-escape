@@ -20,6 +20,68 @@ from app.schemas import ActionType, GameState, ParsedCommand
 client = TestClient(main.app)
 
 
+@pytest.mark.parametrize("action", [ActionType.UNKNOWN, ActionType.AMBIGUOUS])
+def test_timeout_and_closed_case_take_priority_over_unknown_intent(fake_llm, action):
+    fake_llm(action)
+    state = GameState(elapsed_seconds=main.engine.world["time_limit_seconds"])
+    body = post("???", state).json()
+    assert body["decision"]["violated_rule_id"] == "R014_TIME_LIMIT"
+    assert body["new_state"]["ending_id"] == main.engine.ending_for(on_timeout=True)["id"]
+    again = post("???", GameState(**body["new_state"])).json()
+    assert again["decision"]["violated_rule_id"] == "R001_GAME_NOT_OVER"
+
+
+def test_commands_do_not_spend_clock_time(fake_llm, monkeypatch):
+    from app import game_clock
+    monkeypatch.setattr(game_clock.time, "time", lambda: 1000)
+    fake_llm(ActionType.MOVE, "first_class_car")
+    state = GameState(started_at=990)
+    body = post("move", state).json()
+    assert body["new_state"]["elapsed_seconds"] == 10
+    assert body["new_state"]["turn_count"] == 1
+    again = post("move", GameState(**body["new_state"])).json()
+    assert again["new_state"]["elapsed_seconds"] == 10
+
+
+def test_clock_closes_without_a_command_or_llm(monkeypatch):
+    from app import game_clock
+    limit = main.engine.world["time_limit_seconds"]
+    monkeypatch.setattr(game_clock.time, "time", lambda: limit + 100)
+    def forbidden(*args):
+        raise AssertionError("Clock must not call Gemini")
+    monkeypatch.setattr(main, "interpret", forbidden)
+    body = client.post("/clock", json=GameState(started_at=100).model_dump()).json()
+    assert body["new_state"]["ending_id"] == main.engine.ending_for(on_timeout=True)["id"]
+    assert body["new_state"]["turn_count"] == 0
+
+
+def test_expiry_during_llm_wait_rejects_action(monkeypatch):
+    from app import game_clock
+    limit = main.engine.world["time_limit_seconds"]
+    now = [limit + 99]
+    monkeypatch.setattr(game_clock.time, "time", lambda: now[0])
+    def slow(text, state):
+        now[0] += 2
+        return ParsedCommand(action=ActionType.MOVE, target="first_class_car", raw_text=text)
+    monkeypatch.setattr(main, "interpret", slow)
+    body = post("move", GameState(started_at=100)).json()
+    assert not body["decision"]["allowed"]
+    assert body["new_state"]["current_location"] == "lounge_car"
+    assert body["new_state"]["ending_id"]
+
+
+def test_accusation_before_deadline_keeps_its_ending(fake_llm, monkeypatch):
+    from app import game_clock
+    limit = main.engine.world["time_limit_seconds"]
+    monkeypatch.setattr(game_clock.time, "time", lambda: limit + 99)
+    fake_llm(ActionType.ACCUSE, "gideon_hart")
+    state = GameState(started_at=100, discovered_evidence=[k for k, v in main.engine.world["objects"].items() if v["type"] == "evidence"])
+    expected = main.engine.ending_for("gideon_hart", state)["id"]
+    body = post("accuse", state).json()
+    assert body["decision"]["allowed"]
+    assert body["new_state"]["ending_id"] == expected
+
+
 @pytest.fixture
 def fake_llm(monkeypatch):
     """สวม interpret() ด้วยตัวปลอม เรียกใช้ด้วย fake_llm(action, target, ...)
@@ -38,6 +100,18 @@ def fake_llm(monkeypatch):
 
 def post(text, state):
     return client.post("/command", json={"text": text, "state": state.model_dump()})
+
+
+def test_missing_vincent_clue_keeps_case_open_then_allows_accusation(fake_llm):
+    fake_llm(ActionType.ACCUSE, "vincent_gray")
+    state = GameState(discovered_evidence=["wire_cutters", "vincent_blood"])
+    denied = post("กล่าวหาวินเซนต์", state).json()
+    assert not denied["decision"]["allowed"]
+    assert denied["new_state"] == state.model_dump()
+    state.discovered_evidence.append("cut_copper_wire")
+    allowed = post("กล่าวหาวินเซนต์", state).json()
+    assert allowed["decision"]["allowed"]
+    assert allowed["new_state"]["ending_id"] == "the_scapegoat"
 
 
 # ---------- ทะเบียนฉาก ----------
@@ -61,7 +135,7 @@ def test_a_successful_command_returns_a_state_that_moved(fake_llm):
     body = r.json()
     assert body["decision"]["allowed"]
     assert body["new_state"]["current_location"] == "first_class_car"
-    assert body["new_state"]["elapsed_seconds"] > 0
+    assert body["new_state"]["elapsed_seconds"] == 0
     assert body["decision"]["reasoning_chain"], "คำตัดสินต้องมีสายเหตุผลเสมอ"
 
 

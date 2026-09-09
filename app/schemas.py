@@ -62,6 +62,7 @@ class ParsedCommand(BaseModel):
 # 3) GAME STATE — สถานะเกมที่ Symbolic ต้องใช้ตรวจกฎ
 # ============================================================
 class GameState(BaseModel):
+    started_at: Optional[float] = Field(None, description="เวลาเริ่มคดี Unix seconds สำหรับนาฬิกาเล่นจริง")
     current_location: str = Field("lounge_car", description="id ของตู้รถที่ผู้เล่นอยู่")
     inventory: List[str] = Field(default_factory=list)
     discovered_evidence: List[str] = Field(default_factory=list)

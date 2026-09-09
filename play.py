@@ -11,18 +11,22 @@ play.py — โหมดเล่นในเทอร์มินัล ใช�
 
 import re
 import sys
+import time
+import threading
+import queue as input_queue
 
 from app.neural import interpret
 from app.neural.gemini_client import llm_online
 from app.schemas import ActionType, GameState, ParsedCommand
 from app.symbolic.engine import SymbolicEngine, apply_changes
+from app.game_clock import sync_clock
 
 # เทอร์มินัล Windows ปกติเป็น cp874 ถ้าไม่บังคับ utf-8 ภาษาไทยจะเพี้ยนทั้งเข้าและออก
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stdin.reconfigure(encoding="utf-8")
 
 engine = SymbolicEngine()
-state = GameState()
+state = GameState(started_at=time.time())
 world = engine.world
 
 ACTION_TH = {
@@ -67,8 +71,28 @@ def show_help():
 
 
 def clock() -> str:
-    left = max(0, engine.seconds_left(state))
+    left = max(0, engine.seconds_left(sync_clock(state)))
     return f"{left // 60:02d}:{left % 60:02d}"
+
+
+def timed_input(prompt):
+    """Stop waiting for input when the real game deadline expires."""
+    result = input_queue.Queue()
+    def read():
+        try:
+            result.put(input(prompt))
+        except EOFError as exc:
+            result.put(exc)
+    threading.Thread(target=read, daemon=True).start()
+    left = max(0, state.started_at + world["time_limit_seconds"] - time.time())
+    try:
+        value = result.get(timeout=left)
+    except input_queue.Empty:
+        print(f"\n{engine.ending_message(sync_clock(state))}")
+        raise SystemExit(0)
+    if isinstance(value, Exception):
+        raise value
+    return value
 
 
 def show_state():
@@ -126,6 +150,7 @@ show_help()
 queue = []
 
 while True:
+    state = sync_clock(state)
     # เกมจบเพราะหมดเวลา ต้องเช็คก่อนรับคำสั่งถัดไป ไม่งั้นผู้เล่นจะเจอแต่คำสั่งถูกปฏิเสธ
     # ไปเรื่อยๆ โดยไม่มีอะไรบอกว่าจบแล้ว
     if engine.is_out_of_time(state):
@@ -137,7 +162,7 @@ while True:
         print(f"  ขั้นต่อไป: {ACTION_TH.get(parsed.action, parsed.action.value)}{th_name(parsed.target)}")
     else:
         try:
-            text = input(f"[{clock()} | {th_name(state.current_location)}] > ").strip()
+            text = timed_input(f"[{clock()} | {th_name(state.current_location)}] > ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         if not text:
@@ -164,7 +189,7 @@ while True:
             print(f"\n  คำสั่งนี้แตกได้ {len(choices)} ขั้น")
             for i, alt in enumerate(choices, 1):
                 print(f"    {i}. {describe_alt(alt)}")
-            pick = input("  [Enter = ทำทั้งหมดตามลำดับ / เลข = เอาข้อเดียว / n = ยกเลิก] > ").strip()
+            pick = timed_input("  [Enter = ทำทั้งหมดตามลำดับ / เลข = เอาข้อเดียว / n = ยกเลิก] > ").strip()
             print()
             if pick in ("n", "N"):
                 continue
@@ -176,6 +201,7 @@ while True:
                 queue = [parse_alt(a) for a in choices]
                 parsed = queue.pop(0)
 
+    state = sync_clock(state)
     decision = engine.decide(parsed, state)
 
     action_th = ACTION_TH.get(parsed.action, parsed.action.value)
@@ -193,6 +219,9 @@ while True:
         if parsed.action == ActionType.ACCUSE:
             print(f"\n  === คดีปิดแล้ว — ผู้ลงมือคือ{th_name(parsed.target)} ===")
             break
+    elif decision.state_changes.get("ending"):
+        state.ending_id = decision.state_changes["ending"]
+        break
     elif queue:
         # ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
         print(f"  (ยกเลิกอีก {len(queue)} ขั้นที่รออยู่ เพราะขั้นนี้ทำไม่ได้)")
