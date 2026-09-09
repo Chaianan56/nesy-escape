@@ -57,6 +57,8 @@ function loadChat(fetchImpl) {
     document: dom.document,
     fetch: fetchImpl,
     console,
+    setInterval: () => 1,
+    clearInterval() {},
     AbortSignal: { timeout: () => null },
   };
   vm.createContext(sandbox);
@@ -105,6 +107,40 @@ const ev = { preventDefault() {} };
 // รอให้ microtask ที่ค้างอยู่วิ่งจนหมดก่อน setImmediate จึงจะถูกเรียก
 const flush = () => new Promise((r) => setImmediate(r));
 const step = { action: "examine", target: "pocket_watch", label: "นาฬิกาพก" };
+
+test("เวลาที่อ่านเฉยๆ ทำให้คดีหมดเวลาได้โดยไม่ส่งคำสั่ง", async () => {
+  const urls = [];
+  const chat = loadChat(async (url) => {
+    urls.push(url);
+    return reply({ allowed: false, ending: "cold_arrival" });
+  });
+  chat.read('timeLimitSeconds = 10; clockElapsed = 0; clockAnchor = Date.now() - 11000');
+  await chat.sandbox.tickClock();
+  assert.deepEqual(urls, ["/clock"]);
+  assert.equal(chat.read("gameOver"), true);
+  assert.equal(chat.el("chatInput").disabled, true);
+});
+
+test("ก่อนหมดเวลานาฬิกาเดินโดยไม่เรียก Gemini", async () => {
+  let calls = 0;
+  const chat = loadChat(async () => { calls++; return reply(); });
+  chat.read('timeLimitSeconds = 100; clockElapsed = 0; clockAnchor = Date.now() - 5000');
+  await chat.sandbox.tickClock();
+  assert.equal(calls, 0);
+  assert.equal(chat.el("clockText").textContent, "01:35");
+});
+
+test("คำตอบที่กลับช้าไม่เปิดคดีซ้ำหลังนาฬิกาปิดคดี", async () => {
+  const pending = pendingFetch();
+  const chat = loadChat(pending.fetchImpl);
+  const action = chat.sandbox.submit("ดูรอบๆ");
+  await flush();
+  chat.read('gameState.ending_id = "cold_arrival"; showGameOver()');
+  pending.calls[0].release(reply());
+  await action;
+  assert.equal(chat.read("gameState.ending_id"), "cold_arrival");
+  assert.equal(chat.el("chatInput").disabled, true);
+});
 
 
 test("กดส่งซ้อนตอนคำสั่งเดิมยังไม่กลับ ต้องยิงไปหลังบ้านครั้งเดียว", async () => {

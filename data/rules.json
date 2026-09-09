@@ -1,15 +1,6 @@
 {
   "rules": [
     {
-      "id": "R000_KNOWN_ACTION",
-      "description": "คำสั่งต้องเป็นหนึ่งในกริยาที่ระบบรู้จัก",
-      "applies_to": [
-        "*"
-      ],
-      "check": "action_is_known",
-      "message_fail": "ไม่เข้าใจคำสั่งนี้"
-    },
-    {
       "id": "R001_GAME_NOT_OVER",
       "description": "คดียังไม่ปิด",
       "applies_to": [
@@ -26,6 +17,15 @@
       ],
       "check": "within_time_limit",
       "message_fail": "หมดเวลาการสืบสวนแล้ว!"
+    },
+    {
+      "id": "R000_KNOWN_ACTION",
+      "description": "คำสั่งต้องเป็นหนึ่งในกริยาที่ระบบรู้จัก",
+      "applies_to": [
+        "*"
+      ],
+      "check": "action_is_known",
+      "message_fail": "ไม่เข้าใจคำสั่งนี้"
     },
     {
       "id": "R002_TARGET_EXISTS",
@@ -96,6 +96,15 @@
       ],
       "check": "object_supports_action",
       "message_fail": "สิ่งนี้ทำแบบนั้นไม่ได้ ในคดีนี้ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว ห้ามหยิบ ห้ามเคลื่อนย้าย และห้ามทำลาย สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ"
+    },
+    {
+      "id": "R012_ACCUSE_ENDING_REQUIREMENTS",
+      "description": "หลักฐานและข้อสรุปต้องเข้าเงื่อนไขฉากจบของผู้ต้องสงสัยที่กล่าวหา",
+      "applies_to": [
+        "accuse"
+      ],
+      "check": "accusation_ready",
+      "message_fail": "ยังกล่าวหาไม่ได้ หลักฐานหรือข้อสรุปยังไม่เข้าเงื่อนไขฉากจบของบุคคลนี้ กรุณาสืบสวนต่อ"
     },
     {
       "id": "R013_ACCUSE_FOUR_PILLARS",

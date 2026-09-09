@@ -11,6 +11,7 @@ main.py — Interaction Layer / ท่อเชื่อมระบบ
 """
 
 from pathlib import Path
+import time
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,9 @@ from app.schemas import (
     CommandRequest,
     CommandResponse,
     GameState,
+    ParsedCommand,
 )
+from app.game_clock import sync_clock
 from app.symbolic.engine import SymbolicEngine, apply_changes
 
 
@@ -96,7 +99,7 @@ def scene():
         "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
         "actions": [a.value for a in ActionType],
         "rules_count": len(engine.rules),
-        "initial_state": GameState().model_dump(),
+        "initial_state": GameState(started_at=time.time()).model_dump(),
     }
 
 
@@ -113,12 +116,17 @@ def pillars(state: GameState):
 def handle_command(req: CommandRequest):
     """ข้อความไทยหนึ่งประโยค -> คำตัดสินหนึ่งครั้ง -> สถานะใหม่หนึ่งก้อน"""
 
+    req.state = sync_clock(req.state)
+    if req.state.ending_id or engine.is_out_of_time(req.state):
+        return terminal_response(req.state, req.text)
     # --- ขั้นที่ 1: ตีความ ---
     try:
         parsed = interpret(req.text, req.state)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Neural Layer ล้มเหลว: {e}")
 
+    # Include time spent waiting for Gemini; expired commands cannot change the world.
+    req.state = sync_clock(req.state)
     # --- ขั้นที่ 2: ตัดสินด้วยกฎ ---
     decision = engine.decide(parsed, req.state)
 
@@ -140,6 +148,23 @@ def handle_command(req: CommandRequest):
                            if engine.offerable((a.split() or [""])[-1], req.state)]
 
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
+
+
+def terminal_response(state: GameState, text: str = "") -> CommandResponse:
+    parsed = ParsedCommand(action=ActionType.UNKNOWN, raw_text=text)
+    decision = engine.decide(parsed, state)
+    ending = decision.state_changes.get("ending")
+    if ending:
+        state = state.model_copy(update={"ending_id": ending})
+    return CommandResponse(parsed=parsed, decision=decision, new_state=state)
+
+
+@app.post("/clock")
+def game_clock(state: GameState):
+    state = sync_clock(state)
+    if state.ending_id or engine.is_out_of_time(state):
+        return terminal_response(state).model_dump()
+    return {"new_state": state.model_dump(), "decision": None, "parsed": None}
 
 
 # ------------------------------------------------------------

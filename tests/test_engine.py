@@ -13,7 +13,7 @@ STEPS = [tuple(x) for x in json.loads(
     (Path(__file__).resolve().parents[1] / "data" / "walkthrough.json")
     .read_text(encoding="utf-8"))["steps"]]
 from app.schemas import ActionType, ParsedCommand, GameState
-from app.symbolic.engine import SECONDS_PER_TURN, SymbolicEngine, apply_changes
+from app.symbolic.engine import SymbolicEngine, apply_changes
 
 
 @pytest.fixture
@@ -146,17 +146,46 @@ def test_walkthrough_reaches_the_true_ending(engine):
     assert s.ending_id == "true_ending"
 
 
-def test_true_ending_needs_the_other_two_suspects_cleared(engine):
-    """ชี้ถูกคนอย่างเดียวไม่พอ ต้องตัดอีกสองคนออกด้วยหลักฐาน ไม่ใช่ด้วยความรู้สึก"""
-    full = ev(engine, *all_evidence(engine))
-    assert engine.ending_for("gideon_hart", full)["id"] == "true_ending"
+GIDEON_MINIMUM = ["dossier_missing_file_c", "burnt_folder_c", "file_c_initials"]
+GIDEON_TRUE = GIDEON_MINIMUM + [
+    "pocket_watch", "liora_time_estimate", "gideon_no_early_alibi",
+    "red_soot", "gideon_sleeve_soot", "obsidian_cufflink", "gideon_missing_button",
+    "wax_seal_imprint", "gideon_signet_ring",
+]
 
-    # ล้างข้อสงสัยวินเซนต์ได้สองทาง คำสารภาพของเขาเอง หรือบันทึกเวลาของระบบไฟ
-    # จึงต้องตัดทั้งสองทางพร้อมกันถึงจะเห็นว่าฉากจบแท้หลุด
-    for drop in (("vincent_blackout_confession", "maintenance_log"),
-                 ("liora_patient_witness",)):
-        short = ev(engine, *[x for x in all_evidence(engine) if x not in drop])
-        assert engine.ending_for("gideon_hart", short)["id"] != "true_ending",             f"ขาด {drop} แล้วยังได้ฉากจบแท้"
+
+def test_gideon_true_ending_matches_diagram_without_clearing_others(engine):
+    state = ev(engine, *GIDEON_TRUE)
+    held = engine.deductions(state)
+    assert "D08_VINCENT_CLEARED" not in held
+    assert "D09_LIORA_CLEARED" not in held
+    d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
+    assert d.allowed
+    assert d.state_changes["ending"] == "true_ending"
+
+
+@pytest.mark.parametrize("missing", GIDEON_TRUE[len(GIDEON_MINIMUM):])
+def test_gideon_missing_any_true_ending_clue_gets_incomplete(engine, missing):
+    state = ev(engine, *[e for e in GIDEON_TRUE if e != missing])
+    d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
+    assert d.allowed
+    assert d.state_changes["ending"] == "cold_justice"
+
+
+def test_file_c_link_alone_can_reach_incomplete_ending(engine):
+    state = ev(engine, *GIDEON_MINIMUM)
+    d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
+    assert d.allowed
+    assert d.state_changes["ending"] == "cold_justice"
+    assert "Ending C" in d.message
+
+
+@pytest.mark.parametrize("missing", GIDEON_MINIMUM)
+def test_gideon_missing_file_c_link_cannot_accuse(engine, missing):
+    state = ev(engine, *[e for e in GIDEON_TRUE if e != missing])
+    d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
+    assert not d.allowed
+    assert d.state_changes == {}
 
 
 def test_cold_justice_is_right_suspect_but_unproven_case(engine):
@@ -171,7 +200,7 @@ def test_scapegoat_only_happens_before_the_timeline_is_broken(engine):
     ถ้าผู้เล่นหักล้างเวลาตายลวงตาไปแล้ว ความผิดพลาดนั้นหายไป
     การกล่าวหาเขาจึงไม่ควรได้ฉากจบเดิมอีก
     """
-    ignorant = ev(engine, "vincent_blood", "wire_cutters", "wall_clock")
+    ignorant = ev(engine, "vincent_blood", "wire_cutters", "cut_copper_wire", "wall_clock")
     assert engine.ending_for("vincent_gray", ignorant)["id"] == "the_scapegoat"
 
     knows_time = ev(engine, "vincent_blood", "wire_cutters",
@@ -180,7 +209,7 @@ def test_scapegoat_only_happens_before_the_timeline_is_broken(engine):
 
 
 def test_paranoia_trap_treats_a_secret_as_if_it_were_proof(engine):
-    ignorant = ev(engine, "secret_file", "liora_medical_access", "wall_clock")
+    ignorant = ev(engine, "secret_file", "liora_time_hesitation", "wall_clock")
     assert engine.ending_for("dr_liora_venn", ignorant)["id"] == "the_paranoia_trap"
 
 
@@ -195,20 +224,67 @@ def test_only_the_culprit_can_ever_close_the_case(engine):
         assert solved == (sid == "gideon_hart"), f"{sid} ให้ผล solved={solved}"
 
 
-def test_accusation_is_allowed_but_recorded_as_unproven(engine):
-    """กล่าวหาได้เสมอ แต่กฎสี่เสาต้องบันทึกตามจริงว่ายังไม่ครบ
-
-    ถ้าบล็อกไปเลย ฉากจบที่เป็นความผิดพลาดของผู้เล่นจะไปไม่ถึง
-    แต่ถ้าไม่บันทึก ผู้เล่นก็ไม่รู้ว่าคดีอ่อนตรงไหน
-    """
-    d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), GameState())
+def test_incomplete_proof_can_still_reach_cold_justice(engine):
+    state = ev(engine, *[x for x in all_evidence(engine) if x != "gideon_sleeve_soot"])
+    d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
     assert d.allowed
-    step = next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS")
-    assert not step.passed
-    assert "ขาดเสา" in step.description
+    assert d.state_changes["ending"] == "cold_justice"
+    assert not next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS").passed
 
 
 # ---------- กันทางตัน ----------
+
+@pytest.mark.parametrize("mask", range(8))
+def test_vincent_needs_all_three_clues(engine, mask):
+    clues = ["cut_copper_wire", "wire_cutters", "vincent_blood"]
+    state = ev(engine, *[clue for i, clue in enumerate(clues) if mask & (1 << i)])
+    decision = engine.decide(cmd(ActionType.ACCUSE, "vincent_gray"), state)
+    assert decision.allowed == (mask == 7)
+    if mask == 7:
+        assert decision.state_changes["ending"] == "the_scapegoat"
+    else:
+        assert decision.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
+        assert decision.state_changes == {}
+        assert engine.decide(cmd(ActionType.MOVE, "first_class_car"), state).allowed
+
+
+@pytest.mark.parametrize("mask", range(4))
+def test_liora_needs_project_link_and_hesitation(engine, mask):
+    clues = ["secret_file", "liora_time_hesitation"]
+    state = ev(engine, *[clue for i, clue in enumerate(clues) if mask & (1 << i)])
+    d = engine.decide(cmd(ActionType.ACCUSE, "dr_liora_venn"), state)
+    assert d.allowed == (mask == 3)
+    if d.allowed:
+        assert d.state_changes["ending"] == "the_paranoia_trap"
+
+
+@pytest.mark.parametrize("identified", [
+    ["vincent_blackout_confession"],
+    ["power_panel", "fuse_box", "cut_copper_wire", "tool_marks", "wire_cutters"],
+])
+def test_liora_cannot_be_accused_after_identifying_the_saboteur(engine, identified):
+    state = ev(engine, "secret_file", "liora_time_hesitation", *identified)
+    d = engine.decide(cmd(ActionType.ACCUSE, "dr_liora_venn"), state)
+    assert not d.allowed
+    assert d.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
+
+
+@pytest.mark.parametrize("suspect", ["vincent_gray", "dr_liora_venn", "gideon_hart"])
+def test_empty_case_cannot_use_fallback_ending_to_accuse(engine, suspect):
+    d = engine.decide(cmd(ActionType.ACCUSE, suspect), GameState())
+    assert not d.allowed
+    assert d.state_changes == {}
+
+
+def test_liora_new_clues_are_obtainable_and_shown(engine):
+    state = GameState(current_location="first_class_car")
+    file = engine.decide(cmd(ActionType.EXAMINE, "secret_file"), state)
+    assert "Project Nocturne" in file.message
+    state = apply_changes(state, file.state_changes)
+    interview = engine.decide(cmd(ActionType.INTERROGATE, "dr_liora_venn"), state)
+    assert "ลังเล" in interview.message
+    state = apply_changes(state, interview.state_changes)
+    assert engine.decide(cmd(ActionType.ACCUSE, "dr_liora_venn"), state).allowed
 
 def test_every_car_tells_you_where_else_you_can_go(engine):
     """เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าคำบรรยายไม่บอกชื่อตู้อื่น ผู้เล่นจะออกจากตู้แรกไม่เป็น"""
@@ -452,7 +528,7 @@ def test_the_last_minute_of_the_clock_is_playable_and_the_next_one_is_not(engine
     เดิมกฎใช้ > ผู้เล่นจึงสั่งได้อีกหนึ่งครั้งหลังนาฬิกาขึ้นหมดเวลาไปแล้ว
     """
     limit = engine.world["time_limit_seconds"]
-    last = GameState(elapsed_seconds=limit - SECONDS_PER_TURN)
+    last = GameState(elapsed_seconds=limit - 1)
     assert engine.decide(cmd(ActionType.EXAMINE, last.current_location), last).allowed
     assert not engine.is_out_of_time(last)
 
