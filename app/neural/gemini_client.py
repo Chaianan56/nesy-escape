@@ -96,6 +96,8 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     if not clients:
         raise NeuralNotConfigured("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
 
+    system_prompt = build_interpret_system_prompt(STORY_DATA, state=state, user_text=text)
+
     # ประกอบ Prompt พร้อมบริบทตำแหน่งของผู้เล่น ไอเทมในกระเป๋า และหลักฐานที่พบ
     prompt_content = (
         f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
@@ -113,7 +115,7 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                 model = DEFAULT_MODEL,
                 contents = prompt_content,
                 config = types.GenerateContentConfig(
-                    system_instruction = SYSTEM_INTERPRET_PROMPT,
+                    system_instruction = system_prompt,
                     response_mime_type = "application/json",
                     response_schema = ParsedCommand,
                     temperature = 0.0 #ตั้งค่าความเพ้อเจ้อ,

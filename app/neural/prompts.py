@@ -7,8 +7,73 @@ prompts.py — คลังเก็บ System Prompts และ Dynamic Entity 
 - เพิ่มตัวอย่าง Few-shot Examples แบบไดนามิก เพื่อให้ LLM ส่งออกรูปแบบ JSON ได้ตรงตาม ParsedCommand Schema
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 import json
+import re
+from app.schemas import GameState
+
+# ==============================================================================
+# คัดกรอง Dynamic Entity เพื่อประหยัด Token และลด Latency
+
+#ตัดทอนรายการ Entity (objects, suspects, locations) ให้เหลือเฉพาะที่เกี่ยวข้องในตาปัจจุบัน เพื่อลด Token Consumption และลด Latency ของ LLM
+def prune_entities(world_data: Dict[str, Any], state: Optional[GameState] = None,
+    user_text: Optional[str] = None) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+
+    raw_objects = world_data.get("objects", {})
+    raw_suspects = world_data.get("suspects", {})
+    raw_locations = world_data.get("locations", {})
+
+    if state is None and not user_text:
+        return raw_objects, raw_suspects, raw_locations
+
+    clean_text = (user_text or "").lower()
+
+    # 1. คัดกรอง Objects
+    relevant_objects = {}
+    for obj_id, obj in raw_objects.items():
+        is_relevant = False
+
+        # วัตถุอยู่ในตู้รถปัจจุบัน
+        if state and obj.get("location") == state.current_location:
+            is_relevant = True
+        # วัตถุอยู่ในกระเป๋า หรือค้นพบแล้ว
+        elif state and (obj_id in state.inventory or obj_id in state.discovered_evidence):
+            is_relevant = True
+        # วัตถุถูกเอ่ยถึงในข้อความผู้เล่น
+        elif clean_text:
+            name_th = obj.get("name_th", "").lower()
+            clean_name = re.sub(r"[\(\)]", " ", name_th)
+            keywords = [kw.strip() for kw in clean_name.split() if len(kw.strip()) > 1]
+            if obj_id.lower() in clean_text or any(kw in clean_text for kw in keywords):
+                is_relevant = True
+
+        if is_relevant:
+            relevant_objects[obj_id] = obj
+
+    if not relevant_objects:
+        relevant_objects = raw_objects
+
+    # 2. คัดกรอง Suspects
+    relevant_suspects = {}
+    for sus_id, sus in raw_suspects.items():
+        is_relevant = False
+        if state and sus.get("location") == state.current_location:
+            is_relevant = True
+        elif clean_text:
+            name_th = sus.get("name_th", "").lower()
+            role = sus.get("role", "").lower()
+            keywords = [kw.strip() for kw in name_th.split() if len(kw.strip()) > 1]
+            if sus_id.lower() in clean_text or any(kw in clean_text for kw in keywords) or (role and role in clean_text):
+                is_relevant = True
+
+        if is_relevant:
+            relevant_suspects[sus_id] = sus
+
+    if not relevant_suspects:
+        relevant_suspects = raw_suspects
+
+    return relevant_objects, relevant_suspects, raw_locations
+
 
 # ==============================================================================
 # สร้างตัวอย่าง Few-shot Example สำหรับ System Prompt
@@ -29,18 +94,20 @@ def _prompt(action: str, raw: str, target = None, items = None, confidence: floa
 # ทำการค้นหา ID จริงจาก data/story.json แบบไดนามิก
 
 def _pick(d: Dict[str, Any], *preds) -> List[str]:
-    
     first = next(iter(d), None)
     return [next((k for k, v in d.items() if pred(k, v)), first) for pred in preds]
 
 # ==============================================================================
 # สร้าง System Prompt สำหรับ interpret()
 
-def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
-    
-    objects = world_data.get("objects", {})
-    suspects = world_data.get("suspects", {})
-    locations = world_data.get("locations", {})
+def build_interpret_system_prompt(world_data: Dict[str, Any], state: Optional[GameState] = None,
+    user_text: Optional[str] = None, prune: bool = True) -> str:
+    if prune and (state is not None or user_text is not None):
+        objects, suspects, locations = prune_entities(world_data, state, user_text)
+    else:
+        objects = world_data.get("objects", {})
+        suspects = world_data.get("suspects", {})
+        locations = world_data.get("locations", {})
 
     # ทำเป็นข้อความที่สวยงามเพื่อให้ AI อ่านเข้าใจง่าย เป็นอันเดียวเก็บไว้ในตัวแปร objects_text เพื่อเอาไปแปะใส่ Prompt
     objects_text = "\n".join(
