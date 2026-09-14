@@ -206,8 +206,8 @@ while True:
 
     action_th = ACTION_TH.get(parsed.action, parsed.action.value)
     detail = f" → {th_name(parsed.target)}" if parsed.target else ""
-    if parsed.instrument:
-        detail += f" (ใช้ {th_name(parsed.instrument)})"
+    if parsed.items:
+        detail += f" (ใช้ {th_name(parsed.items[0])})"
     print(f"  ระบบเข้าใจว่า: {action_th}{detail}")
 
     for step in decision.reasoning_chain:

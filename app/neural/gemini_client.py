@@ -9,12 +9,12 @@ gemini_client.py — ส่วนประสานงาน Gemini API (Neuro A
 """
 
 import json
-import logging
 import os
 from pathlib import Path
 from typing import Optional
-
 from dotenv import load_dotenv
+from app.schemas import ParsedCommand, GameState
+from app.neural.prompts import build_interpret_system_prompt
 
 # นำเข้า Google GenAI SDK
 try:
@@ -24,61 +24,41 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-# นำเข้า Data Models จาก schemas.py
-from app.schemas import ParsedCommand, GameState
-# นำเข้า Prompt Builder จาก prompts.py
-from app.neural.prompts import build_interpret_system_prompt
-
 # โหลดตัวแปรสภาพแวดล้อมจาก .env
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+# ==============================================================================
 
-# SDK เตือนเรื่อง automatic function calling ทุกครั้งที่เรียก generate_content
-# เราไม่ได้ใช้ฟีเจอร์นั้น เป็นแค่เสียงรบกวนที่บังหน้าจอเวลาเล่นเกม
-logging.getLogger("google_genai.models").setLevel(logging.ERROR)
-
-# ============================================================
-# WORLD DATA — อ่านจากไฟล์ชุดเดียวกับ Symbolic Engine
-# neural ไม่ import engine เพื่อไม่ให้สองเลเยอร์ผูกกัน แต่ต้องอ่านข้อมูลชุดเดียวกัน
-# ไม่งั้น id ที่ LLM สกัดจะไม่ตรงกับที่ engine รู้จัก
-# ============================================================
+#หาโฟลเดอร์ data ที่เก็บไฟล์เนื้อเรื่องเกม (story.json) และเปิดอ่านไฟล์ JSON
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
 
 SYSTEM_INTERPRET_PROMPT = build_interpret_system_prompt(STORY_DATA)
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
+
+# ==============================================================================
 
 _clients_cache: Optional[list] = None
 
 class NeuralUnavailable(RuntimeError):
-    """Exception แจ้งเตือนเมื่อเรียกใช้งาน LLM ไม่สำเร็จ"""
-
+    """ระบบ Neural Layer มีปัญหาและไม่สามารถติดต่อ Gemini LLM ได้"""
 
 class NeuralNotConfigured(NeuralUnavailable):
-    """Missing credentials or SDK; live tests may skip."""
-
+    """ลืมใส่ API Key หรือไม่ได้ติดตั้ง google-genai SDK"""
 
 class NeuralQuotaExceeded(NeuralUnavailable):
-    """All configured clients exhausted their quota."""
+    """โควตาการใช้งานหมดเกลี้ยงแล้ว"""
 
+# ==============================================================================
 
+# เช็กว่าข้อผิดพลาดเกิดจากโควตาหมดหรือไม่
 def _is_quota_error(e: Exception) -> bool:
-    """โควตาหมดของคีย์นี้หรือเปล่า ถ้าใช่ค่อยคุ้มที่จะเปลี่ยนไปคีย์อื่น"""
     text = str(e)
     return "RESOURCE_EXHAUSTED" in text or "429" in text
 
 
 def _clients() -> list:
-    """คืนไคลเอนต์ของทุกคีย์ตามลำดับที่เขียนไว้
-
-    ใส่คีย์สำรองได้โดยคั่นด้วยจุลภาคในตัวแปร GEMINI_API_KEY ตัวเดิม
-    เช่น  GEMINI_API_KEY=AIzaคีย์หลัก,AIzaคีย์สำรอง
-    ตั้งตัวแปรชื่ออื่นเพิ่มไม่มีผล เพราะไม่มีโค้ดตรงไหนอ่าน
-
-    โควตาฟรีนับต่อโปรเจกต์ ไม่ใช่ต่อคีย์ คีย์สำรองจึงต้องมาจากโปรเจกต์อื่นถึงจะได้โควตาเพิ่ม
-    """
     global _clients_cache
     if not GENAI_AVAILABLE:
         return []
@@ -90,37 +70,28 @@ def _clients() -> list:
         ]
     return _clients_cache
 
-
+# เรียกฟังก์ชัน _clients() เพื่อดึงรายชื่อตัวเชื่อม Client ทั้งหมดมา แล้วหยิบตัวแรกสุดออกมาใช้งาน
 def get_genai_client():
-    """คืนไคลเอนต์ตัวแรก ใช้ตรวจว่าตั้งคีย์ไว้แล้วหรือยัง"""
     clients = _clients()
     return clients[0] if clients else None
 
-
+# เช็กสถานะว่า Gemini LLM พร้อมใช้งานหรือไม่
 def llm_online() -> bool:
-    """ตั้งคีย์ไว้แล้วหรือยัง
-
-    ชื่อฟังก์ชันชวนเข้าใจผิด มันไม่ได้ตรวจว่าเรียก API ได้จริง
-    แค่ตรวจว่ามีคีย์และสร้างไคลเอนต์ได้ โควตาหมดแล้วมันก็ยังคืน True
-    ถ้าอยากรู้ว่าเรียกได้จริงไหม ต้องลองเรียก interpret() แล้วดักข้อผิดพลาดเอง
-    """
     return get_genai_client() is not None
-
 
 # ============================================================
 # PUBLIC API — main.py เรียกใช้แค่สองฟังก์ชันนี้
-# ============================================================
 
-def interpret(text: str, state: GameState) -> ParsedCommand:
-    """แกะความหมายจากข้อความภาษาธรรมชาติของผู้เล่น ให้กลายเป็น ParsedCommand
+"""แกะความหมายจากข้อความภาษาธรรมชาติของผู้เล่น ให้กลายเป็น ParsedCommand
 
     Args:
         text (str): ข้อความภาษาไทยดิบจากผู้เล่น (เช่น 'เดินไปตู้เสบียง', 'ตรวจดูบันทึก')
         state (GameState): สถานะเกมปัจจุบัน ใช้เป็นบริบทช่วยในการแกะคำกำกวม
 
     Returns:
-        ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, instrument, confidence)
-    """
+        ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, items, confidence)
+"""
+def interpret(text: str, state: GameState) -> ParsedCommand:
     clients = _clients()
     if not clients:
         raise NeuralNotConfigured("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
@@ -134,19 +105,18 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     )
 
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
-    # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
     last_error: Optional[Exception] = None
     for client in clients:
         try:
             # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
             response = client.models.generate_content(
-                model=DEFAULT_MODEL,
-                contents=prompt_content,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INTERPRET_PROMPT,
-                    response_mime_type="application/json",
-                    response_schema=ParsedCommand,
-                    temperature=0.0,
+                model = DEFAULT_MODEL,
+                contents = prompt_content,
+                config = types.GenerateContentConfig(
+                    system_instruction = SYSTEM_INTERPRET_PROMPT,
+                    response_mime_type = "application/json",
+                    response_schema = ParsedCommand,
+                    temperature = 0.0 #ตั้งค่าความเพ้อเจ้อ,
                 ),
             )
             if not response.text:
