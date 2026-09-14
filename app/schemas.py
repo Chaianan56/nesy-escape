@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 class ActionType(str, Enum):
     EXAMINE = "examine"        # ตรวจสอบวัตถุ/หลักฐาน
     TAKE = "take"              # หยิบ/เก็บ
-    USE = "use"                # ใช้ของกับเป้าหมาย (ต้องมี instrument)
+    USE = "use"                # ใช้ของกับเป้าหมาย (ต้องมี items)
     UNLOCK = "unlock"          # ปลดล็อก
     MOVE = "move"              # เคลื่อนย้ายตัวเอง/วัตถุ
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
@@ -47,7 +47,7 @@ class ParsedCommand(BaseModel):
     target: Optional[str] = Field(
         None, description="id ของเป้าหมาย เช่น 'cabinet_03' ไม่ใช่ 'ตู้ใบที่สาม'"
     )
-    instrument: Optional[str] = Field(
+    items: Optional[str] = Field(
         None, description="id ของสิ่งที่ใช้ เช่น 'keycard_A'"
     )
     raw_text: str = Field(..., description="ข้อความดิบของผู้เล่น เก็บไว้เพื่อ log และตรวจย้อนหลัง")
