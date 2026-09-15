@@ -104,7 +104,8 @@ class Decision(BaseModel):
 
 class CommandRequest(BaseModel):
     text: str
-    state: GameState
+    # Compatibility only: HTTP handlers always replace this with server state.
+    state: GameState = Field(default_factory=GameState)
 
 
 class CommandResponse(BaseModel):

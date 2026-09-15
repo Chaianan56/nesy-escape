@@ -19,6 +19,27 @@ import vm from "node:vm";
 
 const SRC = readFileSync(new URL("./chat.js", import.meta.url), "utf-8");
 
+test("ส่งเฉพาะข้อความ ไม่ส่งสถานะที่ client แก้เอง", async () => {
+  let body;
+  const c = loadChat(async (url, options) => {
+    body = JSON.parse(options.body);
+    return reply();
+  });
+  await c.sandbox.submit("ดูรอบๆ");
+  assert.deepEqual(body, { text: "ดูรอบๆ" });
+});
+
+test("เริ่มคดีใหม่ต้องรีเซ็ต server สำเร็จก่อนโหลดหน้า", async () => {
+  const calls = [];
+  const c = loadChat(async (url, options) => {
+    calls.push([url, options.method]);
+    return { ok: true };
+  });
+  c.sandbox.window.location.reload = () => calls.push("reload");
+  await c.sandbox.restartGame();
+  assert.deepEqual(calls, [["/new-game", "POST"], "reload"]);
+});
+
 // ---------- DOM ปลอม เท่าที่ chat.js แตะจริง ----------
 function makeDom() {
   const byId = new Map();

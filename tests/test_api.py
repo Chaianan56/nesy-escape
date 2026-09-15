@@ -20,14 +20,35 @@ from app.schemas import ActionType, GameState, ParsedCommand
 client = TestClient(main.app)
 
 
+@pytest.fixture(autouse=True)
+def clean_session():
+    from app.sessions import sessions
+    sessions.clear()
+    client.cookies.clear()
+    client.get("/scene")
+    yield
+    sessions.clear()
+
+
+def seed_state(state):
+    """Test setup: install state on the server, never trust request state."""
+    from app.sessions import sessions, COOKIE
+    sessions[client.cookies[COOKIE]].state = state.model_copy(deep=True)
+
+
+def state_post(path, state):
+    seed_state(state)
+    return client.post(path, json={})
+
+
 def test_journal_shows_only_discovered_evidence_and_earned_deductions():
-    empty = client.post('/journal', json=GameState().model_dump()).json()
+    empty = state_post('/journal', GameState()).json()
     assert empty['evidence'] == []
     assert empty['deductions'] == []
     assert all(main.engine.world['objects'][o['id']].get('location') == 'lounge_car'
                for o in empty['visible'])
     state = GameState(discovered_evidence=['pocket_watch', 'liora_time_estimate'])
-    found = client.post('/journal', json=state.model_dump()).json()
+    found = state_post('/journal', state).json()
     assert {e['id'] for e in found['evidence']} == set(state.discovered_evidence)
     assert 'D01_TRUE_MURDER_WINDOW' in {d['id'] for d in found['deductions']}
 
@@ -62,7 +83,7 @@ def test_clock_closes_without_a_command_or_llm(monkeypatch):
     def forbidden(*args):
         raise AssertionError("Clock must not call Gemini")
     monkeypatch.setattr(main, "interpret", forbidden)
-    body = client.post("/clock", json=GameState(started_at=100).model_dump()).json()
+    body = state_post("/clock", GameState(started_at=100)).json()
     assert body["new_state"]["ending_id"] == main.engine.ending_for(on_timeout=True)["id"]
     assert body["new_state"]["turn_count"] == 0
 
@@ -111,7 +132,8 @@ def fake_llm(monkeypatch):
 
 
 def post(text, state):
-    return client.post("/command", json={"text": text, "state": state.model_dump()})
+    seed_state(state)
+    return client.post("/command", json={"text": text})
 
 
 def test_missing_vincent_clue_keeps_case_open_then_allows_accusation(fake_llm):
@@ -133,7 +155,7 @@ def test_scene_hands_out_the_ids_the_engine_actually_uses():
     s = client.get("/scene").json()
     assert s["rules_count"] == len(main.engine.rules)
     assert set(s["locations"]) == set(main.engine.world["locations"])
-    assert set(s["objects"]) == set(main.engine.world["objects"])
+    assert set(s["objects"]) == {oid for oid in main.engine.world["objects"] if main.engine.offerable(oid, GameState())}
     assert s["initial_state"]["current_location"] in s["locations"]
 
 

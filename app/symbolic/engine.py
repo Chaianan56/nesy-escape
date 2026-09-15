@@ -5,13 +5,14 @@ engine.py — Symbolic Rule Engine
 หลักการที่ห้ามละเมิด:
   1) การตัดสินใจเกิดที่นี่ 100% ไม่มีการเรียก LLM ในไฟล์นี้
   2) reasoning_chain สร้างจากกฎที่ถูกตรวจจริงเท่านั้น (faithful by construction)
-  3) กฎอยู่ใน rules.json ไม่ hard-code เงื่อนไขลงในโค้ด
+  3) เงื่อนไขฉากอยู่ใน JSON ส่วน checker และผลของ action อยู่ใน Python
   4) ไม่นำ confidence จาก LLM มาใช้ในการตัดสิน
 """
 
 import json
 from pathlib import Path
 from typing import Callable, Dict, List
+from app.symbolic.validation import validate_world
 
 from app.schemas import (
     ActionType,
@@ -82,6 +83,14 @@ def _in_same_location(cmd, state, world, p):
     return True, ""
 
 
+def _evidence_source_available(cmd, state, world, p):
+    obj = world["objects"].get(cmd.target, {})
+    owner = obj.get("from_testimony")
+    if owner and (owner not in state.interrogated_suspects or cmd.target not in state.discovered_evidence):
+        return False, "หลักฐานนี้ต้องได้รับจากการสอบปากคำก่อน"
+    return True, ""
+
+
 def _condition_met(cond: dict, evidence: set, held: set) -> bool:
     """เงื่อนไขหนึ่งข้อเป็นจริงหรือยัง
 
@@ -131,7 +140,7 @@ def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, Li
 
     เสาไหนไม่มีข้อสรุปค้ำเลย ถือว่ายังไม่ครบ
     ผู้ต้องสงสัยที่ฉากไม่ได้กำหนดเสาไว้ให้ จะได้เสาว่างทั้งหมด
-    ซึ่งแปลว่ากล่าวหาได้แต่พิสูจน์ไม่ได้ ตรงตามที่สเปกต้องการ
+    การกล่าวหายังต้องผ่านเงื่อนไขฉากจบของบุคคลนั้นใน R012
     """
     spec = world.get("pillars", {}).get(target, {})
     held = deductions_held(state, world)
@@ -228,7 +237,7 @@ def _game_not_over(cmd, state, world, p):
 def _within_time_limit(cmd, state, world, p):
     # กรอบเวลาเป็นสมบัติของฉาก จึงอยู่ใน story.json ที่เดียว
     # params ใน rules.json ใช้ override ได้ถ้าอยากทดลองค่าอื่นโดยไม่แตะฉาก
-    limit = p.get("limit_seconds") or world.get("time_limit_seconds", 3600)
+    limit = p.get("limit_seconds", world.get("time_limit_seconds", 3600))
     # ใช้เวลาครบพอดีก็คือหมดแล้ว ไม่ใช่ยังเหลืออีกหนึ่งตา
     # เดิมเป็น > ทำให้ตอนนาฬิกาบนหน้าเว็บขึ้น 00:00 กฎยังรับคำสั่งได้อีกหนึ่งครั้ง
     # สองฝั่งจึงบอกผู้เล่นคนละเรื่อง
@@ -238,6 +247,7 @@ def _within_time_limit(cmd, state, world, p):
 
 
 CHECKERS: Dict[str, Callable] = {
+    "evidence_source_available": _evidence_source_available,
     "accusation_ready": _accusation_ready,
     "action_is_known": _action_is_known,
     "target_exists": _target_exists,
@@ -261,6 +271,12 @@ class SymbolicEngine:
         story_path = story_path or DATA_DIR / "story.json"
         self.rules: List[dict] = json.loads(rules_path.read_text(encoding="utf-8"))["rules"]
         self.world: dict = json.loads(story_path.read_text(encoding="utf-8"))
+        validate_world(self.rules, self.world, CHECKERS, {a.value for a in ActionType})
+
+    @property
+    def time_limit_seconds(self):
+        rule = next((r for r in self.rules if r["check"] == "within_time_limit"), {})
+        return rule.get("params", {}).get("limit_seconds", self.world.get("time_limit_seconds", 3600))
 
     def _applicable(self, action: ActionType) -> List[dict]:
         return [r for r in self.rules
@@ -355,7 +371,7 @@ class SymbolicEngine:
         if cmd.action == ActionType.BURN:
             return {"burned_add": cmd.target}
         if cmd.action == ActionType.ACCUSE:
-            # ฉากจบถูกเลือกที่นี่ครั้งเดียว แล้วบันทึกลง state เพื่อปิดคดี
+            # ส่ง ID ฉากจบให้ interaction layer บันทึกเพื่อปิดคดี
             return {"ending": self.ending_for(cmd.target, state).get("id")}
         if cmd.action == ActionType.INTERROGATE:
             sus = self.world["suspects"].get(cmd.target, {})
@@ -417,7 +433,7 @@ class SymbolicEngine:
         """
         obj = self.world["objects"].get(target)
         if obj is None:
-            return True
+            return target in self.world["locations"] or target in self.world["suspects"]
         if target in state.inventory or target in state.discovered_evidence:
             return True
         return obj.get("location") == state.current_location and self.decide(
@@ -479,7 +495,6 @@ class SymbolicEngine:
         """
         endings = self.world.get("endings", {})
         order = self.world.get("ending_order") or list(endings)
-        held = deductions_held(state, self.world) if state else set()
 
         for eid in order:
             e = endings.get(eid)
@@ -501,10 +516,9 @@ class SymbolicEngine:
     def closing_argument(self, suspect_id: str, state: GameState) -> str:
         """คำแถลงปิดคดี ประกอบขึ้นจากหลักฐานที่ผู้เล่นหามาได้จริง
 
-        ไม่ใช่ข้อความสำเร็จรูป ทุกบรรทัดอ้างชิ้นหลักฐานที่อยู่ใน discovered_evidence
-        จริงๆ ถ้าผู้เล่นเก็บหลักฐานคนละชุด คำแถลงก็ออกมาคนละแบบ
-        หลักการเดียวกับ reasoning_chain คือคำอธิบายต้องมาจากสิ่งที่เกิดขึ้นจริง
-        ไม่ใช่ข้อความที่เขียนรอไว้ ส่วนฉากจบก็ถูกเลือกจากสถานะเดียวกันนี้
+        ส่วนข้อสรุปอ้างหลักฐานใน discovered_evidence ส่วนฉากจบเป็นข้อความจาก world
+        แสดงทั้งข้อสรุปที่มีหลักฐานรองรับและรายการที่ยังขาด
+        ฉากจบถูกเลือกจากสถานะเดียวกัน แต่ข้อความฉากจบเป็นเนื้อหาที่กำหนดไว้
         """
         sus = self.world["suspects"].get(suspect_id, {})
         found = _collect_pillars(suspect_id, state, self.world)
@@ -531,7 +545,7 @@ class SymbolicEngine:
                     f"สรุปได้ {len(self.deductions(state))} ข้อ "
                     f"เสาครบ {sum(1 for p in names if found[p])} จาก {len(names)} "
                     f"ใช้เวลาไป {state.elapsed_seconds // 60} นาที จาก "
-                    f"{self.world.get('time_limit_seconds', 3600) // 60} นาที")
+                    f"{self.time_limit_seconds // 60} นาที")
         return self._render_ending(self.ending_for(suspect_id, state), body)
 
     def seconds_left(self, state: GameState) -> int:
@@ -540,7 +554,7 @@ class SymbolicEngine:
         กรอบเวลามีอยู่ในกฎตั้งแต่แรก แต่ไม่มีใครเห็น ผู้เล่นจึงไม่รู้สึกถึงมันเลย
         จนกระทั่งถูกปฏิเสธทุกคำสั่งแบบไม่มีปี่มีขลุ่ย
         """
-        return self.world.get("time_limit_seconds", 3600) - state.elapsed_seconds
+        return self.time_limit_seconds - state.elapsed_seconds
 
     def is_out_of_time(self, state: GameState) -> bool:
         """หมดเวลาแล้วหรือยัง ใช้ตัดสินว่าเกมจบ ไม่ใช่ตัดสินว่าคำสั่งผ่านไหม

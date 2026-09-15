@@ -86,6 +86,19 @@
       "message_fail": "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
     },
     {
+      "id": "R008_EVIDENCE_SOURCE",
+      "description": "หลักฐานคำให้การต้องได้รับจากการสอบปากคำก่อน",
+      "applies_to": [
+        "examine",
+        "take",
+        "unlock",
+        "use",
+        "burn"
+      ],
+      "check": "evidence_source_available",
+      "message_fail": "หลักฐานนี้ต้องได้รับจากการสอบปากคำก่อน กรุณาพูดคุยกับผู้เกี่ยวข้อง"
+    },
+    {
       "id": "R007_ACTION_SUPPORTED",
       "description": "สิ่งของต้องประกาศไว้ในฉากว่ารองรับการกระทำนี้",
       "applies_to": [

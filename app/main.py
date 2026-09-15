@@ -1,8 +1,8 @@
 """
 main.py — Interaction Layer / ท่อเชื่อมระบบ
 
-ไฟล์นี้ไม่มีตรรกะของเกมและไม่มีตรรกะของ LLM
-หน้าที่มีอย่างเดียวคือกำหนดเส้นทางของข้อมูล
+ไฟล์นี้เชื่อมระบบและจัดการ session เวลา และข้อมูลที่แสดงแก่ผู้เล่น
+กฎการอนุญาตคำสั่งอยู่ใน Symbolic Engine
 
     ข้อความไทย -> Neural ตีความ -> Symbolic ตัดสิน -> อัปเดตสถานะ -> ตอบ
 
@@ -13,7 +13,7 @@ main.py — Interaction Layer / ท่อเชื่อมระบบ
 from pathlib import Path
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -25,6 +25,7 @@ from app.schemas import (
     ParsedCommand,
 )
 from app.game_clock import sync_clock
+from app.sessions import Session, session_for
 from app.symbolic.engine import SymbolicEngine, apply_changes
 
 
@@ -83,38 +84,48 @@ def health(probe: bool = False):
 
 
 @app.get("/scene")
-def scene():
-    """ให้ frontend และ Neural Layer ดึงทะเบียน id จากแหล่งเดียวกัน
+def scene(session: Session = Depends(session_for)):
+    """ให้ frontend อ่านสถานะเกมและทะเบียนที่ผู้เล่นมีสิทธิ์เห็น
 
-    ใช้ endpoint นี้ (หรืออ่าน story.json ตรงๆ) สร้างรายการ id
-    แทนการพิมพ์มือ — กัน id ไม่ตรงกันระหว่างสองฝั่ง
+    Neural อ่าน story.json โดยตรง ส่วน endpoint นี้กรองวัตถุที่ยังไม่พบ
     """
     w = engine.world
+    session.state = sync_clock(session.state)
+    if engine.is_out_of_time(session.state):
+        session.state = terminal_response(session.state).new_state
     return {
         "title": w.get("title"),
         "briefing": w.get("briefing"),
-        "time_limit_seconds": w.get("time_limit_seconds"),
+        "time_limit_seconds": engine.time_limit_seconds,
         "locations": {k: v.get("name_th") for k, v in w["locations"].items()},
-        "objects": {k: v.get("name_th") for k, v in w["objects"].items()},
+        "objects": {k: v.get("name_th") for k, v in w["objects"].items() if engine.offerable(k, session.state)},
         "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
         "actions": [a.value for a in ActionType],
         "rules_count": len(engine.rules),
-        "initial_state": GameState(started_at=time.time()).model_dump(),
+        "initial_state": session.state.model_dump(),
     }
 
 
 @app.post("/pillars")
-def pillars(state: GameState):
+def pillars(session: Session = Depends(session_for)):
     """ความคืบหน้าสี่เสาหลักของผู้ต้องสงสัยทุกคน — ใช้วาดแถบความคืบหน้าใน frontend
 
     เป็นการอ่านสถานะเท่านั้น ไม่เกี่ยวกับการตัดสิน
     """
-    return {sid: engine.pillar_status(sid, state) for sid in engine.world["suspects"]}
+    return {sid: engine.pillar_status(sid, session.state) for sid in engine.world["suspects"]}
+
+
+@app.post("/new-game")
+def new_game(session: Session = Depends(session_for)):
+    """Explicit restart; a normal page reload resumes the existing game."""
+    session.state = GameState(started_at=time.time())
+    return {"new_state": session.state.model_dump()}
 
 
 @app.post("/journal")
-def journal(state: GameState):
+def journal(session: Session = Depends(session_for)):
     """Player-facing information only; undiscovered evidence stays hidden."""
+    state = session.state
     w = engine.world
     return {
         "evidence": [{"id": eid, "name": w["objects"][eid]["name_th"],
@@ -135,7 +146,15 @@ def journal(state: GameState):
 
 
 @app.post("/command", response_model=CommandResponse)
-def handle_command(req: CommandRequest):
+def handle_command(req: CommandRequest, session: Session = Depends(session_for)):
+    # Legacy client snapshots are ignored; only the server can change this state.
+    req.state = session.state.model_copy(deep=True)
+    result = _handle_command(req)
+    session.state = result.new_state
+    return result
+
+
+def _handle_command(req: CommandRequest):
     """ข้อความไทยหนึ่งประโยค -> คำตัดสินหนึ่งครั้ง -> สถานะใหม่หนึ่งก้อน"""
 
     req.state = sync_clock(req.state)
@@ -167,7 +186,8 @@ def handle_command(req: CommandRequest):
     # ไม่งั้นคำสั่งกว้างๆ อย่าง "ปลดทุกอย่าง" จะกลายเป็นเมนูเฉลยชื่อของทั้งขบวน
     # LLM มองเห็นตารางทั้งโลก แต่ไม่รู้ว่าผู้เล่นเดินไปถึงไหนแล้ว จึงต้องกรองที่ชั้นนี้
     parsed.alternatives = [a for a in parsed.alternatives
-                           if engine.offerable((a.split() or [""])[-1], req.state)]
+                           if len(a.split()) == 2 and a.split()[0] in {v.value for v in ActionType}
+                           and engine.offerable(a.split()[1], req.state)]
 
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
 
@@ -182,10 +202,13 @@ def terminal_response(state: GameState, text: str = "") -> CommandResponse:
 
 
 @app.post("/clock")
-def game_clock(state: GameState):
-    state = sync_clock(state)
+def game_clock(session: Session = Depends(session_for)):
+    state = sync_clock(session.state)
+    session.state = state
     if state.ending_id or engine.is_out_of_time(state):
-        return terminal_response(state).model_dump()
+        result = terminal_response(state)
+        session.state = result.new_state
+        return result.model_dump()
     return {"new_state": state.model_dump(), "decision": None, "parsed": None}
 
 

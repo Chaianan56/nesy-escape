@@ -41,12 +41,7 @@ ACTION_TH = {
     ActionType.UNKNOWN: "ไม่เข้าใจคำสั่ง",
 }
 
-PILLAR_TH = {
-    "motive": "แรงจูงใจ",
-    "means": "วิธีการ",
-    "opportunity": "โอกาส",
-    "corroboration": "หลักฐานสนับสนุน",
-}
+PILLAR_TH = world.get("pillar_labels", {})
 
 
 def th_name(eid):
@@ -84,7 +79,7 @@ def timed_input(prompt):
         except EOFError as exc:
             result.put(exc)
     threading.Thread(target=read, daemon=True).start()
-    left = max(0, state.started_at + world["time_limit_seconds"] - time.time())
+    left = max(0, state.started_at + engine.time_limit_seconds - time.time())
     try:
         value = result.get(timeout=left)
     except input_queue.Empty:
@@ -133,13 +128,13 @@ def show_pillars():
     print()
     for sid in world["suspects"]:
         found = engine.pillar_status(sid, state)
-        marks = "  ".join(f"{PILLAR_TH[k]}{'✓' if v else '✗'}" for k, v in found.items())
+        marks = "  ".join(f"{PILLAR_TH.get(k, k)}{'✓' if v else '✗'}" for k, v in found.items())
         print(f"  {th_name(sid):18} {marks}")
     print()
 
 
 print(f"\n=== {world['title']} ===")
-print("ตัวตีความ: " + ("Gemini" if llm_online() else "ตัวสำรอง (ไม่มี API key — ต้องพิมพ์ชื่อให้ตรง)"))
+print("ตัวตีความ: " + ("Gemini" if llm_online() else "ยังไม่ได้ตั้งค่า API key"))
 print(f"\n{world['briefing']}\n")
 print(engine.look_around(state.current_location, state))
 show_help()
@@ -184,7 +179,7 @@ while True:
         # ประโยคพ่วงหลายขั้นถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
         # ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งสองอย่าง" หรือ "เลือกอย่างใดอย่างหนึ่ง"
         # จึงไม่เดา — ให้ผู้เล่นบอกเอง เพราะเขารู้ว่าตัวเองหมายถึงอะไร
-        choices = [a for a in (parsed.alternatives or []) if parse_alt(a)]
+        choices = [a for a in (parsed.alternatives or []) if parse_alt(a) and engine.offerable(parse_alt(a).target, state)]
         if parsed.action in (ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
             print(f"\n  คำสั่งนี้แตกได้ {len(choices)} ขั้น")
             for i, alt in enumerate(choices, 1):
@@ -217,7 +212,7 @@ while True:
     if decision.allowed:
         state = apply_changes(state, decision.state_changes)
         if parsed.action == ActionType.ACCUSE:
-            print(f"\n  === คดีปิดแล้ว — ผู้ลงมือคือ{th_name(parsed.target)} ===")
+            print("\n  === คดีปิดแล้ว ===")
             break
     elif decision.state_changes.get("ending"):
         state.ending_id = decision.state_changes["ending"]
