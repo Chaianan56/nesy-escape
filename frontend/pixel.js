@@ -79,7 +79,8 @@ const PixelUI = (() => {
   }
   async function refresh() {
     if(!gameState)return;drawScene(gameState.current_location);map();const request=++revision;
-    try{const res=await fetch(`${API_BASE}/journal`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(gameState),signal:AbortSignal.timeout(8000)});if(!res.ok)throw Error();const next=await res.json();if(request!==revision)return;data=next;
+    try{const res=await fetch(`${API_BASE}/journal`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({}),signal:AbortSignal.timeout(8000)});if(!res.ok)throw Error();const next=await res.json();if(request!==revision)return;data=next;
+      for(const item of [...data.evidence,...data.visible]) objectsMap[item.id]=item.name;
       $('evidenceCount').textContent=data.evidence.length;$('deductionCount').textContent=data.deductions.length;
       const select=$('suspectSelect');if(!select.options.length)data.people.forEach(p=>{const opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name.split(' (')[0];select.append(opt)});
       const visible=$('visibleObjects');visible.replaceChildren();data.visible.forEach(o=>visible.append(button(o.name,`ตรวจ${o.name}`)));if(!data.visible.length)visible.textContent=gameOver?'คดีปิดแล้ว':'ไม่มีสิ่งที่ตรวจเพิ่มได้ในตู้นี้';

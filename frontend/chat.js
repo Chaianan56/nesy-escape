@@ -48,7 +48,7 @@ async function tickClock() {
   try {
     const res = await fetch(`${API_BASE}/clock`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(gameState), signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({}), signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -263,7 +263,7 @@ async function submit(text, opts = {}) {
     const res = await fetch(`${API_BASE}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text, state: gameState }),
+      body: JSON.stringify({ text: text }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -323,6 +323,16 @@ async function sendMessage(e) {
   });
 }
 
+async function restartGame() {
+  try {
+    const res = await fetch(`${API_BASE}/new-game`, { method: "POST" });
+    if (!res.ok && res.status !== 401) throw new Error(`HTTP ${res.status}`);
+    window.location.reload();
+  } catch (err) {
+    renderError(`เริ่มคดีใหม่ไม่ได้: ${err.message}`);
+  }
+}
+
 function showGameOver() {
   if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
   gameOver = true;
@@ -342,7 +352,7 @@ function showGameOver() {
     `<div class="story-text"><strong>คดีนี้ปิดลงแล้ว</strong><br>` +
     `เรื่องนี้มีฉากจบหลายแบบ ขึ้นอยู่กับว่าคุณชี้ตัวใคร และตอนนั้นมีหลักฐานอยู่ในมือแค่ไหน</div>` +
     `<div class="chips-scroll"><button type="button" class="chip-btn" ` +
-    `onclick="location.reload()">เริ่มคดีใหม่</button></div>`;
+    `onclick="restartGame()">เริ่มคดีใหม่</button></div>`;
   feed.appendChild(box);
   feed.scrollTop = feed.scrollHeight;
 }
