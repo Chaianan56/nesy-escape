@@ -74,6 +74,7 @@ def prune_entities(world_data: Dict[str, Any], state: Optional[GameState] = None
 
     return relevant_objects, relevant_suspects, raw_locations
 
+prune_world_entities = prune_entities
 
 # ==============================================================================
 # สร้างตัวอย่าง Few-shot Example สำหรับ System Prompt

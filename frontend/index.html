@@ -3,84 +3,409 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeSy-Escape — ระบบสืบสวนคดีฆาตกรรมบนรถไฟ (Alliance UI)</title>
+  <title>Nocturne Express: The Eighth Passenger (1938)</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Prompt:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="theme-noir-gold">
 
-  <!-- ================= TOP NAVBAR ================= -->
-  <header class="navbar">
-    <!-- Brand Logo -->
-    <div class="brand">
-      <span class="brand-icon">🚂</span>
-      <div class="brand-text">
-        <span class="brand-name">NeSy-Escape</span>
-        <span class="brand-sub">นอกเทิร์นเอกซ์เพรส 1938</span>
-      </div>
-    </div>
-
-    <!-- HUD Center: Location, Clock, Four Pillars -->
-    <div class="nav-hud">
-      <!-- ตำแหน่งปัจจุบันของผู้เล่น -->
-      <div id="locWidget" class="hud-pill loc-pill" title="ตำแหน่งตู้รถที่ยืนอยู่ปัจจุบัน">
-        <span class="hud-icon">📍</span>
-        <span id="locText">ตู้โดยสาร</span>
+  <!-- ================= SCREEN 1: DEDICATED WELCOME & ONBOARDING PAGE ================= -->
+  <div id="welcomeScreen" class="welcome-screen">
+    <div class="welcome-container">
+      
+      <!-- Brand Header -->
+      <div class="welcome-header">
+        <div class="welcome-brand-group">
+          <div class="brand-emblem">NE</div>
+          <div>
+            <h1 class="welcome-brand">Nocturne Express</h1>
+            <p class="welcome-sub">ผู้โดยสารคนที่แปด (The Eighth Passenger) — 1938</p>
+          </div>
+        </div>
+        <span class="case-badge">CASE FILE #1938-1114</span>
       </div>
 
-      <!-- FE-3: นาฬิกาการสืบสวน -->
-      <div id="clockWidget" class="hud-pill clock-pill" title="เวลาที่เหลือในการสืบสวน (ลดลงตาละ 60 วินาที)">
-        <span class="hud-icon">⏱️</span>
-        <span id="clockText">60:00</span>
+      <!-- Case Briefing Box -->
+      <div class="welcome-card briefing-box">
+        <div class="card-label">📌 รายงานสรุปคดี (Case Briefing)</div>
+        <p id="modalBriefingText">
+          คืนวันที่ 14 พฤศจิกายน 1938 บนขบวนรถไฟด่วน Nocturne Express คุณคือ นรินทร์ เวล (Narin Vale) 
+          เจ้าหน้าที่สืบสวนรุ่นใหม่จากสำนักงานอัยการ ขึ้นรถไฟ ณ สถานีฮัลเบิร์ดเพื่อรับมอบเอกสารคดีสำคัญจาก 
+          แคสเซียน รีด (Cassian Reed) กลับพบว่าแคสเซียนถูกสังหารเสียชีวิตในห้องพัก
+        </p>
       </div>
 
-    </div>
-  </header>
+      <!-- Prologue Timeline -->
+      <div class="welcome-card prologue-box">
+        <div class="card-label">📜 เหตุการณ์ก่อนเริ่มการสืบสวน (Prologue Timeline)</div>
+        
+        <div class="timeline-list">
+          <div class="timeline-item">
+            <div class="item-time">🕒 20:45 น.</div>
+            <div class="item-body">
+              <strong>การเทียบชานชาลาและการเผชิญหน้าในตู้เลานจ์:</strong>
+              <p id="prologueArrival">
+                เวลา 20:45 น. รถไฟเข้าเทียบชานชาลา นรินทร์ก้าวขึ้นสู่ Nocturne Express ตามที่นัดหมายไว้ แต่แคสเซียนไม่ได้ออกมารอรับอย่างที่ตกลงกัน 
+                ขณะที่นรินทร์กำลังเดินสำรวจตู้โดยสารเลานจ์ชั้นหนึ่ง เขาได้พบกับ กิเดียน ฮาร์ต ชายวัยกลางคนผู้มีบุคลิกภูมิฐานและสงบนิ่ง 
+                กิเดียนเป็นฝ่ายทักทายนรินทร์อย่างสุภาพ ชวนดื่มกาแฟ และร่วมสนทนาถึงการทำงานของแคสเซียนด้วยท่าทีชื่นชมและเป็นธรรมชาติ 
+                ไม่มีร่องรอยของความกระวนกระวายหรือพิรุธใด ๆ นรินทร์จึงคิดเพียงว่าแคสเซียนอาจกำลังติดธุระตรวจสอบเอกสารอยู่ในห้องพัก
+              </p>
+            </div>
+          </div>
 
-  <!-- ================= MAIN CHAT CONTAINER ================= -->
-  <main class="chat-container">
-    <!-- Stream ของข้อความสนทนาและเนื้อเรื่อง -->
-    <div id="chatFeed" class="chat-feed">
-      <!-- บรีฟคดี -> คำบรรยายห้องตอนเริ่ม -> การโต้ตอบของผู้เล่น -->
-    </div>
+          <div class="timeline-item">
+            <div class="item-time">⚡ 21:15 น.</div>
+            <div class="item-body">
+              <strong>วินาศกรรมไฟดับ (The Blackout Illusion):</strong>
+              <p id="prologueBlackout">
+                เวลา 21:15 น. ระบบไฟฟ้าทั้งขบวนรถดับวูบลงกะทันหัน ความมืดมิดเข้าปกคลุมตู้โดยสารนานราว 3 นาที กิเดียนยืนอยู่ข้างนรินทร์ตลอดเวลาพร้อมจุดไฟแช็กโลหะขึ้นส่องสว่างเพื่อปลอบขวัญผู้โดยสารรอบข้าง 
+                ท่ามกลางความมืด มีเพียงเสียงฝีเท้าและลมพัดวูบผ่านตู้เลานจ์ไปทางท้ายขบวน
+              </p>
+            </div>
+          </div>
 
-    <!-- ข้อ 1: แถบตัวอย่างคำสั่งที่พิมพ์ได้ (Quick Suggestions Bar) -->
-    <div class="quick-chips-wrapper">
-      <span class="chips-label">💡 คำสั่งแนะนำ:</span>
-      <div class="chips-scroll">
-        <button type="button" class="chip-btn" onclick="fillInput('ดูรอบๆ')">ดูรอบๆ</button>
-        <button type="button" class="chip-btn" onclick="fillInput('สอบปากคำกิเดียน ฮาร์ต')">สอบปากคำกิเดียน ฮาร์ต</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ไปที่ห้องเกิดเหตุ')">ไปที่ห้องเกิดเหตุ</button>
-        <button type="button" class="chip-btn" onclick="fillInput('ตรวจดูนาฬิกาพกของผู้ตาย')">ตรวจดูนาฬิกาพกของผู้ตาย</button>
-        <button type="button" class="chip-btn chip-danger" onclick="fillInput('กล่าวหากิเดียน ฮาร์ต')">กล่าวหากิเดียน ฮาร์ต</button>
+          <div class="timeline-item item-alert">
+            <div class="item-time">🚨 การพบศพ</div>
+            <div class="item-body">
+              <strong>จุดเริ่มต้นการสืบสวน:</strong>
+              <p id="prologueDiscovery">
+                เมื่อไฟสำรองกลับมาทำงาน เสียงกรีดร้องดังมาจากตู้พักชั้นหนึ่ง เจ้าหน้าที่และนรินทร์รุดไปเปิดห้องพัก พบศพของแคสเซียนนอนคว่ำหน้าจมกองเลือด 
+                ขณะที่นาฬิกาไฟฟ้าบนผนังตู้โดยสารหยุดเดินอยู่ที่เวลา 21:15 น. ทุกคนบนขบวนจึงปักใจเชื่อทันทีว่าการฆาตกรรมเกิดขึ้นสด ๆ ร้อน ๆ ในช่วง 3 นาทีแห่งความมืดมิดนั้น
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- Pinned Bottom Input Form -->
-    <form onsubmit="sendMessage(event)" class="chat-input-bar">
-      <div class="input-inner">
-        <input 
-          id="chatInput" 
-          type="text" 
-          placeholder="พิมพ์คำสั่งสืบสวนเป็นภาษาไทย (หรือคลิกตัวอย่างคำสั่งด้านบน)..." 
-          autocomplete="off" 
-        />
-        <button type="submit" id="sendBtn" class="send-button">
-          <span id="sendBtnText">ส่งคำสั่ง</span>
-          <svg class="send-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
+      <!-- Action Button -->
+      <div class="welcome-action">
+        <button id="startGameBtn" type="button" class="btn-start-game" onclick="startGameInvestigation()">
+          🔍 เริ่มต้นการสืบสวน
         </button>
       </div>
-      <div class="input-hint">
-        <span>คำสั่งถูกส่งไปประมวลผลผ่าน Neural Interpretation Layer &amp; Symbolic Rule Engine</span>
+
+    </div>
+  </div>
+
+  <!-- ================= SCREEN 2: GAME WORKSPACE (3-COLUMN DASHBOARD) ================= -->
+  <div id="gameWorkspace" class="game-workspace" style="display: none;">
+    
+    <!-- TOP NAVBAR HEADER -->
+    <header class="top-navbar">
+      <div class="navbar-left">
+        <div class="nav-emblem">NE</div>
+        <div class="nav-title-group">
+          <h1 class="nav-game-title">Nocturne Express: The Eighth Passenger</h1>
+          <span class="nav-flourish">⁓ ⁓</span>
+        </div>
       </div>
-    </form>
-  </main>
+      <div class="navbar-right">
+        <span class="nav-badge act-badge">Act 2</span>
+        <div id="locWidget" class="nav-badge loc-badge" title="ตำแหน่งตู้รถปัจจุบัน">
+          <span class="badge-icon">📍</span>
+          <span id="locText">ตู้โดยสาร</span>
+        </div>
+        <div id="clockWidget" class="nav-badge clock-badge" title="เวลาสืบสวนที่เหลือ">
+          <span class="badge-icon">⏱️</span>
+          <span id="clockText">60:00</span>
+        </div>
+        <button type="button" class="nav-settings-btn" title="การตั้งค่า" onclick="alert('เกม NeSy-Escape 1938 พร้อมทำงานเต็มรูปแบบ')">⚙</button>
+      </div>
+    </header>
+
+    <!-- 3-COLUMN MAIN DASHBOARD CONTAINER -->
+    <div class="dashboard-body">
+      
+      <!-- ================= LEFT COLUMN: CASE BOARD ================= -->
+      <aside class="panel-caseboard">
+        <div class="panel-header">
+          <span class="panel-title">กระดานคดี</span>
+          <span class="panel-icon">♀</span>
+        </div>
+        
+        <div class="panel-section">
+          <div class="section-subtitle">คำถามหลักของคดี</div>
+          <ul class="question-list">
+            <li class="question-item solved" id="qItem1">
+              <span class="q-num">1</span>
+              <span class="q-text">ผู้โดยสารคนที่ 8 คือใคร?</span>
+              <span class="q-status">◇</span>
+            </li>
+            <li class="question-item" id="qItem2">
+              <span class="q-num">2</span>
+              <span class="q-text">ห้องปิดตายถูกสร้างได้อย่างไร?</span>
+              <span class="q-status">◇</span>
+            </li>
+            <li class="question-item" id="qItem3">
+              <span class="q-num">3</span>
+              <span class="q-text">ไฟดับ 46 วินาทีเกิดจากอะไร?</span>
+              <span class="q-status">◇</span>
+            </li>
+            <li class="question-item" id="qItem4">
+              <span class="q-num">4</span>
+              <span class="q-text">เหตุใด Cassian จึงถูกฆ่า?</span>
+              <span class="q-status">◇</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="panel-section">
+          <div class="section-subtitle">ความก้าวหน้าการสืบสวน</div>
+          <div class="progress-group">
+            <div class="progress-label">
+              <span>เบาะแสที่พบ</span>
+              <span id="progressCluesText">0 / 42</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="progressCluesBar" class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="progress-group">
+            <div class="progress-label">
+              <span>บุคคลที่พบ</span>
+              <span id="progressSuspectsText">0 / 3</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="progressSuspectsBar" class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="progress-group">
+            <div class="progress-label">
+              <span>สถานที่ที่ตรวจสอบ</span>
+              <span id="progressLocsText">1 / 6</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="progressLocsBar" class="progress-bar-fill" style="width: 16%;"></div>
+            </div>
+          </div>
+
+          <div class="progress-group">
+            <div class="progress-label">
+              <span>คำถามที่ตอบได้</span>
+              <span id="progressQuestionsText">0 / 4</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="progressQuestionsBar" class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="caseboard-quote">
+          <p>ทุกคำที่คุณพิมพ์ อาจช่วยขยายเหตุผล และไขปริศนานี้</p>
+          <span class="quote-sub">- NE -</span>
+        </div>
+      </aside>
+
+      <!-- ================= CENTER COLUMN: NARRATIVE & MAP ================= -->
+      <main class="panel-narrative">
+        
+        <!-- CINEMATIC SCENE VIEWPORT & DIALOGUE OVERLAY -->
+        <div class="scene-viewport">
+          <div class="scene-ambient-backdrop">
+            <div class="train-window-glow"></div>
+            <div class="service-sign">SERVICE CAR</div>
+          </div>
+
+          <!-- Active Character Dialogue Overlay -->
+          <div class="dialogue-overlay" id="dialogueOverlay">
+            <div class="speaker-meta">
+              <span class="speaker-name" id="speakerName">Mara</span>
+              <span class="speaker-role" id="speakerRole">พนักงานควบคุมรถไฟ</span>
+            </div>
+            <p class="dialogue-text" id="dialogueText">
+              "...ฉันจำเวลาไม่ได้เป๊ะ ๆ หรอกนะคะ แต่ก่อนที่จะไฟดับ ฉันเห็นคุณ Cassian ยืนอยู่แถวตู้โดยสาร... เหมือนกำลังรอใครบางคน"
+            </p>
+          </div>
+        </div>
+
+        <!-- INTERACTIVE TRAIN MAP BLUEPRINT STRIP -->
+        <div class="train-map-wrapper">
+          <div class="train-map-title">📍 แผนผังขบวนรถไฟ (คลิกตู้รถเพื่อเดินทาง):</div>
+          <div class="train-map-strip" id="trainMapStrip">
+            <button type="button" class="train-car-btn" id="car_locomotive" onclick="selectTrainCar('locomotive')" title="ตู้ 1: หัวรถจักร">
+              <span class="car-icon">🚂</span>
+              <span class="car-name">หัวรถจักร</span>
+            </button>
+            <button type="button" class="train-car-btn" id="car_luggage_van_electrical" onclick="selectTrainCar('luggage_van_electrical')" title="ตู้ 2: ห้องระบบไฟฟ้า">
+              <span class="car-icon">⚡</span>
+              <span class="car-name">ห้องไฟฟ้า</span>
+            </button>
+            <button type="button" class="train-car-btn" id="car_dining_car_staff" onclick="selectTrainCar('dining_car_staff')" title="ตู้ 3: ตู้เสบียง">
+              <span class="car-icon">🍷</span>
+              <span class="car-name">ตู้เสบียง</span>
+            </button>
+            <button type="button" class="train-car-btn" id="car_first_class_car" onclick="selectTrainCar('first_class_car')" title="ตู้ 4: ตู้โดยสารชั้นหนึ่ง (ห้องเกิดเหตุ)">
+              <span class="car-icon">🚪</span>
+              <span class="car-name">ตู้ชั้นหนึ่ง</span>
+            </button>
+            <button type="button" class="train-car-btn active" id="car_lounge_car" onclick="selectTrainCar('lounge_car')" title="ตู้ 5: ตู้เลานจ์">
+              <span class="car-icon">🍸</span>
+              <span class="car-name">ตู้เลานจ์</span>
+            </button>
+            <button type="button" class="train-car-btn" id="car_second_class_car" onclick="selectTrainCar('second_class_car')" title="ตู้ 6: ตู้โดยสารชั้นสอง">
+              <span class="car-icon">🧳</span>
+              <span class="car-name">ตู้ชั้นสอง</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- MAIN INVESTIGATION CHAT FEED -->
+        <div id="chatFeed" class="chat-feed"></div>
+
+      </main>
+
+      <!-- ================= RIGHT COLUMN: NOTEBOOK (EVIDENCE & PERSONS) ================= -->
+      <aside class="panel-notebook">
+        
+        <!-- NOTEBOOK TABS HEADER -->
+        <div class="notebook-tabs">
+          <button id="tabEvidenceBtn" type="button" class="tab-btn active" onclick="switchNotebookTab('evidence')">
+            🔍 หลักฐาน
+          </button>
+          <button id="tabSuspectsBtn" type="button" class="tab-btn" onclick="switchNotebookTab('suspects')">
+            👤 บุคคล
+          </button>
+          <button id="tabNotesBtn" type="button" class="tab-btn" onclick="switchNotebookTab('notes')">
+            📜 บันทึก
+          </button>
+        </div>
+
+        <!-- TAB 1: EVIDENCE GRID -->
+        <div id="tabEvidence" class="tab-content active">
+          <div class="tab-section-title">หลักฐานสำคัญที่ค้นพบ</div>
+          <div class="evidence-grid" id="evidenceGrid">
+            <!-- Dynamic evidence cards will be populated by chat.js -->
+            <div class="evidence-card" onclick="fillInput('ตรวจดูนาฬิกาพกของผู้ตาย')">
+              <div class="evidence-thumb">⌚</div>
+              <div class="evidence-info">
+                <div class="evidence-title">นาฬิกาพกกลไก</div>
+                <div class="evidence-loc">พบที่: ตู้ชั้นหนึ่ง</div>
+              </div>
+            </div>
+            <div class="evidence-card" onclick="fillInput('ตรวจดูถ้วยชาใบที่สอง')">
+              <div class="evidence-thumb">🍵</div>
+              <div class="evidence-info">
+                <div class="evidence-title">ถ้วยชาใบที่สอง</div>
+                <div class="evidence-loc">พบที่: ตู้ชั้นหนึ่ง</div>
+              </div>
+            </div>
+            <div class="evidence-card" onclick="fillInput('ตรวจดูกระดุมออบซิเดียน')">
+              <div class="evidence-thumb">🔘</div>
+              <div class="evidence-info">
+                <div class="evidence-title">กระดุมออบซิเดียน</div>
+                <div class="evidence-loc">พบที่: ตู้ชั้นหนึ่ง</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: SUSPECTS / PERSONS GRID -->
+        <div id="tabSuspects" class="tab-content" style="display: none;">
+          <div class="tab-section-title">บุคคลที่เกี่ยวข้องในขบวนรถ</div>
+          <div class="suspects-grid" id="suspectsGrid">
+            <div class="suspect-card" onclick="fillInput('สอบปากคำ ดร. ลิโอรา เวนน์')">
+              <div class="suspect-avatar">👩‍⚕️</div>
+              <div class="suspect-details">
+                <div class="suspect-name">Liora Venn</div>
+                <div class="suspect-role">แพทย์ประจำขบวน</div>
+                <div class="suspect-relation rel-neutral">⚖️ ความสัมพันธ์: เป็นกลาง</div>
+              </div>
+            </div>
+            <div class="suspect-card" onclick="fillInput('สอบปากคำ กิเดียน ฮาร์ต')">
+              <div class="suspect-avatar">👨‍⚖️</div>
+              <div class="suspect-details">
+                <div class="suspect-name">Gideon Hart</div>
+                <div class="suspect-role">อดีตผู้พิพากษา</div>
+                <div class="suspect-relation rel-suspicious">⚠️ ความสัมพันธ์: ไม่แน่ใจ</div>
+              </div>
+            </div>
+            <div class="suspect-card" onclick="fillInput('ตรวจดูศพแคสเซียน รีด')">
+              <div class="suspect-avatar">🕯️</div>
+              <div class="suspect-details">
+                <div class="suspect-name">Cassian Reed</div>
+                <div class="suspect-role">นักประวัติศาสตร์ / ผู้เสียชีวิต</div>
+                <div class="suspect-relation rel-deceased">⚰️ ความสัมพันธ์: ---</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: NOTES / DEDUCTIONS LIST -->
+        <div id="tabNotes" class="tab-content" style="display: none;">
+          <div class="tab-section-title">บันทึกข้อสันนิษฐานและเส้นเวลา</div>
+          <div class="notes-list" id="notesList">
+            <div class="note-card">
+              <div class="note-time">🕒 20:25 น.</div>
+              <div class="note-body">นาฬิกาพกกลไกของผู้ตายหยุดเดินที่ 20:25 น. (กระจกแตกจากแรงกระแทก)</div>
+            </div>
+            <div class="note-card">
+              <div class="note-time">⚡ 21:15 น.</div>
+              <div class="note-body">ระบบไฟฟ้าดับลง 3 นาที โดยคันโยกถูกสับด้วยมือจากห้องระบบไฟฟ้า</div>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+
+    <!-- ================= BOTTOM DOCK: INPUT & STATUS BAR ================= -->
+    <footer class="panel-bottom-dock">
+      
+      <!-- Left: Action Timer Widget -->
+      <div class="dock-time-widget">
+        <span class="hourglass-icon">⏳</span>
+        <div class="time-widget-text">
+          <span class="widget-label">คำสั่งที่ใช้แล้ว</span>
+          <span class="widget-val" id="timeSpentText">30 วินาที</span>
+          <span class="widget-sub">(โดยประมาณ)</span>
+        </div>
+      </div>
+
+      <!-- Center: Input Bar & Quick Prompt Chips -->
+      <div class="dock-center">
+        <div class="quick-chips-bar">
+          <span class="chips-title">คำแนะนำการพิมพ์:</span>
+          <div class="chips-container" id="promptChips">
+            <button type="button" class="chip-item" onclick="fillInput('ถาม Mara เมื่อเวลา 23:17')">ถาม Mara เมื่อเวลา 23:17</button>
+            <button type="button" class="chip-item" onclick="fillInput('ตรวจบันทึกทุกมุม')">ตรวจบันทึกทุกมุม</button>
+            <button type="button" class="chip-item" onclick="fillInput('ในตู้เสบียงมีอะไร')">ในตู้เสบียงมีอะไร</button>
+            <button type="button" class="chip-item" onclick="fillInput('ใครเห็น Cassian คนสุดท้าย?')">ใครเห็น Cassian คนสุดท้าย?</button>
+            <button type="button" class="chip-item chip-gold" onclick="fillInput('ตรวจสอบกระดุมทองเหลือง')">ตรวจสอบกระดุมทองเหลือง</button>
+          </div>
+        </div>
+
+        <form onsubmit="sendMessage(event)" class="command-form">
+          <div class="input-wrapper">
+            <span class="quill-icon">✒️</span>
+            <input id="chatInput" type="text" placeholder="พิมพ์สิ่งที่ต้องการถาม / ตรวจสอบ / กล่าวหา..." autocomplete="off" />
+            <button type="submit" id="sendBtn" class="btn-send-command">
+              <span class="send-icon-svg">✈</span>
+              <span id="sendBtnText">ส่งคำสั่ง</span>
+              <span class="key-hint">Enter</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right: System Status Indicator -->
+      <div class="dock-status-widget">
+        <div class="status-indicator-dot"></div>
+        <div class="status-text-group">
+          <span class="status-title">ระบบทำงานปกติ</span>
+          <span class="status-sub">ระบบพร้อมรับคำสั่งของคุณแล้ว</span>
+        </div>
+      </div>
+
+    </footer>
+
+  </div>
 
   <script src="chat.js"></script>
 </body>
 </html>
+

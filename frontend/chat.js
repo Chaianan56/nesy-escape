@@ -1,16 +1,7 @@
 /**
- * NeSy-Escape: Complete Controller & UI Manager (Alliance Modern Dashboard)
- * 
- * คุณสมบัติ:
- * 1. ตัวอย่างคำสั่ง (Quick Suggestion Chips & Onboarding Hints)
- * 2. คำบรรยายห้องตอนเริ่มเกม (Auto Look Around via POST /command)
- * 4. นาฬิกาการสืบสวน (FE-3: Investigation Clock)
- * 5. ป้ายแสดงตู้รถปัจจุบัน (Location HUD Pill)
+ * NeSy-Escape: Complete Controller & UI Manager (Victorian Dark Luxury Noir Theme)
  */
 
-// ใช้ origin เดียวกับหน้าเว็บ เพราะ FastAPI เสิร์ฟทั้ง API และไฟล์หน้าเว็บ
-// ถ้าฝัง 127.0.0.1 ไว้ พอขึ้นคลาวด์เบราว์เซอร์จะยิงกลับไปที่เครื่องผู้ใช้เอง ไม่ใช่เซิร์ฟเวอร์
-// เปิดไฟล์ตรงๆ ด้วย file:// ค่อยถอยไปใช้ localhost
 const API_BASE = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
 
 let gameState = null;
@@ -19,8 +10,8 @@ let locationsMap = {};
 let suspectsMap = {};
 let objectsMap = {};
 let rulesCount = null;
-let gameOver = false;   // ปิดคดีแล้วหรือหมดเวลาแล้ว ห้ามรับคำสั่งอีก
-let busy = false;       // มีคำสั่งค้างอยู่ในสาย ห้ามส่งซ้อน
+let gameOver = false;
+let busy = false;
 let clockTimer = null;
 let clockPending = false;
 let deadlineReached = false;
@@ -28,7 +19,7 @@ let clockAnchor = null;
 let clockElapsed = 0;
 
 function anchorClock() {
-  clockElapsed = gameState.elapsed_seconds || 0;
+  clockElapsed = gameState?.elapsed_seconds || 0;
   clockAnchor = Date.now();
 }
 
@@ -53,7 +44,6 @@ async function tickClock() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (gameOver) return;
-    // Keep action state if a command completed while this clock request was pending.
     if (data.new_state.ending_id) {
       gameState = { ...gameState, ending_id: data.new_state.ending_id,
         elapsed_seconds: data.new_state.elapsed_seconds };
@@ -66,17 +56,17 @@ async function tickClock() {
       setBusy(busy);
     }
   } catch (err) {
-    // Retry on the next tick; input stays locked at the deadline.
-    document.getElementById("clockText").textContent = "00:00 (กำลังยืนยันฉากจบ...)";
+    document.getElementById("clockText").textContent = "00:00 (หมดเวลา)";
   } finally {
     clockPending = false;
   }
 }
 
+// ============================================================
+// 1. INIT GAME & SCREEN SWITCHING
+// ============================================================
+let pendingSceneData = null;
 
-// ============================================================
-// 1. เริ่มต้นเกม (INIT GAME)
-// ============================================================
 window.addEventListener("DOMContentLoaded", () => {
   initGame();
 });
@@ -94,31 +84,20 @@ async function initGame() {
     const res = await fetch(`${API_BASE}/scene`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const sceneData = await res.json();
+    pendingSceneData = sceneData;
 
-    // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
-    gameState = sceneData.initial_state;
-    anchorClock();
-    deadlineReached = false;
-    if (clockTimer !== null) clearInterval(clockTimer);
-    clockTimer = setInterval(tickClock, 1000);
-    timeLimitSeconds = sceneData.time_limit_seconds || 3600;
-    locationsMap = sceneData.locations || {};
-    suspectsMap = sceneData.suspects || {};
-    objectsMap = sceneData.objects || {};
-    rulesCount = sceneData.rules_count || null;
-
-    // อัปเดต HUD (ตำแหน่งและนาฬิกา)
-    updateLocationHUD();
-    updateClock();
-
-    // เคลียร์ loading และแสดงบรีฟคดี (Briefing) จาก story.json
-    feed.innerHTML = "";
-    renderBriefing(sceneData.briefing);
-
-    // ดึงสถานะสี่เสาตั้งต้น (FE-4)
-
-    // ข้อ 2: คำบรรยายห้องตอนเริ่มเกม — ยิง "ดูรอบๆ" อัตโนมัติหนึ่งครั้ง
-    await executeInitialLookAround();
+    if (sceneData.briefing) {
+      const bText = document.getElementById("modalBriefingText");
+      if (bText) bText.textContent = sceneData.briefing;
+    }
+    if (sceneData.prologue) {
+      const pArr = document.getElementById("prologueArrival");
+      const pBlk = document.getElementById("prologueBlackout");
+      const pDis = document.getElementById("prologueDiscovery");
+      if (pArr && sceneData.prologue.arrival) pArr.textContent = sceneData.prologue.arrival;
+      if (pBlk && sceneData.prologue.blackout) pBlk.textContent = sceneData.prologue.blackout;
+      if (pDis && sceneData.prologue.discovery) pDis.textContent = sceneData.prologue.discovery;
+    }
 
   } catch (err) {
     feed.innerHTML = `
@@ -131,7 +110,36 @@ async function initGame() {
   }
 }
 
-// แสดงการ์ดบรีฟคดี พร้อมตัวอย่างคำสั่งเบื้องต้น (ข้อ 1)
+async function startGameInvestigation() {
+  const wScreen = document.getElementById("welcomeScreen");
+  const gWorkspace = document.getElementById("gameWorkspace");
+  if (wScreen) wScreen.style.display = "none";
+  if (gWorkspace) gWorkspace.style.display = "flex";
+
+  if (!pendingSceneData) return;
+
+  gameState = pendingSceneData.initial_state;
+  anchorClock();
+  deadlineReached = false;
+  if (clockTimer !== null) clearInterval(clockTimer);
+  clockTimer = setInterval(tickClock, 1000);
+  timeLimitSeconds = pendingSceneData.time_limit_seconds || 3600;
+  locationsMap = pendingSceneData.locations || {};
+  suspectsMap = pendingSceneData.suspects || {};
+  objectsMap = pendingSceneData.objects || {};
+  rulesCount = pendingSceneData.rules_count || null;
+
+  updateLocationHUD();
+  updateClock();
+  updateCaseBoardProgress();
+
+  const feed = document.getElementById("chatFeed");
+  feed.innerHTML = "";
+  renderBriefing(pendingSceneData.briefing);
+
+  await executeInitialLookAround();
+}
+
 function renderBriefing(briefingText) {
   const feed = document.getElementById("chatFeed");
   const card = document.createElement("div");
@@ -139,7 +147,7 @@ function renderBriefing(briefingText) {
   card.innerHTML = `
     <div class="card-header-bar">
       <span class="badge info">📋 บรีฟคดี (Case Briefing)</span>
-      <span class="mode-tag">นอกเทิร์นเอกซ์เพรส 1938</span>
+      <span class="mode-tag">Nocturne Express 1938</span>
     </div>
     <div class="story-text">${escapeHtml(briefingText)}</div>
     
@@ -147,34 +155,53 @@ function renderBriefing(briefingText) {
       <div class="hints-title">💡 ตัวอย่างคำสั่งที่พิมพ์ได้ในเกม:</div>
       <div class="hints-list">
         <div>• <code>ดูรอบๆ</code> — สำรวจตู้รถที่ยืนอยู่และดูสิ่งที่มองเห็นได้</div>
-        <div>• <code>ไปที่จุดเกิดเหตุ</code> — เดินทางไปยังห้องเก็บของบริการ</div>
-        <div>• <code>ตรวจดูสมุดบันทึกของผู้ตาย</code> — ตรวจสอบวัตถุหรือหลักฐานในห้อง</div>
-        <div>• <code>ขอสอบปากคำพนักงานควบคุมรถหน่อย</code> — พูดคุยกับพยานหรือผู้ต้องสงสัย</div>
-        <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — ต้องมีหลักฐานเข้าเงื่อนไขฉากจบของบุคคลนั้นก่อน หากยังไม่ครบให้สืบสวนต่อ</div>
+        <div>• <code>ไปที่ตู้เสบียง</code> — เดินทางไปยังตู้เสบียงหรือตู้รถอื่น</div>
+        <div>• <code>ตรวจดูนาฬิกาพกของผู้ตาย</code> — ตรวจสอบวัตถุหรือหลักฐานในห้อง</div>
+        <div>• <code>สอบปากคำ กิเดียน ฮาร์ต</code> — พูดคุยกับพยานหรือผู้ต้องสงสัย</div>
+        <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — กล่าวหาผู้สงสัยเมื่อมีหลักฐานมัดตัวครบ</div>
       </div>
     </div>
   `;
   feed.appendChild(card);
 }
 
-// ข้อ 2: ยิงคำสั่ง "ดูรอบๆ" อัตโนมัติเพื่อแสดงคำบรรยายห้องที่ยืนอยู่
 function executeInitialLookAround() {
   return locked(() => submit("ดูรอบๆ", { isRoomLook: true }));
 }
 
 // ============================================================
-// 2. HUD UPDATES (Location & Clock)
+// 2. HUD & TRAIN MAP & CASE BOARD UPDATES
 // ============================================================
 function updateLocationHUD() {
   const locText = document.getElementById("locText");
   if (!locText || !gameState) return;
-  const locId = gameState.current_location || "passenger_car";
-  locText.textContent = locationsMap[locId] || locId;
+  const locId = gameState.current_location || "lounge_car";
+  
+  let locObj = locationsMap[locId];
+  let locName = typeof locObj === "object" ? locObj.name_th : locObj;
+  locText.textContent = locName || locId;
+
+  // Highlight active car button in train blueprint map
+  document.querySelectorAll(".train-car-btn").forEach(btn => btn.classList.remove("active"));
+  const activeBtn = document.getElementById(`car_${locId}`);
+  if (activeBtn) activeBtn.classList.add("active");
+}
+
+function selectTrainCar(carId) {
+  if (busy || gameOver) return;
+  let locObj = locationsMap[carId];
+  let carName = typeof locObj === "object" ? locObj.name_th : (locObj || carId);
+  
+  // Strip car number prefix if present
+  carName = carName.replace(/^ตู้\s*\d+:\s*/, "");
+
+  fillInput(`ไปที่${carName}`);
 }
 
 function updateClock() {
   const clockText = document.getElementById("clockText");
   const clockWidget = document.getElementById("clockWidget");
+  const timeSpentText = document.getElementById("timeSpentText");
   if (!clockText || !clockWidget) return;
 
   const elapsed = elapsedNow();
@@ -183,28 +210,82 @@ function updateClock() {
   const secs = remaining % 60;
 
   clockText.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  if (timeSpentText) timeSpentText.textContent = `${elapsed} วินาที`;
 
   if (remaining <= 0) {
-    clockWidget.className = "hud-pill clock-pill danger";
+    clockWidget.className = "nav-badge clock-badge danger";
     clockText.textContent = "00:00 (หมดเวลา)";
   } else if (remaining <= 600) {
-    clockWidget.className = "hud-pill clock-pill danger";
+    clockWidget.className = "nav-badge clock-badge danger";
   } else if (remaining <= 1200) {
-    clockWidget.className = "hud-pill clock-pill warning";
+    clockWidget.className = "nav-badge clock-badge warning";
   } else {
-    clockWidget.className = "hud-pill clock-pill";
+    clockWidget.className = "nav-badge clock-badge";
+  }
+}
+
+function updateCaseBoardProgress() {
+  if (!gameState) return;
+
+  // 1. Clues Found
+  const cluesCount = (gameState.discovered_evidence || []).length || (gameState.inventory || []).length || 3;
+  const totalClues = 42;
+  const cluesPercent = Math.min(100, Math.round((cluesCount / totalClues) * 100));
+  const cBar = document.getElementById("progressCluesBar");
+  const cText = document.getElementById("progressCluesText");
+  if (cBar) cBar.style.width = `${cluesPercent}%`;
+  if (cText) cText.textContent = `${cluesCount} / ${totalClues}`;
+
+  // 2. Suspects Interrogated
+  const interviewedCount = (gameState.interviewed_suspects || []).length || 1;
+  const totalSuspects = 3;
+  const sPercent = Math.min(100, Math.round((interviewedCount / totalSuspects) * 100));
+  const sBar = document.getElementById("progressSuspectsBar");
+  const sText = document.getElementById("progressSuspectsText");
+  if (sBar) sBar.style.width = `${sPercent}%`;
+  if (sText) sText.textContent = `${interviewedCount} / ${totalSuspects}`;
+
+  // 3. Locations Visited
+  const visitedCount = (gameState.visited_locations || []).length || 1;
+  const totalLocs = 6;
+  const lPercent = Math.min(100, Math.round((visitedCount / totalLocs) * 100));
+  const lBar = document.getElementById("progressLocsBar");
+  const lText = document.getElementById("progressLocsText");
+  if (lBar) lBar.style.width = `${lPercent}%`;
+  if (lText) lText.textContent = `${visitedCount} / ${totalLocs}`;
+
+  // 4. Questions Solved
+  const solvedCount = (gameState.deductions || []).length || 0;
+  const totalQuestions = 4;
+  const qPercent = Math.min(100, Math.round((solvedCount / totalQuestions) * 100));
+  const qBar = document.getElementById("progressQuestionsBar");
+  const qText = document.getElementById("progressQuestionsText");
+  if (qBar) qBar.style.width = `${qPercent}%`;
+  if (qText) qText.textContent = `${solvedCount} / ${totalQuestions}`;
+}
+
+// NOTEBOOK TABS SWITCHING
+function switchNotebookTab(tabName) {
+  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(content => content.style.display = "none");
+
+  if (tabName === 'evidence') {
+    document.getElementById("tabEvidenceBtn")?.classList.add("active");
+    const tabEl = document.getElementById("tabEvidence");
+    if (tabEl) tabEl.style.display = "flex";
+  } else if (tabName === 'suspects') {
+    document.getElementById("tabSuspectsBtn")?.classList.add("active");
+    const tabEl = document.getElementById("tabSuspects");
+    if (tabEl) tabEl.style.display = "flex";
+  } else if (tabName === 'notes') {
+    document.getElementById("tabNotesBtn")?.classList.add("active");
+    const tabEl = document.getElementById("tabNotes");
+    if (tabEl) tabEl.style.display = "flex";
   }
 }
 
 // ============================================================
-
-
-// ============================================================
-// 4. สลับโหมดการทดลอง (Mode A vs Mode B)
-// ============================================================
-
-// ============================================================
-// 5. ตัวอย่างคำสั่ง (Quick Chips Fill)
+// 3. COMMAND INPUT & LOCKING
 // ============================================================
 function fillInput(text) {
   const input = document.getElementById("chatInput");
@@ -213,13 +294,6 @@ function fillInput(text) {
   input.focus();
 }
 
-// ============================================================
-// 6. ลูปการส่งคำสั่ง (Send Message & Lock Input)
-// ============================================================
-// ล็อกตัวเดียวคุมทุกเส้นทาง ทั้งพิมพ์เอง กดปุ่มคำสั่งพ่วง และดูรอบๆ ตอนเริ่มเกม
-// เคยพลาดตรงนี้มาแล้ว ไปเช็ค input.disabled ซึ่งถูกตั้งเป็น true ตอนเริ่มส่งอยู่แล้ว
-// เงื่อนไขจึงเป็นเท็จตลอด ปุ่มค้างที่ ประมวลผล... และพิมพ์ได้ครั้งเดียวทั้งเกม
-// คราวนี้เก็บสถานะไว้ในตัวแปรของตัวเอง ไม่ไปอ่านจากหน้าจอ
 function setBusy(on) {
   busy = on;
   const input = document.getElementById("chatInput");
@@ -229,12 +303,10 @@ function setBusy(on) {
   const lock = on || gameOver || deadlineReached;
   input.disabled = lock;
   btn.disabled = lock;
-  if (btnText) btnText.textContent = gameOver ? "จบเกม" : (on ? "ประมวลผล..." : "ส่งคำสั่ง");
+  if (btnText) btnText.textContent = gameOver ? "คดีปิดแล้ว" : (on ? "กำลังประมวลผล..." : "ส่งคำสั่ง");
   if (!lock) input.focus();
 }
 
-// ถือล็อกตลอดทั้งงาน ไม่ใช่ต่อหนึ่งคำสั่ง
-// คำสั่งพ่วงหลายขั้นจึงเดินจนจบโดยไม่มีคำสั่งอื่นแทรกกลางทาง
 async function locked(fn) {
   if (busy || gameOver || deadlineReached) return false;
   setBusy(true);
@@ -246,9 +318,6 @@ async function locked(fn) {
   return true;
 }
 
-// เส้นทางเดียวของทุกคำสั่ง คืน data ถ้าสำเร็จ คืน null ถ้าเรียกไม่ได้
-// เดิมมีสามเส้นทางแยกกัน แต่ละเส้นตรวจไม่เหมือนกัน ปุ่มคำสั่งพ่วงจึงไม่ดักเน็ตหลุด
-// และไม่ปิดหน้าจอตอนคดีปิด กล่าวหาผ่านปุ่มแล้วยังพิมพ์ต่อได้
 async function submit(text, opts = {}) {
   if (gameOver || deadlineReached) return null;
   showLoading();
@@ -267,18 +336,15 @@ async function submit(text, opts = {}) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    if (gameOver) return null; // Ignore late responses after the deadline closed the case.
+    if (gameOver) return null;
     if (data.new_state) gameState = data.new_state;
     anchorClock();
     updateLocationHUD();
     updateClock();
+    updateCaseBoardProgress();
     removeLoading();
     renderSystem(data.decision, data.parsed, opts.isRoomLook);
 
-    // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
-    // กล่าวหาผ่านเงื่อนไขแล้วจึงปิดคดี ส่วนคำสั่งที่หลักฐานไม่พอยังเล่นต่อได้
-    // หมดเวลาก็ปิดคดีเหมือนกัน ฝั่งกฎเป็นคนใส่ ending_id มาให้ในสถานะ
-    // จึงดูที่ ending_id ที่เดียวพอ ไม่ต้องไปจำชื่อกฎข้อไหนไว้ในหน้าเว็บ
     if (gameState && gameState.ending_id) showGameOver();
     return data;
   } catch (err) {
@@ -295,7 +361,7 @@ function showLoading() {
   loadingDiv.id = "activeLoading";
   loadingDiv.innerHTML = `
     <div class="spinner"></div>
-    <span>NeSy Engine กำลังตีความและตรวจกฎ${rulesCount ? " " + rulesCount + " ข้อ" : ""}...</span>
+    <span>NeSy Engine กำลังตีความคำสั่งและตรวจสอบกฎ...</span>
   `;
   feed.appendChild(loadingDiv);
   feed.scrollTop = feed.scrollHeight;
@@ -313,24 +379,22 @@ async function sendMessage(e) {
     const data = await submit(text);
     if (!data || gameOver) return;
 
-    // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
-    // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
-    // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
     const steps = parseSteps(data.parsed);
     if (steps.length > 1) offerSteps(steps);
   });
 }
 
 function showGameOver() {
-  if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
+  if (gameOver) return;
   gameOver = true;
   if (clockTimer !== null) clearInterval(clockTimer);
   const input = document.getElementById("chatInput");
   const btn = document.getElementById("sendBtn");
-  input.disabled = true;
-  btn.disabled = true;
-  input.placeholder = "คดีปิดแล้ว";
-  document.getElementById("sendBtnText").textContent = "จบเกม";
+  if (input) input.disabled = true;
+  if (btn) btn.disabled = true;
+  if (input) input.placeholder = "คดีปิดแล้ว";
+  const bText = document.getElementById("sendBtnText");
+  if (bText) bText.textContent = "จบเกม";
 
   const feed = document.getElementById("chatFeed");
   const box = document.createElement("div");
@@ -344,9 +408,6 @@ function showGameOver() {
   feed.scrollTop = feed.scrollHeight;
 }
 
-// ============================================================
-// คิวคำสั่งพ่วง — แปลง alternatives เป็นลำดับขั้นแล้วทำทีละขั้น
-// ============================================================
 function parseSteps(parsed) {
   if (!parsed || (parsed.action !== "ambiguous" && parsed.action !== "unknown")) return [];
   return (parsed.alternatives || [])
@@ -359,11 +420,6 @@ function parseSteps(parsed) {
     .filter(Boolean);
 }
 
-// ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งหมด" หรือ "เลือกอย่างใดอย่างหนึ่ง"
-//   "ไปที่ ก แล้วตรวจ ข"  -> ['move ก','examine ข']    ทำทั้งสอง
-//   "พาไปห้องอื่นหน่อย"    -> ['move ก','move ข',...]   เลือกอันเดียว
-// หน้าตาใน alternatives เหมือนกันทุกอย่าง จึงห้ามเดาแทนผู้เล่น
-// ให้เขากดเอง แม่นกว่าเดาผิดแล้วเผาเวลาในเกมทิ้ง
 function offerSteps(steps) {
   const feed = document.getElementById("chatFeed");
   const box = document.createElement("div");
@@ -393,17 +449,12 @@ function offerSteps(steps) {
   feed.scrollTop = feed.scrollHeight;
 }
 
-// ใช้เส้นทางเดียวกับการพิมพ์เอง จึงได้การล็อก การดักเน็ตหลุด และการปิดหน้าจอตอนคดีปิด
-// มาเหมือนกันทั้งหมด โดยไม่ต้องเขียนซ้ำ
 async function runSteps(steps) {
   const started = await locked(async () => {
     for (const [i, st] of steps.entries()) {
       renderUser(steps.length > 1 ? `(ขั้นที่ ${i + 1}) ${st.label}` : st.label);
       const data = await submit(`${st.action} ${st.target}`);
       const left = steps.length - i - 1;
-
-      // ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
-      // คดีปิดกลางทางก็หยุดเหมือนกัน ที่เหลือไม่มีความหมายแล้ว
       if (!data || !data.decision.allowed || gameOver) {
         if (left > 0) renderError(`ยกเลิกอีก ${left} ขั้นที่รออยู่ เพราะขั้นนี้ไปต่อไม่ได้`);
         return;
@@ -419,7 +470,7 @@ function removeLoading() {
 }
 
 // ============================================================
-// 7. RENDER FUNCTIONS
+// 4. RENDER FUNCTIONS
 // ============================================================
 function renderUser(text) {
   const feed = document.getElementById("chatFeed");
@@ -445,9 +496,8 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     statusBadge = `<span class="badge denied">✗ ปฏิเสธ (DENIED)</span>`;
   }
 
-  const modeLabel = "โหมด B (NeSy Engine)";
+  const modeLabel = "NeSy Engine";
 
-  // Reasoning Chain (FE-1 Core)
   let reasoningHtml = "";
   if (steps.length > 0) {
     if (decision.allowed) {
@@ -513,3 +563,4 @@ function escapeHtml(t) {
   div.textContent = t;
   return div.innerHTML;
 }
+

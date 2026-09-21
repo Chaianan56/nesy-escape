@@ -5,7 +5,6 @@ schemas.py — สัญญากลาง (Contract) ระหว่าง Neur
 - Neural Layer  : รับข้อความดิบ  -> ต้องคืน ParsedCommand
 - Symbolic Layer: รับ ParsedCommand -> ต้องคืน Decision
 
-ห้ามแก้ไฟล์นี้คนเดียว ต้องตกลงกันทั้งทีมก่อนเสมอ
 """
 
 from enum import Enum
@@ -15,9 +14,7 @@ from pydantic import BaseModel, Field
 
 # ============================================================
 # 1) ACTION — รายการสิ่งที่ผู้เล่นทำได้ทั้งหมด
-#    ⚠️ TODO ทีม: เคาะให้ครบก่อนเริ่มเขียนโค้ด
 #    ถ้า LLM ตีความออกมาเป็น action นอกลิสต์นี้ = ถือว่าไม่ผ่าน
-# ============================================================
 class ActionType(str, Enum):
     EXAMINE = "examine"        # ตรวจสอบวัตถุ/หลักฐาน
     TAKE = "take"              # หยิบ/เก็บ
