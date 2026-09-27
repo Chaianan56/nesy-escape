@@ -71,6 +71,12 @@ def _is_quota_error(e: Exception) -> bool:
     return "RESOURCE_EXHAUSTED" in text or "429" in text
 
 
+def _is_transient(e: Exception) -> bool:
+    """Gemini ค้างหรือล่มชั่วคราว ลองคีย์เดิมซ้ำมักผ่าน (วัดจริง ~1 ใน 4 ค้างจน 504)"""
+    text = str(e)
+    return any(s in text for s in ("DEADLINE_EXCEEDED", "504", "503", "UNAVAILABLE", "timed out", "Timeout"))
+
+
 def _clients() -> list:
     """คืนไคลเอนต์ของทุกคีย์ตามลำดับที่เขียนไว้
 
@@ -135,12 +141,15 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     )
 
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
+    # ค้าง/ล่มชั่วคราวลองคีย์เดิมซ้ำ ครั้งละไม่เกิน 3 วิ (ปกติตอบใน ~2 วิ) จนหมดงบ 8 วิ
     # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
     last_error: Optional[Exception] = None
-    deadline = time.monotonic() + 12
-    for client in clients:
-        remaining_ms = int((deadline - time.monotonic()) * 1000)
-        if remaining_ms <= 0:
+    deadline = time.monotonic() + 8
+    queue = list(clients)
+    while queue:
+        client = queue[0]
+        remaining_ms = min(int((deadline - time.monotonic()) * 1000), 3000)
+        if remaining_ms <= 500:
             break
         try:
             # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
@@ -148,7 +157,10 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                 model=DEFAULT_MODEL,
                 contents=prompt_content,
                 config=types.GenerateContentConfig(
+                    # SDK ส่ง timeout เป็น deadline ฝั่งเซิร์ฟเวอร์ซึ่งต้อง >=10 วิ จึงกำหนด header เอง
+                    # แล้วใช้ timeout แค่ตัดฝั่งเรา
                     http_options=types.HttpOptions(timeout=remaining_ms,
+                        headers={"X-Server-Timeout": "10"},
                         retry_options=types.HttpRetryOptions(attempts=1)),
                     system_instruction=SYSTEM_INTERPRET_PROMPT,
                     response_mime_type="application/json",
@@ -163,7 +175,9 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
             return parsed_result
         except Exception as e:
             last_error = e
-            if not _is_quota_error(e):
+            if _is_quota_error(e):
+                queue.pop(0)
+            elif not _is_transient(e):
                 break
     error_type = NeuralQuotaExceeded if _is_quota_error(last_error) else NeuralUnavailable
     raise error_type(

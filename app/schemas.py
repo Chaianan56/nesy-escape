@@ -56,6 +56,10 @@ class ParsedCommand(BaseModel):
         default_factory=list,
         description="ถ้า action=AMBIGUOUS ให้ใส่ตัวเลือกที่เป็นไปได้ไว้ที่นี่",
     )
+    sequence: bool = Field(
+        False,
+        description="true เมื่อ alternatives คือขั้นที่ผู้เล่นสั่งให้ทำทั้งหมดตามลำดับ ไม่ใช่ตัวเลือกให้เลือกอย่างเดียว",
+    )
 
 
 # ============================================================

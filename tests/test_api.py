@@ -65,6 +65,17 @@ def test_background_unlocks_only_after_source_is_discovered():
     assert result['background'][0]['requires_evidence'] == ['secret_file']
 
 
+def test_intro_clock_starts_once_after_enter(monkeypatch):
+    monkeypatch.setattr(main.time, 'time', lambda: 1000)
+    client.post('/new-game')
+    assert client.get('/scene').json()['initial_state']['started_at'] is None
+    assert client.post('/clock').json()['new_state']['elapsed_seconds'] == 0
+    assert client.post('/start').json()['new_state']['started_at'] == 1000
+    monkeypatch.setattr(main.time, 'time', lambda: 1010)
+    assert client.post('/start').json()['new_state']['started_at'] == 1000
+    assert client.post('/clock').json()['new_state']['elapsed_seconds'] == 10
+
+
 def test_requested_hint_does_not_grant_evidence_or_deductions():
     state = GameState(discovered_evidence=['pocket_watch', 'wall_clock'])
     seed_state(state)
@@ -143,12 +154,12 @@ def fake_llm(monkeypatch):
 
     ทดสอบท่อ ไม่ได้ทดสอบ Gemini การตีความภาษาไทยจริงอยู่ใน test_neural.py
     """
-    def install(action, target=None, alternatives=None, raises=None):
+    def install(action, target=None, alternatives=None, raises=None, sequence=False):
         def fake(text, state):
             if raises:
                 raise raises
             return ParsedCommand(action=action, target=target, raw_text=text,
-                                 confidence=1.0, alternatives=alternatives or [])
+                                 confidence=1.0, alternatives=alternatives or [], sequence=sequence)
         monkeypatch.setattr(main, "interpret", fake)
     return install
 
@@ -312,3 +323,15 @@ def test_alternatives_survive_when_the_player_can_already_see_them(fake_llm):
 
     body = post("ดูของสองชิ้นนี้", GameState()).json()
     assert len(body["parsed"]["alternatives"]) == len(near[:2])
+
+
+def test_sequence_keeps_steps_the_player_named_in_another_car(fake_llm):
+    """"ไปตู้ ก แล้วตรวจ ข" — ข ยังมองไม่เห็นจนกว่าจะเดินไปถึง ขั้นนั้นต้องไม่ถูกตัดทิ้ง"""
+    far = next(oid for oid, o in main.engine.world["objects"].items()
+               if o.get("location") and o["location"] != GameState().current_location)
+    steps = [f"move {main.engine.world['objects'][far]['location']}", f"examine {far}"]
+    fake_llm(ActionType.AMBIGUOUS, alternatives=steps, sequence=True)
+
+    body = post("ไปแล้วตรวจ", GameState()).json()
+    assert body["parsed"]["alternatives"] == steps
+    assert body["new_state"] == GameState().model_dump(mode="json"), "ตัวคำสั่งพ่วงเองต้องไม่เปลี่ยนสถานะ"

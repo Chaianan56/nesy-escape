@@ -11,6 +11,7 @@ main.py — Interaction Layer / ท่อเชื่อมระบบ
 """
 
 from pathlib import Path
+import logging
 import time
 
 from fastapi import FastAPI, HTTPException, Depends
@@ -122,8 +123,15 @@ def pillars(session: Session = Depends(session_for)):
 @app.post("/new-game")
 def new_game(session: Session = Depends(session_for)):
     """Explicit restart; a normal page reload resumes the existing game."""
-    session.state = GameState(started_at=time.time())
+    session.state = GameState()
     session.submitted_evidence = None
+    return {"new_state": session.state.model_dump()}
+
+
+@app.post("/start")
+def start_game(session: Session = Depends(session_for)):
+    if session.state.started_at is None and not session.state.ending_id:
+        session.state = session.state.model_copy(update={"started_at": time.time()})
     return {"new_state": session.state.model_dump()}
 
 
@@ -201,6 +209,7 @@ def _handle_command(req: CommandRequest):
     try:
         parsed = interpret(req.text, req.state)
     except Exception as e:
+        logging.getLogger(__name__).warning("interpret failed: %s", e)
         raise HTTPException(status_code=502, detail="Neural: บริการแปลคำสั่งไม่ตอบกลับ กรุณาลองคำสั่งสั้น เช่น ไปตู้ 4 หรือตรวจตามชื่อในสมุดคดี") from e
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
@@ -214,6 +223,8 @@ def _handle_command(req: CommandRequest):
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
     if decision.allowed:
         new_state = apply_changes(req.state, decision.state_changes)
+        if new_state.started_at is None:
+            new_state = new_state.model_copy(update={"started_at": time.time()})
     elif decision.state_changes.get("ending"):
         # คำสั่งที่ถูกปฏิเสธไม่กินเวลาและไม่เปลี่ยนอะไร ยกเว้นกรณีที่ตัวกฎเองเป็นคนปิดคดี
         # (หมดเวลา) ตรงนั้นสถานะต้องปิดจริง ไม่ใช่แค่ขึ้นข้อความฉากจบแล้วเล่นต่อได้เรื่อยๆ
@@ -225,9 +236,11 @@ def _handle_command(req: CommandRequest):
     # ตัวเลือกที่ยื่นกลับไปต้องไม่เอ่ยชื่อของที่ผู้เล่นยังหาไม่เจอ
     # ไม่งั้นคำสั่งกว้างๆ อย่าง "ปลดทุกอย่าง" จะกลายเป็นเมนูเฉลยชื่อของทั้งขบวน
     # LLM มองเห็นตารางทั้งโลก แต่ไม่รู้ว่าผู้เล่นเดินไปถึงไหนแล้ว จึงต้องกรองที่ชั้นนี้
+    # ยกเว้นคำสั่งพ่วง: ผู้เล่นเอ่ยชื่อเองทุกขั้น และของในขั้นหลังอาจมองเห็นได้หลังเดินไปถึงเท่านั้น
+    # ทุกขั้นยังต้องผ่านกฎตอนทำจริงเหมือนพิมพ์เอง
     parsed.alternatives = [a for a in parsed.alternatives
                            if len(a.split()) == 2 and a.split()[0] in {v.value for v in ActionType}
-                           and engine.offerable(a.split()[1], req.state)]
+                           and (parsed.sequence or engine.offerable(a.split()[1], req.state))]
 
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
 

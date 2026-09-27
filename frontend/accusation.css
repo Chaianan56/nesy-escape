@@ -1,0 +1,8 @@
+.accusation-dialog{box-sizing:border-box;width:min(760px,94vw);max-height:88vh;overflow:auto;background:#171c17;color:#e4dfcc;border:1px solid #c5ab72;padding:24px;font:14px/1.7 Tahoma,sans-serif}
+.accusation-dialog::backdrop{background:#050907cc}
+.accusation-dialog h2{margin-top:0;color:#ddc38f}
+.accusation-evidence{display:flex;gap:14px;padding:12px;border-bottom:1px solid #393e2d;cursor:pointer}
+.accusation-evidence input{flex:none;align-self:flex-start;margin-top:5px;width:18px;height:18px;accent-color:#c5ab72}
+.accusation-evidence small{display:block;color:#b1b4a3;margin-top:5px}
+.accusation-actions{display:flex;flex-wrap:wrap;gap:12px;position:sticky;bottom:-24px;padding:16px 0;background:#171c17}
+.accusation-actions button{padding:10px 14px;border:1px solid #c5ab72;background:#252d22;color:#e4dfcc}

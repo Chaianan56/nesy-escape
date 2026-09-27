@@ -100,6 +100,12 @@ async function initGame() {
 
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
+    if (typeof NovelUI !== 'undefined' && gameState.started_at == null && !gameState.ending_id) {
+      await NovelUI.intro(sceneData.briefing);
+      const started = await fetch(`${API_BASE}/start`, {method:'POST'});
+      if (!started.ok) throw Error(`HTTP ${started.status}`);
+      gameState = (await started.json()).new_state;
+    }
     anchorClock();
     deadlineReached = false;
     if (clockTimer !== null) clearInterval(clockTimer);
@@ -230,7 +236,9 @@ function setBusy(on) {
   const btn = document.getElementById("sendBtn");
   const btnText = document.getElementById("sendBtnText");
   if (!input || !btn) return;
-  const lock = on || gameOver || deadlineReached;
+  // บทสนทนาไม่ล็อกช่องพิมพ์ ผู้เล่นพิมพ์คำสั่งถัดไปได้เลย ล็อกเฉพาะหน้าจอเปิดเรื่อง
+  const intro = document.getElementById("introScreen");
+  const lock = on || gameOver || deadlineReached || (!!intro && !intro.hidden);
   input.disabled = lock;
   btn.disabled = lock;
   if (btnText) btnText.textContent = gameOver ? "จบเกม" : (on ? "ประมวลผล..." : "ส่งคำสั่ง");
@@ -290,8 +298,13 @@ async function submit(text, opts = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text, ...(opts.submittedEvidence ? {submitted_evidence: opts.submittedEvidence} : {}) }),
+      signal: AbortSignal.timeout(12000), // longer than the server's 8s Gemini budget
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      if (typeof error.detail === 'string') { removeLoading(); renderError(`⚠️ ${error.detail}`); return null; }
+      throw new Error(`HTTP ${res.status}`);
+    }
     const data = await res.json();
 
     if (gameOver) return null; // Ignore late responses after the deadline closed the case.
@@ -300,8 +313,14 @@ async function submit(text, opts = {}) {
     updateLocationHUD();
     updateClock();
     removeLoading();
-    renderSystem(data.decision, data.parsed, opts.isRoomLook);
+    // กล่าวหาโดยยังไม่ยื่นหลักฐาน: เปิดหน้าต่างเลือกหลักฐานแทนการให้พิมพ์เลข
+    const askEvidence = data.decision.violated_rule_id === 'R_SUBMITTED_EVIDENCE' && !opts.submittedEvidence
+      && data.parsed?.target && typeof AccusationUI !== 'undefined';
+    if (askEvidence) AccusationUI.open(data.parsed.target);
+    // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
+    else if (!(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
     if (typeof GameArt !== 'undefined') GameArt.onResult(data);
+    if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
 
     // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
@@ -313,7 +332,9 @@ async function submit(text, opts = {}) {
     return data;
   } catch (err) {
     removeLoading();
-    renderError(`⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
+    renderError(err.name === 'TimeoutError'
+      ? '⚠️ เซิร์ฟเวอร์ตอบช้าเกินไป ลองส่งคำสั่งอีกครั้ง'
+      : `⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
     return null;
   }
 }
@@ -335,20 +356,28 @@ async function sendMessage(e) {
   e.preventDefault();
   const input = document.getElementById("chatInput");
   const text = input.value.trim();
+  // ระหว่างบทสนทนา: ช่องว่าง = อ่านต่อ, มีข้อความ = ข้ามบทสนทนาแล้วส่งคำสั่งเลย
+  if (typeof NovelUI !== 'undefined' && NovelUI.active()) {
+    if (!text) { NovelUI.next(); return; }
+    NovelUI.close();
+  }
   if (!text) return;
 
+  let steps = [], sequence = false;
   await locked(async () => {
     renderUser(text);
     input.value = "";
     const data = await submit(text);
     if (!data || gameOver) return;
 
-    // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
+    // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous + sequence พร้อมลิสต์ขั้นตอน
     // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
     // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
-    const steps = parseSteps(data.parsed);
-    if (steps.length > 1) offerSteps(steps);
+    steps = parseSteps(data.parsed);
+    sequence = !!data.parsed.sequence;
+    if (!sequence && steps.length > 1) offerSteps(steps);
   });
+  if (sequence && steps.length) await runSequence(steps);
 }
 
 async function restartGame() {
@@ -362,6 +391,7 @@ async function restartGame() {
 }
 
 function showGameOver() {
+  if (typeof NovelUI !== 'undefined') NovelUI.close();
   if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
   gameOver = true;
   if (typeof PixelUI !== 'undefined') PixelUI.refresh();
@@ -388,39 +418,56 @@ function showGameOver() {
 // ============================================================
 // คิวคำสั่งพ่วง — แปลง alternatives เป็นลำดับขั้นแล้วทำทีละขั้น
 // ============================================================
+const VERB_TH = { examine: "ตรวจ", move: "ไป", interrogate: "สอบปากคำ", take: "หยิบ",
+                  accuse: "กล่าวหา", burn: "เผา", unlock: "ปลดล็อก", use: "ใช้" };
+const IRREVERSIBLE = new Set(["accuse", "burn"]);
+
 function parseSteps(parsed) {
   if (!parsed || (parsed.action !== "ambiguous" && parsed.action !== "unknown")) return [];
+  const known = { ...locationsMap, ...objectsMap, ...suspectsMap };
   return (parsed.alternatives || [])
     .map((a) => {
       const [action, target] = a.split(/\s+/);
-      const known = { ...locationsMap, ...objectsMap, ...suspectsMap };
-      if (!action || !target || !known[target]) return null;
-      return { action, target, label: known[target] };
+      // คำสั่งพ่วงเก็บของที่ยังมองไม่เห็นไว้ด้วย (อาจเห็นหลังเดินไปถึง) แต่ไม่เอ่ยชื่อจริงให้
+      if (!action || !target || (!known[target] && !parsed.sequence)) return null;
+      return { action, target, label: `${VERB_TH[action] || action} ${known[target] || "สิ่งที่คุณพิมพ์ไว้"}` };
     })
     .filter(Boolean);
 }
 
-// ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งหมด" หรือ "เลือกอย่างใดอย่างหนึ่ง"
-//   "ไปที่ ก แล้วตรวจ ข"  -> ['move ก','examine ข']    ทำทั้งสอง
-//   "พาไปห้องอื่นหน่อย"    -> ['move ก','move ข',...]   เลือกอันเดียว
-// หน้าตาใน alternatives เหมือนกันทุกอย่าง จึงห้ามเดาแทนผู้เล่น
-// ให้เขากดเอง แม่นกว่าเดาผิดแล้วเผาเวลาในเกมทิ้ง
-function offerSteps(steps) {
+// สั่งหลายอย่างต่อกัน (sequence) ทำให้เลยตามลำดับ
+// ยกเว้นกล่าวหา/เผา ที่ย้อนกลับไม่ได้ หยุดรอให้ผู้เล่นกดยืนยันก่อน
+async function runSequence(steps) {
+  const cut = steps.findIndex(st => IRREVERSIBLE.has(st.action));
+  const now = cut === -1 ? steps : steps.slice(0, cut);
+  if (now.length && !(await runSteps(now))) return;
+  if (cut !== -1 && !gameOver) offerSteps(steps.slice(cut), true);
+}
+
+// พิมพ์กำกวมจนต้องเลือก ("พาไปห้องอื่นหน่อย") ให้กดเลือกเอง แม่นกว่าเดาผิดแล้วเผาเวลาในเกมทิ้ง
+// confirm=true ใช้ยืนยันขั้นที่ย้อนกลับไม่ได้ของคำสั่งพ่วง ปุ่มเดียวทำที่เหลือทั้งหมด
+function offerSteps(steps, confirm = false) {
   const feed = document.getElementById("chatFeed");
   const box = document.createElement("div");
   box.className = "msg-system";
-  box.innerHTML =
-    `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>` +
-    `พิมพ์คำสั่งที่ต้องการทีละอย่าง</div>` +
-    `<div class="chips-scroll" id="stepChoices"></div>`;
+  box.innerHTML = confirm
+    ? `<div class="story-text"><strong>ขั้นต่อไปย้อนกลับไม่ได้</strong><br>กดยืนยันถ้าต้องการทำต่อ</div>`
+    : `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>เลือกสิ่งที่ต้องการ</div>`;
+  const wrap = document.createElement("div");
+  wrap.className = "chips-scroll";
+  box.appendChild(wrap);
   feed.appendChild(box);
 
-  const wrap = box.querySelector("#stepChoices");
-  steps.forEach(st => {
-    const item = document.createElement("div");
-    item.textContent = `${st.action} ${st.target} — ${st.label}`;
-    wrap.appendChild(item);
-  });
+  const button = (text, run) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip-btn";
+    b.textContent = text;
+    b.onclick = () => { wrap.remove(); run(); };
+    wrap.appendChild(b);
+  };
+  if (confirm) button(`ยืนยัน: ${steps.map(st => st.label).join(" → ")}`, () => runSteps(steps));
+  else steps.forEach(st => button(st.label, () => runSteps([st])));
 
   feed.scrollTop = feed.scrollHeight;
 }
@@ -428,6 +475,7 @@ function offerSteps(steps) {
 // ใช้เส้นทางเดียวกับการพิมพ์เอง จึงได้การล็อก การดักเน็ตหลุด และการปิดหน้าจอตอนคดีปิด
 // มาเหมือนกันทั้งหมด โดยไม่ต้องเขียนซ้ำ
 async function runSteps(steps) {
+  let done = false;
   const started = await locked(async () => {
     for (const [i, st] of steps.entries()) {
       renderUser(steps.length > 1 ? `(ขั้นที่ ${i + 1}) ${st.label}` : st.label);
@@ -441,8 +489,10 @@ async function runSteps(steps) {
         return;
       }
     }
+    done = true;
   });
   if (!started) renderError("มีคำสั่งกำลังประมวลผลอยู่ รอให้เสร็จก่อนแล้วค่อยกดใหม่");
+  return done;
 }
 
 function removeLoading() {
