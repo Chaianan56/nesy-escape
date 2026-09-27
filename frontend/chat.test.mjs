@@ -19,6 +19,36 @@ import vm from "node:vm";
 
 const SRC = readFileSync(new URL("./chat.js", import.meta.url), "utf-8");
 
+test("เลขหลักฐานที่พิมพ์อ้างอิงรายการในสมุดคดี", async () => {
+  let body;
+  const c = loadChat(async (url, options) => {
+    if (url.endsWith('/journal')) return {ok:true,json:async()=>({evidence:[{id:'pocket_watch'},{id:'wall_clock'}]})};
+    body=JSON.parse(options.body); return reply();
+  });
+  await c.sandbox.submit('กล่าวหากิเดียน หลักฐาน: 2, 1');
+  assert.deepEqual(body,{text:'กล่าวหากิเดียน',submitted_evidence:['wall_clock','pocket_watch']});
+});
+
+test("เลขหลักฐานที่ไม่มีอยู่ไม่ถูกส่งเป็นคำกล่าวหา", async () => {
+  let commands=0;
+  const c = loadChat(async url => {
+    if (url.endsWith('/journal')) return {ok:true,json:async()=>({evidence:[]})};
+    commands++; return reply();
+  });
+  await c.sandbox.submit('กล่าวหากิเดียน หลักฐาน: 99');
+  assert.equal(commands,0);
+});
+
+test("ยื่นเฉพาะหลักฐานที่เลือกโดยไม่ส่งสถานะเกม", async () => {
+  let body;
+  const c = loadChat(async (url, options) => {
+    body = JSON.parse(options.body);
+    return reply();
+  });
+  await c.sandbox.submit('กล่าวหา', {submittedEvidence: ['pocket_watch']});
+  assert.deepEqual(body, {text: 'กล่าวหา', submitted_evidence: ['pocket_watch']});
+});
+
 test("ส่งเฉพาะข้อความ ไม่ส่งสถานะที่ client แก้เอง", async () => {
   let body;
   const c = loadChat(async (url, options) => {

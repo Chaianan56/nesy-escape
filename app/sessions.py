@@ -15,6 +15,7 @@ MAX_SESSIONS = 1000
 @dataclass
 class Session:
     state: GameState = field(default_factory=lambda: GameState(started_at=time.time()))
+    submitted_evidence: list[str] | None = None
     touched: float = field(default_factory=time.monotonic)
     lock: Lock = field(default_factory=Lock)
 
@@ -45,6 +46,13 @@ def session_for(request: Request, response: Response):
             response.set_cookie(COOKIE, token, httponly=True, samesite="strict",
                                 secure=request.url.scheme == "https", max_age=TTL)
         session.touched = now
+    # These endpoints only read an immutable snapshot. A slow model call must not
+    # prevent the player from opening the journal or requesting a hint.
+    if request.url.path in ('/journal', '/hint', '/pillars'):
+        snapshot = Session(state=session.state.model_copy(deep=True),
+                           submitted_evidence=list(session.submitted_evidence) if session.submitted_evidence is not None else None)
+        yield snapshot
+        return
     with session.lock:
         yield session
         session.touched = time.monotonic()

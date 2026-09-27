@@ -296,28 +296,14 @@ def test_every_car_tells_you_where_else_you_can_go(engine):
         assert named, f"คำบรรยายของ {lid} ไม่ได้เอ่ยถึงตู้อื่นเลย"
 
 
-def test_evidence_that_needs_a_partner_says_where_to_look(engine):
-    """หลักฐานที่ต้องเอาไปจับคู่กับของในตู้อื่น ต้องบอกด้วยว่าให้ไปดูที่ไหน
-
-    ข้อสรุปหลายข้อต้องใช้หลักฐานสองชิ้นที่อยู่คนละตู้ ถ้าคำบรรยายไม่ชี้ทาง
-    ผู้เล่นต้องเดาเอาเอง ซึ่งกลายเป็นทางตันที่มองด้วยตาไม่เห็น
-    """
-    w = engine.world
-    locs = w["locations"]
-    for did, cond in w["deductions"].items():
-        need = cond.get("requires_evidence", [])
-        placed = [(e, w["objects"][e].get("location")) for e in need]
-        cars = {loc for _, loc in placed if loc}
-        if len(cars) < 2:
-            continue
-        for eid, where in placed:
-            if not where:
-                continue
-            others = {loc for _, loc in placed if loc and loc != where}
-            desc = w["objects"][eid]["description"]
-            assert any(locs[o]["name_th"] in desc for o in others), (
-                f"{eid} ต้องใช้คู่กับของในตู้อื่นเพื่อสรุป {did} "
-                f"แต่คำบรรยายไม่ได้บอกว่าให้ไปดูที่ตู้ไหน")
+def test_physical_clues_describe_observations_without_identifying_owner(engine):
+    for key in ('second_teacup', 'wax_seal_imprint', 'obsidian_cufflink', 'red_soot'):
+        description = engine.world['objects'][key]['description']
+        assert 'Gideon' not in description
+        assert 'กิเดียน' not in description
+    # Matching observations remain available; the player makes the connection.
+    for key in ('wax_seal_imprint', 'gideon_signet_ring'):
+        assert 'สี่เหลี่ยมข้าวหลามตัด' in engine.world['objects'][key]['description']
 
 
 def test_a_player_who_only_reads_the_game_can_finish(engine):

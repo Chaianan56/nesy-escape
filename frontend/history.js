@@ -1,0 +1,40 @@
+// Move the original log so messages, rule disclosures and action handlers stay intact.
+window.addEventListener('DOMContentLoaded', () => {
+  const dialog = document.getElementById('historyDialog');
+  const feed = document.getElementById('chatFeed');
+  const home = document.getElementById('latestChatHost');
+  let opener;
+  let savedScroll = 0;
+
+  function updatePreview() {
+    const messages = [...feed.children];
+    const latest = messages.findLast(node => node.classList.contains('msg-system') || node.classList.contains('msg-error'));
+    // Keep follow-up choices and loading indicators alongside the latest answer.
+    const lastAnswer = messages.findLast(node => node.querySelector('.card-header-bar')) || latest;
+    const start = Math.max(0, messages.indexOf(lastAnswer));
+    messages.forEach((node, index) => node.classList.toggle('history-older', index < start));
+  }
+  new MutationObserver(updatePreview).observe(feed, {childList: true});
+  updatePreview();
+
+  document.querySelectorAll('[data-open-history]').forEach(button => {
+    button.addEventListener('click', () => {
+      opener = button;
+      savedScroll = feed.scrollTop;
+      document.getElementById('historyChatHost').appendChild(feed);
+      dialog.showModal();
+      document.body.classList.add('history-is-open');
+      feed.scrollTop = feed.scrollHeight;
+    });
+  });
+  document.getElementById('closeHistory').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => {
+    home.appendChild(feed);
+    feed.scrollTop = savedScroll;
+    document.body.classList.remove('history-is-open');
+    opener?.focus();
+  });
+  document.getElementById('historyLatest').addEventListener('click', () => {
+    feed.scrollTo({top: feed.scrollHeight, behavior: 'smooth'});
+  });
+});

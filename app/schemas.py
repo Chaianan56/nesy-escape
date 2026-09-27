@@ -104,6 +104,7 @@ class Decision(BaseModel):
 
 class CommandRequest(BaseModel):
     text: str
+    submitted_evidence: Optional[List[str]] = Field(None, max_length=64)
     # Compatibility only: HTTP handlers always replace this with server state.
     state: GameState = Field(default_factory=GameState)
 

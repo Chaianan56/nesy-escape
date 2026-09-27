@@ -50,7 +50,29 @@ def test_journal_shows_only_discovered_evidence_and_earned_deductions():
     state = GameState(discovered_evidence=['pocket_watch', 'liora_time_estimate'])
     found = state_post('/journal', state).json()
     assert {e['id'] for e in found['evidence']} == set(state.discovered_evidence)
-    assert 'D01_TRUE_MURDER_WINDOW' in {d['id'] for d in found['deductions']}
+    assert found['deductions'] == []
+    assert found['pillars'] == {}
+    assert found['case_closed'] is False
+    state.ending_id = 'cold_arrival'
+    closed = state_post('/journal', state).json()
+    assert 'D01_TRUE_MURDER_WINDOW' in {d['id'] for d in closed['deductions']}
+
+
+def test_background_unlocks_only_after_source_is_discovered():
+    assert state_post('/journal', GameState()).json()['background'] == []
+    result = state_post('/journal', GameState(discovered_evidence=['secret_file'])).json()
+    assert len(result['background']) == 1
+    assert result['background'][0]['requires_evidence'] == ['secret_file']
+
+
+def test_requested_hint_does_not_grant_evidence_or_deductions():
+    state = GameState(discovered_evidence=['pocket_watch', 'wall_clock'])
+    seed_state(state)
+    result = client.post('/hint').json()
+    assert 'นาฬิกาสองเรือน' in result['text']
+    journal = client.post('/journal').json()
+    assert {e['id'] for e in journal['evidence']} == set(state.discovered_evidence)
+    assert journal['deductions'] == []
 
 
 @pytest.mark.parametrize("action", [ActionType.UNKNOWN, ActionType.AMBIGUOUS])
@@ -133,7 +155,7 @@ def fake_llm(monkeypatch):
 
 def post(text, state):
     seed_state(state)
-    return client.post("/command", json={"text": text})
+    return client.post("/command", json={"text": text, "submitted_evidence": state.discovered_evidence})
 
 
 def test_missing_vincent_clue_keeps_case_open_then_allows_accusation(fake_llm):
@@ -146,6 +168,41 @@ def test_missing_vincent_clue_keeps_case_open_then_allows_accusation(fake_llm):
     allowed = post("กล่าวหาวินเซนต์", state).json()
     assert allowed["decision"]["allowed"]
     assert allowed["new_state"]["ending_id"] == "the_scapegoat"
+
+
+@pytest.mark.parametrize('submission', [None, [], ['unknown'], ['wire_cutters', 'wire_cutters']])
+def test_accusation_rejects_missing_or_invalid_submission(fake_llm, submission):
+    fake_llm(ActionType.ACCUSE, 'vincent_gray')
+    state = GameState(discovered_evidence=['wire_cutters', 'vincent_blood', 'cut_copper_wire'])
+    seed_state(state)
+    result = client.post('/command', json={'text': 'กล่าวหาวินเซนต์', 'submitted_evidence': submission}).json()
+    assert result['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
+    assert result['new_state'] == state.model_dump()
+
+
+def test_submission_not_entire_inventory_decides_ending(fake_llm):
+    fake_llm(ActionType.ACCUSE, 'gideon_hart')
+    state = GameState(discovered_evidence=list(main.engine.world['objects']))
+    seed_state(state)
+    selected = ['dossier_missing_file_c', 'burnt_folder_c', 'file_c_initials']
+    result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': selected}).json()
+    assert result['decision']['allowed']
+    assert result['new_state']['ending_id'] == 'cold_justice'
+    assert result['new_state']['discovered_evidence'] == state.discovered_evidence
+    journal = client.post('/journal').json()
+    assert journal['submitted_evidence'] == selected
+    assert 'D01_TRUE_MURDER_WINDOW' not in {d['id'] for d in journal['deductions']}
+    client.post('/new-game')
+    assert client.post('/journal').json()['submitted_evidence'] is None
+
+
+def test_cannot_omit_known_exculpatory_evidence(fake_llm):
+    fake_llm(ActionType.ACCUSE, 'vincent_gray')
+    selected = ['wire_cutters', 'vincent_blood', 'cut_copper_wire']
+    seed_state(GameState(discovered_evidence=selected + ['pocket_watch', 'liora_time_estimate']))
+    result = client.post('/command', json={'text': 'กล่าวหาวินเซนต์', 'submitted_evidence': selected}).json()
+    assert not result['decision']['allowed']
+    assert result['new_state']['ending_id'] is None
 
 
 # ---------- ทะเบียนฉาก ----------

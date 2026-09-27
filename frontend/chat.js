@@ -50,7 +50,10 @@ async function tickClock() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}), signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${res.status}`);
+    }
     const data = await res.json();
     if (gameOver) return;
     // Keep action state if a command completed while this clock request was pending.
@@ -252,6 +255,16 @@ async function locked(fn) {
 // และไม่ปิดหน้าจอตอนคดีปิด กล่าวหาผ่านปุ่มแล้วยังพิมพ์ต่อได้
 async function submit(text, opts = {}) {
   if (gameOver || deadlineReached) return null;
+  if (text.trim() === 'ขอคำใบ้') {
+    try {
+      const response = await fetch(`${API_BASE}/hint`, {method:'POST'});
+      if (!response.ok) throw Error(`HTTP ${response.status}`);
+      const hint = await response.json();
+      const note = document.createElement('div'); note.className='msg-system';note.textContent=hint.text;
+      document.getElementById('chatFeed').appendChild(note);
+    } catch { renderError('โหลดคำใบ้ไม่สำเร็จ กรุณาลองใหม่'); }
+    return null;
+  }
   showLoading();
   try {
     if (!gameState) {
@@ -260,10 +273,23 @@ async function submit(text, opts = {}) {
       gameState = (await sRes.json()).initial_state;
     }
 
+    // Typed evidence numbers refer to the numbered entries in the journal.
+    const marker = text.indexOf('หลักฐาน:');
+    if (marker >= 0) {
+      const numbers = text.slice(marker + 'หลักฐาน:'.length).trim().split(/[\s,]+/);
+      const response = await fetch(`${API_BASE}/journal`, {method:'POST'});
+      if (!response.ok) throw Error(`HTTP ${response.status}`);
+      const journal = await response.json();
+      if (!numbers.length || numbers.some(n => !/^[1-9]\d*$/.test(n) || !journal.evidence[Number(n)-1])) {
+        removeLoading(); renderError('ระบุเลขหลักฐานจากสมุดคดี เช่น กล่าวหากิเดียน หลักฐาน: 1, 2, 3'); return null;
+      }
+      opts = {...opts, submittedEvidence: numbers.map(n => journal.evidence[Number(n)-1].id)};
+      text = text.slice(0, marker).trim();
+    }
     const res = await fetch(`${API_BASE}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text }),
+      body: JSON.stringify({ text: text, ...(opts.submittedEvidence ? {submitted_evidence: opts.submittedEvidence} : {}) }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -282,6 +308,7 @@ async function submit(text, opts = {}) {
     // หมดเวลาก็ปิดคดีเหมือนกัน ฝั่งกฎเป็นคนใส่ ending_id มาให้ในสถานะ
     // จึงดูที่ ending_id ที่เดียวพอ ไม่ต้องไปจำชื่อกฎข้อไหนไว้ในหน้าเว็บ
     if (gameState && gameState.ending_id) showGameOver();
+
     return data;
   } catch (err) {
     removeLoading();
@@ -383,25 +410,16 @@ function offerSteps(steps) {
   box.className = "msg-system";
   box.innerHTML =
     `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>` +
-    `เลือกทำทีละอย่าง หรือทำทั้งหมดเรียงตามลำดับ</div>` +
+    `พิมพ์คำสั่งที่ต้องการทีละอย่าง</div>` +
     `<div class="chips-scroll" id="stepChoices"></div>`;
   feed.appendChild(box);
 
   const wrap = box.querySelector("#stepChoices");
-  steps.forEach((st, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip-btn";
-    b.textContent = `${i + 1}. ${st.label}`;
-    b.onclick = () => { wrap.remove(); runSteps([st]); };
-    wrap.appendChild(b);
+  steps.forEach(st => {
+    const item = document.createElement("div");
+    item.textContent = `${st.action} ${st.target} — ${st.label}`;
+    wrap.appendChild(item);
   });
-  const all = document.createElement("button");
-  all.type = "button";
-  all.className = "chip-btn";
-  all.textContent = `▶ ทำทั้งหมด ${steps.length} ขั้นตามลำดับ`;
-  all.onclick = () => { wrap.remove(); runSteps(steps); };
-  wrap.appendChild(all);
 
   feed.scrollTop = feed.scrollHeight;
 }
