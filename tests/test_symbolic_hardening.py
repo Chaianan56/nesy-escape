@@ -111,7 +111,10 @@ def test_complete_walkthrough_uses_only_server_state(clients, monkeypatch):
     monkeypatch.setattr(main, 'interpret', lambda text, state: command(ActionType(text.split()[0]), text.split()[1]))
     steps = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))['steps']
     for action, target in steps:
-        result = a.post('/command', json={'text': f'{action} {target}'}).json()
+        payload = {'text': f'{action} {target}'}
+        if action == 'accuse':
+            payload['submitted_evidence'] = [e['id'] for e in a.post('/journal').json()['evidence']]
+        result = a.post('/command', json=payload).json()
         assert result['decision']['allowed'], result
     assert result['new_state']['ending_id'] == 'true_ending'
     assert a.get('/scene').json()['initial_state']['ending_id'] == 'true_ending'

@@ -29,6 +29,24 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DEFAULT_PILLARS = ("timeline", "motive", "opportunity", "corroboration")
 
 
+def accusation_submission(engine, cmd, state, submitted):
+    """Evaluate a player's submission without removing anything from their journal."""
+    rule = "R_SUBMITTED_EVIDENCE"
+    if submitted is None or not submitted:
+        message = "พิมพ์ชื่อผู้ถูกกล่าวหาพร้อมเลขหลักฐานจากสมุดคดี เช่น กล่าวหากิเดียน หลักฐาน: 1, 2, 3 การส่งคำกล่าวหาที่เข้าเงื่อนไขอาจจบคดี"
+    elif len(set(submitted)) != len(submitted) or not set(submitted) <= set(state.discovered_evidence):
+        message = "ใช้ได้เฉพาะหลักฐานที่ค้นพบแล้ว และเลือกแต่ละชิ้นได้ครั้งเดียว"
+    else:
+        # Check the complete known case first: omitting exculpatory facts must not bypass rules.
+        full = engine.decide(cmd, state)
+        if not full.allowed:
+            return full
+        offered = state.model_copy(update={"discovered_evidence": list(submitted)})
+        return engine.decide(cmd, offered)
+    return Decision(allowed=False, message=message, violated_rule_id=rule,
+                    reasoning_chain=[ReasoningStep(rule_id=rule, description=message, passed=False)])
+
+
 # ============================================================
 # CHECKERS — หนึ่งฟังก์ชันต่อหนึ่งชนิดของกฎ
 # คืน (ผ่านหรือไม่, รายละเอียดที่จะแสดงใน reasoning chain)

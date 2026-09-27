@@ -11,6 +11,7 @@ gemini_client.py — ส่วนประสานงาน Gemini API (Neuro A
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -136,13 +137,19 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
     # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
     last_error: Optional[Exception] = None
+    deadline = time.monotonic() + 12
     for client in clients:
+        remaining_ms = int((deadline - time.monotonic()) * 1000)
+        if remaining_ms <= 0:
+            break
         try:
             # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
             response = client.models.generate_content(
                 model=DEFAULT_MODEL,
                 contents=prompt_content,
                 config=types.GenerateContentConfig(
+                    http_options=types.HttpOptions(timeout=remaining_ms,
+                        retry_options=types.HttpRetryOptions(attempts=1)),
                     system_instruction=SYSTEM_INTERPRET_PROMPT,
                     response_mime_type="application/json",
                     response_schema=ParsedCommand,
