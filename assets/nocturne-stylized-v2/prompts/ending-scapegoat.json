@@ -1,0 +1,10 @@
+{
+  "id": "ending-scapegoat",
+  "prompt": "Use case: style-transfer. Remake Image 1 (EDIT TARGET) completely in the clear NON-PHOTOREALISTIC STYLIZED 3D ADVENTURE GAME art style of Image 2 (STYLE REFERENCE ONLY). User rejected realistic humans; all people MUST become deliberately designed cartoon game characters, angular expressive sculpted faces, slightly enlarged head and hands, broad sculpted hair locks, smooth painted skin, NO real actor likeness/pores/photographic eyes. All environments and objects use clean simplified polygon geometry, hand-painted textures, broad CEL/TOON SHADED tonal bands, subtle dark illustrated contour edges and matte highlights. Match Image 2's obvious cartoon/stylized rendering at thumbnail size; no photo filter, no live action, no photoreal materials, no realistic skin, no pixel art, no chibi. Mature 1938 noir detective game, warm ochre lamps and stylized blue night, rich green/brown palette. Preserve Image 1's exact first-person camera composition, objects, period costumes, clue locations, poses, number of people, all readable story text and clock hands unless specifically corrected below. Image 2's man and room must NOT be copied into a different scene. Keep story-correct character identities in cartoon form. No player body/hands, no HUD/text captions/watermark, no weapons added. Single full-bleed landscape 16:9 game image, not collage. Vincent same stylized man as Image3 in brown coat, wrongly accused and anxious in second-class carriage. All people stylized game NPCs, no real faces, no execution or guards.",
+  "path": "C:\\Users\\MARU\\.codex\\generated_images\\01a0cc23-b4ba-7473-95c0-d77ba820d099\\exec-7c9b0c4d-6cee-48f4-95ac-0e7b64cc05ce.png",
+  "refs": [
+    "C:\\Users\\MARU\\nesy-escape\\assets\\nocturne-v1\\ending-scapegoat.png",
+    "C:\\Users\\MARU\\.codex\\generated_images\\01a0cc23-b4ba-7473-95c0-d77ba820d099\\exec-ed831d19-cdc4-4547-8045-16c01fa29648.png",
+    "C:\\Users\\MARU\\.codex\\generated_images\\01a0cc23-b4ba-7473-95c0-d77ba820d099\\exec-68b5d62f-79b4-43be-a970-7bbfea1a54e6.png"
+  ]
+}

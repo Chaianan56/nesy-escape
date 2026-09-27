@@ -1,0 +1,9 @@
+{
+  "id": "detail-medical-file",
+  "prompt": "Use case: style-transfer. Remake Image 1 (EDIT TARGET) completely in the clear NON-PHOTOREALISTIC STYLIZED 3D ADVENTURE GAME art style of Image 2 (STYLE REFERENCE ONLY). User rejected realistic humans; all people MUST become deliberately designed cartoon game characters, angular expressive sculpted faces, slightly enlarged head and hands, broad sculpted hair locks, smooth painted skin, NO real actor likeness/pores/photographic eyes. All environments and objects use clean simplified polygon geometry, hand-painted textures, broad CEL/TOON SHADED tonal bands, subtle dark illustrated contour edges and matte highlights. Match Image 2's obvious cartoon/stylized rendering at thumbnail size; no photo filter, no live action, no photoreal materials, no realistic skin, no pixel art, no chibi. Mature 1938 noir detective game, warm ochre lamps and stylized blue night, rich green/brown palette. Preserve Image 1's exact first-person camera composition, objects, period costumes, clue locations, poses, number of people, all readable story text and clock hands unless specifically corrected below. Image 2's man and room must NOT be copied into a different scene. Keep story-correct character identities in cartoon form. No player body/hands, no HUD/text captions/watermark, no weapons added. Single full-bleed landscape 16:9 game image, not collage. Preserve '1923' and 'PROJECT NOCTURNE' exactly on file. Stylized game medical desk props, simplified materials and painted hard-edge shading. No poison bottle or new story text.",
+  "path": "C:\\Users\\MARU\\.codex\\generated_images\\01a0cc23-b4ba-7473-95c0-d77ba820d099\\exec-fc29ca2c-1b42-433e-b3fa-d02ed65547a7.png",
+  "refs": [
+    "C:\\Users\\MARU\\nesy-escape\\assets\\nocturne-v1\\detail-medical-file.png",
+    "C:\\Users\\MARU\\.codex\\generated_images\\01a0cc23-b4ba-7473-95c0-d77ba820d099\\exec-ed831d19-cdc4-4547-8045-16c01fa29648.png"
+  ]
+}
