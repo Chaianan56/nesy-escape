@@ -1,0 +1,657 @@
+{
+  "schema_version": 1,
+  "collection": "nocturne-stylized-v2",
+  "title_th": "Nocturne Express — ชุดภาพเกม Stylized 3D ผ่านสายตาผู้เล่น",
+  "story_source": "../../data/story.json",
+  "story_scene_id": "nocturne_express_1938",
+  "story_date": "1938-11-14",
+  "player": "Narin Vale",
+  "perspective": "first-person",
+  "integration_status": "integrated-typed-game-ui",
+  "expected_images": 28,
+  "location_evidence_count": 26,
+  "testimony_evidence_count": 8,
+  "image_path_pattern": "{id}.png",
+  "prompt_path_pattern": "prompts/{id}.json",
+  "text_and_clock_qa": "visually-reviewed-critical-text-and-clocks; minor-rendering-continuity-not-pixel-exact",
+  "authority_notes_th": [
+    "ยึด data/story.json เป็นเนื้อเรื่องปัจจุบัน เอกสาร lore และภาพ pixel เดิมไม่ใช่ข้อกำหนดภาพทั้งหมด",
+    "ตู้ 1 เข้าไม่ได้ ภาพนี้แสดงเพียงทางเข้าเขตหวงห้าม",
+    "ทางเดิน ห้องเกิดเหตุ และห้องแพทย์เป็นมุมย่อยของ first_class_car ไม่ใช่สถานที่ใหม่ในระบบเกม",
+    "ภาพใบหน้า อายุโดยประมาณ ทรงผม สีชุด และลวดลายตกแต่งที่ไม่ระบุในเรื่องเป็นการออกแบบภาพ ห้ามถือเป็นเบาะแสใหม่",
+    "เกมปัจจุบันไม่ระบุอาวุธผู้เล่นหรืออาวุธฆาตกรรม คีมตัดสายไฟเป็นหลักฐานการตัดไฟ",
+    "ภาพกับพรอมป์ตเป็นงานภาพประกอบ ต้องตรวจตัวเลข เวลา ตัวอักษร ตำแหน่งซ้ายขวา และความต่อเนื่องก่อนนำไปใช้จริง"
+  ],
+  "canon_character_constraints": {
+    "gideon_hart": {
+      "location": "lounge_car",
+      "facts_th": "ชาย ข้าราชการระดับสูง สงบนิ่ง สูทสั่งตัด กระดุมเงินฝังออบซิเดียนหายจากแขนเสื้อซ้าย แหวนตราที่นิ้วก้อยขวา ตลับยาอมโลหะ เขม่าสีแดงที่แขนเสื้อ",
+      "design_only_th": "ใบหน้า อายุ สีผิว ทรงผม สีสูท และลวดลายตราเฉพาะยังไม่ถูกกำหนดโดยเนื้อเรื่อง"
+    },
+    "vincent_gray": {
+      "location": "second_class_car",
+      "facts_th": "ชาย ท่าทีลุกลี้ลุกลน เหงื่อออก เสื้อโค้ตหนา แขนเสื้อเปื้อนเลือด ซ่อนคีมตัดสายไฟด้ามยางในกระเป๋า",
+      "design_only_th": "ใบหน้า อายุ สีผิว ทรงผม และสีเสื้อโค้ตยังไม่ถูกกำหนดโดยเนื้อเรื่อง"
+    },
+    "dr_liora_venn": {
+      "location": "first_class_car",
+      "facts_th": "แพทย์หญิงประจำขบวน บุตรสาวของเอเลียส เวนน์ ท่าทีวิตกกังวลและหวาดระแวง ถือสมุดบันทึกระหว่างให้การ",
+      "design_only_th": "ใบหน้า อายุ สีผิว ทรงผม และชุดแพทย์ยังไม่ถูกกำหนดโดยเนื้อเรื่อง"
+    },
+    "cassian_reed": {
+      "location": "first_class_car",
+      "facts_th": "ผู้ตายชาย อยู่ในห้องพักหมายเลข 4 นอนคว่ำหน้า มีกองเลือด นาฬิกาพกในอกเสื้อหยุดที่ 20:25",
+      "design_only_th": "ใบหน้า อายุ สีผิว ชุด รอยบาดแผล และอาวุธฆาตกรรมยังไม่ถูกกำหนดโดยเนื้อเรื่อง"
+    }
+  },
+  "assets": [
+    {
+      "id": "scene-01-locomotive",
+      "file": "scene-01-locomotive.png",
+      "group": "scene",
+      "title_th": "ตู้ 1 · ทางเข้าหัวรถจักร",
+      "location": "locomotive",
+      "accessible": false,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "มองจากทางเดินนอกพื้นที่เครื่องจักร",
+        "ทางเข้ามีข้อจำกัดสำหรับพนักงาน",
+        "ไม่มีหลักฐานคดีหรือพื้นที่สำรวจภายใน"
+      ],
+      "prompt_file": "prompts/scene-01-locomotive.json"
+    },
+    {
+      "id": "scene-02-electrical",
+      "file": "scene-02-electrical.png",
+      "group": "scene",
+      "title_th": "ตู้ 2 · สัมภาระและระบบไฟฟ้า",
+      "location": "luggage_van_electrical",
+      "evidence": [
+        "power_panel",
+        "fuse_box",
+        "cut_copper_wire",
+        "tool_marks",
+        "backup_switch",
+        "maintenance_log"
+      ],
+      "testimony": [],
+      "check_th": [
+        "แผงไฟบนผนังซ้าย",
+        "กล่องฟิวส์และสวิตช์สำรองอยู่ข้างแผง",
+        "เศษทองแดงใต้แผงและสมุดบนชั้น"
+      ],
+      "prompt_file": "prompts/scene-02-electrical.json"
+    },
+    {
+      "id": "scene-03-dining",
+      "file": "scene-03-dining.png",
+      "group": "scene",
+      "title_th": "ตู้ 3 · เสบียงและห้องพักพนักงาน",
+      "location": "dining_car_staff",
+      "evidence": [
+        "liora_patient_log",
+        "liora_patient_witness"
+      ],
+      "testimony": [],
+      "check_th": [
+        "โต๊ะอาหารจัดเตรียมไว้",
+        "พนักงานใกล้ประตูเชื่อมตู้ 4",
+        "มีผู้โดยสารที่เป็นพยานการรักษาและสมุดบันทึก",
+        "รูปลักษณ์พนักงานและพยานเป็นการออกแบบภาพ"
+      ],
+      "prompt_file": "prompts/scene-03-dining.json"
+    },
+    {
+      "id": "scene-04-corridor",
+      "file": "scene-04-corridor.png",
+      "group": "scene",
+      "title_th": "ตู้ 4 · ทางเดินชั้นหนึ่ง",
+      "location": "first_class_car",
+      "subview": "corridor",
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "ห้องพักผู้ตายหมายเลข 4",
+        "มีทางเข้าห้องแพทย์ที่อยู่ถัดไป",
+        "หมายเลขห้องต้องตรวจความถูกต้องก่อนใช้"
+      ],
+      "prompt_file": "prompts/scene-04-corridor.json"
+    },
+    {
+      "id": "scene-04-crime",
+      "file": "scene-04-crime.png",
+      "group": "scene",
+      "title_th": "ตู้ 4 · ห้องเกิดเหตุของแคสเซียน",
+      "location": "first_class_car",
+      "subview": "crime-cabin",
+      "evidence": [
+        "pocket_watch",
+        "burnt_folder_c",
+        "second_teacup",
+        "wax_seal_imprint",
+        "obsidian_cufflink",
+        "red_soot",
+        "wall_clock",
+        "dossier_missing_file_c",
+        "file_c_initials",
+        "judicial_transfer_order",
+        "tea_lozenge_trace"
+      ],
+      "testimony": [],
+      "check_th": [
+        "แคสเซียนนอนคว่ำหน้าและมีเลือด",
+        "หน้าต่างระบายอากาศเปิดแง้ม มีฝุ่นแดง",
+        "มีถ้วยชาสองใบและถาดเขี่ยบุหรี่",
+        "นาฬิกาผนัง 21:15",
+        "ขี้ผึ้งใต้โต๊ะ กระดุมใต้ร่าง นาฬิกาพกในอกเสื้อ"
+      ],
+      "prompt_file": "prompts/scene-04-crime.json"
+    },
+    {
+      "id": "scene-04-medical",
+      "file": "scene-04-medical.png",
+      "group": "scene",
+      "title_th": "ตู้ 4 · ห้องแพทย์ของลิโอรา",
+      "location": "first_class_car",
+      "subview": "medical-room",
+      "evidence": [
+        "secret_file"
+      ],
+      "testimony": [
+        "liora_time_estimate",
+        "liora_medical_access",
+        "liora_time_hesitation"
+      ],
+      "check_th": [
+        "ลิโอราเป็นแพทย์หญิง ท่าทีกังวล",
+        "เวชระเบียนลับปี 1923",
+        "ไม่ย้ายสมุดรักษาผู้โดยสารจากตู้ 3 มาแทนหลักฐานเดิม",
+        "คำให้การเป็นข้อความในเกม ไม่ใช่ข้อความสรุปบนภาพ"
+      ],
+      "prompt_file": "prompts/scene-04-medical.json"
+    },
+    {
+      "id": "scene-05-lounge",
+      "file": "scene-05-lounge.png",
+      "group": "scene",
+      "title_th": "ตู้ 5 · เลานจ์และกิเดียน",
+      "location": "lounge_car",
+      "initial_location": true,
+      "evidence": [
+        "gideon_lozenge_tin",
+        "gideon_signet_ring",
+        "gideon_missing_button",
+        "gideon_sleeve_soot"
+      ],
+      "testimony": [
+        "gideon_blackout_alibi",
+        "gideon_no_early_alibi"
+      ],
+      "check_th": [
+        "โซฟาหนังและเคาน์เตอร์เครื่องดื่ม",
+        "กิเดียนนั่งมุมห้องพร้อมกาแฟ",
+        "นิ้วก้อยขวามีแหวน แขนเสื้อซ้ายขาดกระดุม",
+        "คำให้การไม่เฉลยความผิดของกิเดียนบนภาพฉากหลัก"
+      ],
+      "prompt_file": "prompts/scene-05-lounge.json"
+    },
+    {
+      "id": "scene-06-second-class",
+      "file": "scene-06-second-class.png",
+      "group": "scene",
+      "title_th": "ตู้ 6 · ชั้นสองและวินเซนต์",
+      "location": "second_class_car",
+      "evidence": [
+        "wire_cutters",
+        "vincent_blood"
+      ],
+      "testimony": [
+        "vincent_body_testimony",
+        "vincent_blackout_confession",
+        "vincent_theft_motive"
+      ],
+      "check_th": [
+        "มีผู้โดยสารทั่วไป",
+        "วินเซนต์นั่งเกร็ง เหงื่อออก ใส่โค้ตหนา",
+        "มีคราบเลือดที่แขนเสื้อ",
+        "คีมเป็นของซ่อนในกระเป๋า ไม่ใช่อาวุธในมือผู้เล่น"
+      ],
+      "prompt_file": "prompts/scene-06-second-class.json"
+    },
+    {
+      "id": "detail-electrical-controls",
+      "file": "detail-electrical-controls.png",
+      "group": "detail",
+      "title_th": "แผงควบคุม ฟิวส์ และไฟสำรอง",
+      "location": "luggage_van_electrical",
+      "evidence": [
+        "power_panel",
+        "fuse_box",
+        "backup_switch"
+      ],
+      "testimony": [],
+      "check_th": [
+        "คันโยกหลักลงด้วยมือ",
+        "ฟิวส์อยู่ครบและไม่ขาด",
+        "แผงไม่มีรอยไฟไหม้",
+        "สวิตช์ไฟสำรองขึ้น"
+      ],
+      "prompt_file": "prompts/detail-electrical-controls.json"
+    },
+    {
+      "id": "detail-cut-wire",
+      "file": "detail-cut-wire.png",
+      "group": "detail",
+      "title_th": "สายทองแดงและรอยฟันคีม",
+      "location": "luggage_van_electrical",
+      "evidence": [
+        "cut_copper_wire",
+        "tool_marks"
+      ],
+      "testimony": [],
+      "check_th": [
+        "สายหลักถูกตัดและต่อกลับอย่างลวก",
+        "รอยตัดคมมีร่องคู่",
+        "ลักษณะร่องต้องตรงกับคีมของวินเซนต์"
+      ],
+      "prompt_file": "prompts/detail-cut-wire.json"
+    },
+    {
+      "id": "detail-electrical-log",
+      "file": "detail-electrical-log.png",
+      "group": "detail",
+      "title_th": "บันทึกการเดินระบบไฟ",
+      "location": "luggage_van_electrical",
+      "evidence": [
+        "maintenance_log"
+      ],
+      "testimony": [],
+      "critical_text": [
+        "21:14",
+        "21:15",
+        "21:18"
+      ],
+      "check_th": [
+        "21:14 ปกติ",
+        "21:15 วงจรหลักถูกตัด",
+        "21:18 ไฟสำรองกลับมา",
+        "ต้องตรวจตัวอักษรจริง ห้ามใช้ข้อความผิดเป็นหลักฐาน"
+      ],
+      "prompt_file": "prompts/detail-electrical-log.json"
+    },
+    {
+      "id": "detail-patient-log",
+      "file": "detail-patient-log.png",
+      "group": "detail",
+      "title_th": "สมุดบันทึกการรักษาผู้โดยสาร",
+      "location": "dining_car_staff",
+      "evidence": [
+        "liora_patient_log"
+      ],
+      "testimony": [],
+      "critical_text": [
+        "20:20",
+        "20:25"
+      ],
+      "check_th": [
+        "การรักษาผู้โดยสารมีอาการหอบช่วง 20:20–20:25",
+        "อยู่ในตู้ 3",
+        "พยานบุคคลอยู่ใน scene-03-dining"
+      ],
+      "prompt_file": "prompts/detail-patient-log.json"
+    },
+    {
+      "id": "detail-pocket-watch",
+      "file": "detail-pocket-watch.png",
+      "group": "detail",
+      "title_th": "นาฬิกาพกของแคสเซียน",
+      "location": "first_class_car",
+      "evidence": [
+        "pocket_watch"
+      ],
+      "testimony": [],
+      "critical_time": "20:25",
+      "check_th": [
+        "นาฬิกากลไกไม่ใช้ไฟฟ้า",
+        "กระจกแตกร้าว",
+        "เข็มนาทีชี้เลข 5 เข็มชั่วโมงเลย 8 เล็กน้อย",
+        "ต้นทางหลักฐานคืออกเสื้อผู้ตาย"
+      ],
+      "prompt_file": "prompts/detail-pocket-watch.json"
+    },
+    {
+      "id": "detail-burnt-paper",
+      "file": "detail-burnt-paper.png",
+      "group": "detail",
+      "title_th": "เศษแฟ้ม C และตัวย่อ G.H.",
+      "location": "first_class_car",
+      "evidence": [
+        "burnt_folder_c",
+        "file_c_initials"
+      ],
+      "testimony": [],
+      "critical_text": [
+        "1923",
+        "[G.H.]"
+      ],
+      "check_th": [
+        "กระดาษเนื้อหนาไหม้ในถาดเขี่ยบุหรี่",
+        "ร่องรอยอนุมัติงบปี 1923",
+        "ตัวย่อหมึกสีน้ำเงินอมเขียว",
+        "หลักฐานสองรายการคือเศษเอกสารชิ้นเดียวกัน"
+      ],
+      "prompt_file": "prompts/detail-burnt-paper.json"
+    },
+    {
+      "id": "detail-teacups",
+      "file": "detail-teacups.png",
+      "group": "detail",
+      "title_th": "ถ้วยชาใบที่สองและคราบยาอม",
+      "location": "first_class_car",
+      "evidence": [
+        "second_teacup",
+        "tea_lozenge_trace"
+      ],
+      "testimony": [],
+      "check_th": [
+        "มีถ้วยชาสองใบ",
+        "ใบที่สองมีคราบที่ขอบหรือก้นถ้วย",
+        "กลิ่นการบูรและสะระแหน่ต้องอธิบายในข้อความ ไม่ใช่สร้างเบาะแสสารพิษใหม่"
+      ],
+      "prompt_file": "prompts/detail-teacups.json"
+    },
+    {
+      "id": "detail-wax",
+      "file": "detail-wax.png",
+      "group": "detail",
+      "title_th": "ขี้ผึ้งแดงพร้อมรอยตรา",
+      "location": "first_class_car",
+      "evidence": [
+        "wax_seal_imprint"
+      ],
+      "testimony": [],
+      "check_th": [
+        "ต้นทางอยู่ใต้โต๊ะ",
+        "ขี้ผึ้งสีแดง",
+        "รอยเรขาคณิตต้องตรงกับแหวนกิเดียน",
+        "ลายตราที่เลือกเป็นการออกแบบ แต่ต้องใช้แบบเดียวตลอดชุด"
+      ],
+      "prompt_file": "prompts/detail-wax.json"
+    },
+    {
+      "id": "detail-cufflink-soot",
+      "file": "detail-cufflink-soot.png",
+      "group": "detail",
+      "title_th": "กระดุมออบซิเดียนและเขม่าสีแดง",
+      "location": "first_class_car",
+      "evidence": [
+        "obsidian_cufflink",
+        "red_soot"
+      ],
+      "testimony": [],
+      "check_th": [
+        "กระดุมเงินฝังออบซิเดียนหนึ่งเม็ดใต้ร่าง",
+        "เขม่าสีแดงบนเลือดใกล้หน้าต่าง",
+        "กระดุมต้องตรงกับสูทกิเดียน",
+        "แยกผงเขม่าจากคราบเลือดให้มองออก"
+      ],
+      "prompt_file": "prompts/detail-cufflink-soot.json"
+    },
+    {
+      "id": "detail-dossier",
+      "file": "detail-dossier.png",
+      "group": "detail",
+      "title_th": "แฟ้มเบลล์เวเธอร์และหนังสือนำส่ง",
+      "location": "first_class_car",
+      "evidence": [
+        "dossier_missing_file_c",
+        "judicial_transfer_order"
+      ],
+      "testimony": [],
+      "critical_text": [
+        "A",
+        "B",
+        "D",
+        "1938-11-14"
+      ],
+      "check_th": [
+        "แฟ้มย่อย A B D ยังอยู่",
+        "C หายไปทั้งชุด ไม่วางแฟ้ม C สมบูรณ์ในภาพ",
+        "หนังสือนำส่งสำนวนไปหน่วยงานตุลาการลงวันที่วันนี้",
+        "ตรวจตัวอักษรและวันที่จริง"
+      ],
+      "prompt_file": "prompts/detail-dossier.json"
+    },
+    {
+      "id": "detail-wall-clock",
+      "file": "detail-wall-clock.png",
+      "group": "detail",
+      "title_th": "นาฬิกาผนังที่หยุดตอนไฟดับ",
+      "location": "first_class_car",
+      "evidence": [
+        "wall_clock"
+      ],
+      "testimony": [],
+      "critical_time": "21:15",
+      "check_th": [
+        "นาฬิกาไฟฟ้าบนผนังห้องเกิดเหตุ",
+        "เข็มนาทีชี้เลข 3 เข็มชั่วโมงเลย 9 เล็กน้อย",
+        "ห้ามใช้เวลา 20:25 ของนาฬิกาพกแทน"
+      ],
+      "prompt_file": "prompts/detail-wall-clock.json"
+    },
+    {
+      "id": "detail-medical-file",
+      "file": "detail-medical-file.png",
+      "group": "detail",
+      "title_th": "เวชระเบียนลับปี 1923",
+      "location": "first_class_car",
+      "evidence": [
+        "secret_file"
+      ],
+      "testimony": [],
+      "critical_text": [
+        "1923",
+        "Project Nocturne"
+      ],
+      "check_th": [
+        "เป็นเวชระเบียนลับที่โยงกับอดีต",
+        "ไม่เพิ่มขวดยาพิษ อาวุธ หรือหลักฐานฆาตกรรมปัจจุบัน",
+        "ข้อความละเอียดควรอ้างจากข้อมูลเกม"
+      ],
+      "prompt_file": "prompts/detail-medical-file.json"
+    },
+    {
+      "id": "detail-gideon",
+      "file": "detail-gideon.png",
+      "group": "detail",
+      "title_th": "ของใช้และแขนเสื้อของกิเดียน",
+      "location": "lounge_car",
+      "evidence": [
+        "gideon_lozenge_tin",
+        "gideon_signet_ring",
+        "gideon_missing_button",
+        "gideon_sleeve_soot"
+      ],
+      "testimony": [],
+      "check_th": [
+        "ตลับยาอมโลหะ",
+        "แหวนตราที่นิ้วก้อยขวา ลายตรงกับขี้ผึ้ง",
+        "ปลายแขนเสื้อซ้ายขาดกระดุมและมีด้ายขาดใหม่",
+        "เขม่าสีแดงในรอยพับแขนเสื้อ",
+        "ตัวละครและสูทตรงกับภาพเลานจ์"
+      ],
+      "prompt_file": "prompts/detail-gideon.json"
+    },
+    {
+      "id": "detail-vincent",
+      "file": "detail-vincent.png",
+      "group": "detail",
+      "title_th": "คีมตัดสายไฟและแขนเสื้อวินเซนต์",
+      "location": "second_class_car",
+      "evidence": [
+        "wire_cutters",
+        "vincent_blood"
+      ],
+      "testimony": [],
+      "check_th": [
+        "คีมด้ามยางจากกระเป๋าเสื้อโค้ต",
+        "ฟันคีมมีร่องคู่ตรงกับสายทองแดง",
+        "มีเขม่าคัตเอาต์และเศษทองแดง",
+        "คราบเลือดที่แขนเสื้อ",
+        "ตัวละครและโค้ตตรงกับภาพตู้ 6"
+      ],
+      "prompt_file": "prompts/detail-vincent.json"
+    },
+    {
+      "id": "ending-true",
+      "file": "ending-true.png",
+      "group": "ending",
+      "title_th": "ความจริงใต้เถ้าถ่าน",
+      "ending_id": "true_ending",
+      "runtime_canon": true,
+      "spoiler": true,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "กิเดียนถอดแหวนตราวางบนโต๊ะ",
+        "แหวนและตัวละครตรงกับฉากหลัก",
+        "ไม่เพิ่มเหตุการณ์ประหารหรือฉากต่อสู้"
+      ],
+      "prompt_file": "prompts/ending-true.json"
+    },
+    {
+      "id": "ending-incomplete",
+      "file": "ending-incomplete.png",
+      "group": "ending",
+      "title_th": "หลักฐานยังไม่พอ",
+      "ending_id": "cold_justice",
+      "runtime_canon": true,
+      "spoiler": true,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "กิเดียนสงบนิ่งและท้าทายความครบถ้วนของหลักฐาน",
+        "ไม่มีข้อสรุปว่าปิดคดีสำเร็จ",
+        "ไม่ใช้ฉาก Faustian Bargain จาก lore รุ่นเก่า"
+      ],
+      "prompt_file": "prompts/ending-incomplete.json"
+    },
+    {
+      "id": "ending-scapegoat",
+      "file": "ending-scapegoat.png",
+      "group": "ending",
+      "title_th": "แพะรับบาปในความมืด",
+      "ending_id": "the_scapegoat",
+      "runtime_canon": true,
+      "spoiler": true,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "วินเซนต์ถูกกล่าวหาฆาตกรรมผิดคน",
+        "กิเดียนหลุดไปกับผู้โดยสารปลายทาง",
+        "ไม่สร้างฉากประหารซึ่งไม่มีใน runtime"
+      ],
+      "prompt_file": "prompts/ending-scapegoat.json"
+    },
+    {
+      "id": "ending-paranoia",
+      "file": "ending-paranoia.png",
+      "group": "ending",
+      "title_th": "กับดักความระแวง",
+      "ending_id": "the_paranoia_trap",
+      "runtime_canon": true,
+      "spoiler": true,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "ลิโอราเผชิญข้อกล่าวหาที่ผิด",
+        "เวชระเบียนเก่าเชื่อมกับผู้ตายเมื่อสิบห้าปีก่อน",
+        "ไม่ทำให้ภาพยืนยันว่าลิโอราเป็นฆาตกร"
+      ],
+      "prompt_file": "prompts/ending-paranoia.json"
+    },
+    {
+      "id": "ending-unproven",
+      "file": "ending-unproven.png",
+      "group": "ending",
+      "title_th": "คำกล่าวหาที่พิสูจน์ไม่ได้",
+      "ending_id": "unproven",
+      "runtime_canon": false,
+      "fallback": true,
+      "spoiler": true,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "ตำรวจปลายทางรับสำนวนที่ไร้น้ำหนัก",
+        "คดีถูกโอนและไม่มีใครถูกดำเนินคดี",
+        "เป็นฉากรองรับกรณีพิเศษในเอนจิน ไม่ใช่ canon ตามสเปก"
+      ],
+      "prompt_file": "prompts/ending-unproven.json"
+    },
+    {
+      "id": "ending-arrival",
+      "file": "ending-arrival.png",
+      "group": "ending",
+      "title_th": "ถึงปลายทาง · หมดเวลา",
+      "ending_id": "cold_arrival",
+      "runtime_canon": false,
+      "fallback": true,
+      "spoiler": true,
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "ขบวนจอดสถานีปลายทางและผู้โดยสารลงรถ",
+        "ยังไม่คลี่คลายคดี",
+        "ไม่ระบุว่าสถานีปลายทางคือฮัลเบิร์ด เพราะฮัลเบิร์ดเป็นสถานีที่ผู้เล่นขึ้นรถ"
+      ],
+      "prompt_file": "prompts/ending-arrival.json"
+    }
+  ],
+  "testimony_coverage": {
+    "gideon_blackout_alibi": {
+      "character": "gideon_hart",
+      "asset": "scene-05-lounge",
+      "fact_th": "อยู่กับผู้เล่นในเลานจ์ตอนไฟดับ 21:15"
+    },
+    "gideon_no_early_alibi": {
+      "character": "gideon_hart",
+      "asset": "scene-05-lounge",
+      "fact_th": "ไม่มีพยานช่วง 20:00–20:40"
+    },
+    "vincent_body_testimony": {
+      "character": "vincent_gray",
+      "asset": "scene-06-second-class",
+      "fact_th": "เผลอแตะร่างที่เย็นแล้วในช่วงมืด"
+    },
+    "vincent_blackout_confession": {
+      "character": "vincent_gray",
+      "asset": "scene-06-second-class",
+      "fact_th": "ยอมรับว่าตัดไฟเวลา 21:15"
+    },
+    "vincent_theft_motive": {
+      "character": "vincent_gray",
+      "asset": "scene-06-second-class",
+      "fact_th": "ตั้งใจขโมยแฟ้มตามที่ถูกว่าจ้าง"
+    },
+    "liora_time_estimate": {
+      "character": "dr_liora_venn",
+      "asset": "scene-04-medical",
+      "fact_th": "เสียชีวิตมาแล้วไม่น้อยกว่าหนึ่งชั่วโมงก่อนพบ"
+    },
+    "liora_medical_access": {
+      "character": "dr_liora_venn",
+      "asset": "scene-04-medical",
+      "fact_th": "แพทย์คนเดียวที่เข้าถึงการตรวจศพก่อนใคร"
+    },
+    "liora_time_hesitation": {
+      "character": "dr_liora_venn",
+      "asset": "scene-04-medical",
+      "fact_th": "ลังเลก่อนอธิบายเวลาตาย"
+    }
+  },
+  "generation_status": "28-selected-images-saved",
+  "visual_style": "Stylized 3D game art, hand-painted textures, cel-shaded facets and expressive cartoon characters",
+  "source_collection": "../nocturne-v1"
+}

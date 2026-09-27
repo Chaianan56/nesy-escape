@@ -257,5 +257,8 @@ def game_clock(session: Session = Depends(session_for)):
 # ต้องอยู่ท้ายสุด เพราะ mount ที่ "/" จะกลืนทุก path ที่ประกาศหลังจากนี้
 # ------------------------------------------------------------
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+ART_DIR = Path(__file__).resolve().parents[1] / "assets" / "nocturne-stylized-v2"
+if ART_DIR.exists():
+    app.mount("/game-art", StaticFiles(directory=str(ART_DIR)), name="game-art")
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Nocturne Express · Stylized 3D v2</title>
+  <style>
+    :root{--bg:#0b1115;--panel:#141e23;--line:#2b393f;--ink:#ecede5;--muted:#aab9b8;--gold:#ddbd77;--teal:#89beb4;--red:#da9b8c}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 "Leelawadee UI","Tahoma",sans-serif}
+    a{color:var(--gold);text-underline-offset:4px}a:hover{color:#ffe5ab}a:focus-visible,summary:focus-visible{outline:3px solid var(--teal);outline-offset:5px;border-radius:3px}
+    .wrap{max-width:1440px;margin:auto;padding:0 36px}header{padding:66px 0 40px;border-bottom:1px solid var(--line);background:radial-gradient(ellipse at 90% 10%,#29423c88,transparent 60%),#101a1e}
+    .eyebrow{margin:0 0 12px;color:var(--gold);letter-spacing:.2em;font-size:12px;font-weight:700;text-transform:uppercase}h1{font-family:Georgia,"Leelawadee UI",serif;font-size:clamp(36px,5vw,68px);line-height:1.07;letter-spacing:-.02em;margin:0 0 15px;font-weight:400}
+    .subtitle{font-size:20px;margin:0 0 18px;color:#d7ddd3}.intro{max-width:780px;color:var(--muted);margin:0}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:28px 0 0}.stat{border:1px solid #3a4d50;border-radius:4px;padding:7px 13px;font-size:13px;background:#101a1e99}.stat b{color:var(--gold);font-size:18px;margin-right:6px}
+    nav{display:flex;gap:24px;flex-wrap:wrap;padding:21px 0;border-bottom:1px solid var(--line)}nav a{text-decoration:none;font-size:14px}.guide{margin:28px 0 0;background:#16232a;border-left:3px solid var(--teal);padding:16px 20px;color:var(--muted);font-size:14px}.guide p{margin:0}.guide p+p{margin-top:8px}
+    section{padding:40px 0 10px;scroll-margin-top:20px}.section-head{display:flex;align-items:baseline;gap:18px;justify-content:space-between;margin-bottom:20px}.section-head h2{margin:0;font-size:24px;font-weight:600}.section-head .count{color:var(--gold);font:13px Georgia,serif;letter-spacing:.12em}.section-desc{color:var(--muted);margin:-8px 0 22px;font-size:14px}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.card{margin:0;min-width:0;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:7px}.image-link{position:relative;display:block;aspect-ratio:16/10;background:#080d10;overflow:hidden}.image-link img{display:block;width:100%;height:100%;object-fit:contain;transition:transform .2s ease}.image-link:hover img{transform:scale(1.025)}
+    .missing{display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;padding:25px;text-align:center;color:var(--muted);font-size:14px}.missing small{margin-top:8px;font:11px/1.5 monospace;color:#8f9ea3;word-break:break-word}.image-link.unavailable img{visibility:hidden}.image-link.unavailable .missing{display:flex}.card figcaption{padding:17px 18px 19px}.tag{font-size:10px;color:var(--teal);letter-spacing:.09em;text-transform:uppercase}.tag.noncanon{color:var(--red)}.card h3{margin:5px 0 7px;font-size:17px;line-height:1.5;font-weight:600}.card p{margin:0;min-height:3.4em;font-size:13px;color:var(--muted)}.card code{display:block;margin:13px 0 11px;white-space:normal;overflow-wrap:anywhere;color:#92a29f;font:11px/1.5 Consolas,monospace}.links{display:flex;gap:19px;font-size:12px}.links a{text-decoration:none}
+    .ending-box{border:1px solid #654b3d;border-radius:7px;padding:0 23px;background:#201b19}.ending-box summary{padding:20px 0;cursor:pointer;color:#e8c49c;font-weight:600}.ending-box[open] summary{border-bottom:1px solid #493a30;margin-bottom:22px}.ending-box .grid{padding-bottom:24px}.ending-box .card{background:#191e20}.ending-note{font-size:13px;color:var(--muted);margin:0 0 22px}
+    footer{margin-top:45px;padding:25px 0 40px;border-top:1px solid var(--line);color:#8da09f;font-size:12px}footer p{margin:0}footer p+p{margin-top:8px}.status{color:var(--teal)}noscript p{padding:25px;border:1px solid var(--line);color:var(--gold)}
+    @media(min-width:1350px){#details .grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    @media(max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wrap{padding:0 25px}}
+    @media(max-width:600px){.wrap{padding:0 17px}header{padding-top:39px}.subtitle{font-size:17px}.grid{grid-template-columns:1fr;gap:18px}nav{gap:15px 21px}.section-head h2{font-size:21px}.ending-box{padding:0 13px}.card p{min-height:0}.stat{padding:5px 10px}.image-link{aspect-ratio:16/10}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.image-link img{transition:none}.image-link:hover img{transform:none}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <p class="eyebrow">Stylized 3D · Version 2 · First-person · 1938</p>
+      <h1>Nocturne Express</h1>
+      <p class="subtitle">ผู้โดยสารคนที่แปด · ชุดใหม่สไตล์เกม 3D</p>
+      <p class="intro">ฉากและตัวละครแบบการ์ตูน 3D พื้นผิววาดมือ แสงเงา cel shading ผ่านสายตานรินทร์ เวล สำรวจขบวนรถไฟในคืนวันที่ 14 พฤศจิกายน 1938 ผ่านฉากหลัก ภาพตรวจหลักฐาน และภาพบทสรุปคดี ชุดภาพนี้อ้างอิงเนื้อเรื่องปัจจุบันในเกมและจัดไฟล์ไว้สำหรับนำไปใช้งานต่อ</p>
+      <div class="stats" aria-label="จำนวนภาพและหลักฐาน">
+        <span class="stat"><b>8</b> ฉากหลัก</span>
+        <span class="stat"><b>14</b> ภาพหลักฐาน</span>
+        <span class="stat"><b>6</b> ฉากจบ</span>
+        <span class="stat"><b>26 + 8</b> หลักฐานและคำให้การ</span>
+      </div>
+    </div>
+  </header>
+  <main class="wrap">
+    <nav aria-label="หมวดภาพ">
+      <a href="#scenes">ฉากหลัก</a><a href="#details">ตรวจหลักฐาน</a><a href="#endings">ฉากจบ · มีสปอยล์</a><a href="README-th.md">คู่มือภาพ</a><a href="catalog.json">รายการไฟล์</a>
+    </nav>
+    <aside class="guide">
+      <p><strong>กดภาพเพื่อเปิด PNG ขนาดเต็ม</strong> · แต่ละภาพมีลิงก์พรอมป์ตประกอบ ภาพชุดนี้เชื่อมกับฉาก หลักฐาน และฉากจบในเกมแล้ว</p>
+      <p>นาฬิกาพกต้องเป็น <strong>20:25</strong> นาฬิกาผนังต้องเป็น <strong>21:15</strong> และตัวอักษรบนหลักฐานต้องตรวจจากภาพจริงก่อนใช้ ใบหน้าและรายละเอียดการแต่งกายที่เรื่องไม่ได้ระบุเป็นการออกแบบภาพ</p>
+    </aside>
+    <section id="scenes" aria-labelledby="scenes-title">
+      <div class="section-head"><h2 id="scenes-title">ฉากหลักในขบวน</h2><span class="count">01 — 08</span></div>
+      <p class="section-desc">หกตู้รถไฟ โดยตู้ 4 แยกเป็นทางเดิน ห้องเกิดเหตุ และห้องแพทย์ ตู้ 1 แสดงเฉพาะทางเข้าเขตหวงห้าม</p>
+      <div class="grid" id="scene-grid"></div>
+    </section>
+    <section id="details" aria-labelledby="details-title">
+      <div class="section-head"><h2 id="details-title">ภาพตรวจหลักฐาน</h2><span class="count">09 — 22</span></div>
+      <p class="section-desc">ภาพขยายสำหรับการกดสำรวจ วัตถุเดียวที่มีหลักฐานหลายรหัสใช้ภาพร่วมกันได้ ส่วนพยานการรักษาอยู่ในภาพตู้เสบียง</p>
+      <div class="grid" id="detail-grid"></div>
+    </section>
+    <section id="endings" aria-labelledby="endings-title">
+      <div class="section-head"><h2 id="endings-title">บทสรุปคดี</h2><span class="count">23 — 28</span></div>
+      <details class="ending-box">
+        <summary>เปิดภาพฉากจบ 6 แบบ — มีการเปิดเผยผู้กระทำผิดและผลของการสืบสวน</summary>
+        <p class="ending-note">ยึดฉากจบใน data/story.json ปัจจุบัน “คำกล่าวหาที่พิสูจน์ไม่ได้” และ “ถึงปลายทาง” เป็นฉากรองรับกรณีพิเศษ/หมดเวลาในเอนจิน ซึ่งข้อมูลระบุ canon: false</p>
+        <div class="grid" id="ending-grid"></div>
+      </details>
+    </section>
+    <noscript><p>แกลเลอรีใช้ JavaScript ภายในไฟล์นี้เพื่อแสดงรายการภาพ หากปิด JavaScript สามารถเปิดชื่อไฟล์ภาพจาก <a href="README-th.md">คู่มือภาพ</a> หรือ <a href="catalog.json">รายการไฟล์</a> ได้</p></noscript>
+  </main>
+  <footer><div class="wrap">
+    <p><span id="image-status" class="status">ภาพจะโหลดเมื่อเลื่อนถึงแต่ละหมวด</span> · จำนวนไฟล์ที่คาดหมาย 28 ภาพ</p>
+    <p>อ้างอิง <a href="../../data/story.json">เนื้อเรื่องในเกม</a> · <a href="README-th.md">ข้อกำหนดภาพและจุดที่ต้องตรวจ</a> · คอลเลกชันนี้ไม่มีการเชื่อมต่อเครือข่ายหรือไลบรารีภายนอก</p>
+  </div></footer>
+  <script>
+    const entries = [
+      ['scene','scene-01-locomotive','ตู้ 1 · ทางเข้าหัวรถจักร','ทางเข้าเขตเครื่องจักรสำหรับพนักงาน ไม่ใช่พื้นที่สำรวจคดี','Restricted entrance'],
+      ['scene','scene-02-electrical','ตู้ 2 · สัมภาระและระบบไฟฟ้า','แผงไฟ ฟิวส์ สวิตช์สำรอง สายทองแดง และบันทึกเดินระบบ','Electrical & luggage'],
+      ['scene','scene-03-dining','ตู้ 3 · เสบียงและพนักงาน','โต๊ะอาหาร พนักงาน และผู้โดยสารที่เป็นพยานการรักษาของลิโอรา','Dining & staff'],
+      ['scene','scene-04-corridor','ตู้ 4 · ทางเดินชั้นหนึ่ง','ทางเข้าห้องพักหมายเลข 4 และห้องแพทย์ที่อยู่ถัดไป','First-class corridor'],
+      ['scene','scene-04-crime','ตู้ 4 · ห้องเกิดเหตุ','ห้องพักแคสเซียน ถ้วยชาสองใบ เศษเอกสารไหม้ และเขม่าสีแดง','Cassian’s cabin'],
+      ['scene','scene-04-medical','ตู้ 4 · ห้องแพทย์','ลิโอรา เวชระเบียนปี 1923 และภาพประกอบคำให้การทั้งสามรายการ','Medical room'],
+      ['scene','scene-05-lounge','ตู้ 5 · เลานจ์และกิเดียน','จุดเริ่มต้นการสืบสวน กิเดียนนั่งดื่มกาแฟในตู้เลานจ์','Lounge · Start'],
+      ['scene','scene-06-second-class','ตู้ 6 · ชั้นสองและวินเซนต์','วินเซนต์ท่ามกลางผู้โดยสารทั่วไป ซ่อนคีมในเสื้อโค้ตหนา','Second class'],
+      ['detail','detail-electrical-controls','แผงควบคุมและระบบสำรอง','คันโยกหลักลง ฟิวส์อยู่ครบ สวิตช์ไฟสำรองขึ้น','3 evidence entries'],
+      ['detail','detail-cut-wire','สายทองแดงและรอยฟันคีม','สายหลักถูกตัดและต่อกลับ รอยร่องคู่ต้องเทียบกับคีมวินเซนต์','2 evidence entries'],
+      ['detail','detail-electrical-log','บันทึกการเดินระบบไฟ','21:14 ระบบปกติ · 21:15 ไฟดับ · 21:18 ไฟสำรองกลับมา','Text requires QA'],
+      ['detail','detail-patient-log','สมุดบันทึกการรักษา','บันทึกว่าลิโอราดูแลผู้โดยสารที่มีอาการหอบช่วง 20:20–20:25','Text requires QA'],
+      ['detail','detail-pocket-watch','นาฬิกาพกของแคสเซียน','นาฬิกากลไกในอกเสื้อ กระจกแตกและหยุดเวลา 20:25','Clock requires QA'],
+      ['detail','detail-burnt-paper','เศษแฟ้ม C · G.H.','เอกสารอนุมัติงบปี 1923 ถูกเผา เหลือตัวย่อหมึกสีน้ำเงินอมเขียว','Text requires QA'],
+      ['detail','detail-teacups','ถ้วยชาใบที่สอง','ถ้วยชาและคราบยาอม เป็นร่องรอยของคนอีกคนในห้องเกิดเหตุ','2 evidence entries'],
+      ['detail','detail-wax','ขี้ผึ้งแดงพร้อมรอยตรา','ก้อนขี้ผึ้งใต้โต๊ะมีลายเรขาคณิตที่ต้องตรงกับแหวนตรา','Pattern requires QA'],
+      ['detail','detail-cufflink-soot','กระดุมออบซิเดียนและเขม่า','กระดุมเงินฝังหินดำใต้ร่าง และผงเขม่าสีแดงบนกองเลือด','2 evidence entries'],
+      ['detail','detail-dossier','แฟ้มคดีและหนังสือนำส่ง','แฟ้ม A B D ยังอยู่ แฟ้ม C ถูกดึงออก หนังสือนำส่งลงวันที่ปัจจุบัน','Text requires QA'],
+      ['detail','detail-wall-clock','นาฬิกาผนังเวลาไฟดับ','นาฬิกาไฟฟ้าหยุดที่ 21:15 บอกเวลาไฟดับ ไม่ใช่เวลาตาย','Clock requires QA'],
+      ['detail','detail-medical-file','เวชระเบียนลับปี 1923','เอกสารที่เชื่อมโยงลิโอรากับอดีตของ Project Nocturne','Text requires QA'],
+      ['detail','detail-gideon','ของใช้และแขนเสื้อกิเดียน','ตลับยาอม แหวนก้อยขวา กระดุมแขนซ้ายที่หาย และเขม่าสีแดง','4 evidence entries'],
+      ['detail','detail-vincent','คีมและแขนเสื้อวินเซนต์','คีมด้ามยางที่มีรอยเฉพาะตัว และเลือดที่ติดแขนเสื้อ','2 evidence entries'],
+      ['ending','ending-true','ความจริงใต้เถ้าถ่าน','หลักฐานพิสูจน์คดี กิเดียนถอดแหวนตราวางบนโต๊ะ','True ending'],
+      ['ending','ending-incomplete','หลักฐานยังไม่พอ','กิเดียนถามถึงสิ่งที่ยังพิสูจน์ไม่ได้ คดีจบพร้อมข้อสงสัย','Incomplete ending'],
+      ['ending','ending-scapegoat','แพะรับบาปในความมืด','วินเซนต์รับข้อกล่าวหาที่ผิด ขณะที่กิเดียนไปกับผู้โดยสาร','Wrong accusation'],
+      ['ending','ending-paranoia','กับดักความระแวง','ลิโอราถูกกล่าวหา ความลับในอดีตถูกตีความเป็นความผิด','Wrong accusation'],
+      ['ending','ending-unproven','คำกล่าวหาที่พิสูจน์ไม่ได้','สำนวนไม่มีหลักฐานรองรับ ถูกส่งต่อโดยไม่มีผู้ถูกดำเนินคดี','Runtime fallback · noncanon',true],
+      ['ending','ending-arrival','ถึงปลายทาง · หมดเวลา','ผู้โดยสารลงจากรถก่อนคดีจะคลี่คลาย ความจริงยังพิสูจน์ไม่ได้','Timeout · noncanon',true]
+    ];
+    const imageOverrides = {};
+    const finalPrompts = new Set();
+    let loaded = 0, unavailable = 0;
+    const status = document.getElementById('image-status');
+    function updateStatus(){status.textContent = `โหลดแล้ว ${loaded} ภาพ${unavailable ? ` · ยังไม่พบไฟล์ ${unavailable} ภาพ` : ''} · ภาพอื่นโหลดเมื่อเลื่อนถึง`;}
+    for(const [group,id,title,description,tag,noncanon] of entries){
+      const assetStem = imageOverrides[id] || id;
+      const promptStem = finalPrompts.has(id) ? id+'-final' : assetStem;
+      const card = document.createElement('figure'); card.className = 'card';
+      const link = document.createElement('a'); link.className = 'image-link'; link.href = `${assetStem}.png`; link.target = '_blank'; link.rel = 'noopener'; link.setAttribute('aria-label',`เปิดภาพเต็ม: ${title}`);
+      const img = document.createElement('img'); img.alt = title; img.loading = 'lazy'; img.decoding = 'async';
+      img.addEventListener('load',()=>{loaded++; updateStatus();},{once:true});
+      img.addEventListener('error',()=>{unavailable++; link.classList.add('unavailable'); updateStatus();},{once:true});
+      img.src = `${assetStem}.png`;
+      const missing = document.createElement('span'); missing.className = 'missing'; missing.append(document.createTextNode('ยังไม่พบไฟล์ภาพนี้'));
+      const missingFile = document.createElement('small'); missingFile.textContent = `${assetStem}.png`; missing.append(missingFile); link.append(img,missing);
+      const caption = document.createElement('figcaption');
+      const label = document.createElement('span'); label.className = 'tag'+(noncanon?' noncanon':''); label.textContent = tag;
+      const heading = document.createElement('h3'); heading.textContent = title;
+      const desc = document.createElement('p'); desc.textContent = description;
+      const filename = document.createElement('code'); filename.textContent = `${assetStem}.png`;
+      const links = document.createElement('div'); links.className = 'links';
+      const original = document.createElement('a'); original.href = `${assetStem}.png`; original.textContent = 'เปิด PNG'; original.target = '_blank'; original.rel = 'noopener';
+      const prompt = document.createElement('a'); prompt.href = `prompts/${promptStem}.json`; prompt.textContent = 'อ่านพรอมป์ต'; prompt.target = '_blank'; prompt.rel = 'noopener';
+      links.append(original,prompt); caption.append(label,heading,desc,filename,links); card.append(link,caption);
+      document.getElementById(`${group}-grid`).append(card);
+    }
+  </script>
+</body>
+</html>

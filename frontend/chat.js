@@ -301,6 +301,7 @@ async function submit(text, opts = {}) {
     updateClock();
     removeLoading();
     renderSystem(data.decision, data.parsed, opts.isRoomLook);
+    if (typeof GameArt !== 'undefined') GameArt.onResult(data);
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
 
     // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
