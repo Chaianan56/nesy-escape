@@ -283,3 +283,25 @@ test("กดปุ่มคำสั่งพ่วงตอนมีคำส�
   calls[0].release(reply());
   await first;
 });
+
+
+test("คำสั่งพ่วงทำต่อกันเอง และหยุดรอยืนยันก่อนกล่าวหา", async () => {
+  const bodies = [];
+  const { sandbox, el } = loadChat(async (url, options) => {
+    if (String(url).endsWith("/scene")) return SCENE;
+    const text = JSON.parse(options.body).text;
+    bodies.push(text);
+    if (bodies.length > 1) return reply();
+    const r = reply({ allowed: false });
+    const data = await r.json();
+    data.parsed = { action: "ambiguous", sequence: true,
+                    alternatives: ["examine pocket_watch", "move first_class_car", "accuse gideon_hart"] };
+    return { ok: true, json: async () => data };
+  });
+  el("chatInput").value = "ตรวจนาฬิกา ไปตู้ 4 แล้วกล่าวหากิเดียน";
+  await sandbox.sendMessage(ev);
+  assert.deepEqual(bodies, ["ตรวจนาฬิกา ไปตู้ 4 แล้วกล่าวหากิเดียน",
+                            "examine pocket_watch", "move first_class_car"]);
+  const shown = el("chatFeed").children.map((c) => c.innerHTML).join("\n");
+  assert.match(shown, /ย้อนกลับไม่ได้/, "ต้องหยุดถามก่อนกล่าวหา");
+});

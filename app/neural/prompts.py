@@ -11,7 +11,8 @@ from typing import Any, Dict, List
 
 
 def _example(action: str, raw: str, target=None, instrument=None,
-             confidence: float = 0.95, alternatives: List[str] = None) -> str:
+             confidence: float = 0.95, alternatives: List[str] = None,
+             sequence: bool = False) -> str:
     """จัดรูป ParsedCommand หนึ่งตัวอย่างให้เป็น JSON ที่ LLM ลอกรูปแบบได้ทันที"""
     import json
     body = {
@@ -21,6 +22,7 @@ def _example(action: str, raw: str, target=None, instrument=None,
         "raw_text": raw,
         "confidence": confidence,
         "alternatives": alternatives or [],
+        "sequence": sequence,
     }
     return f'ผู้เล่น: "{raw}"\nตอบ: ' + json.dumps(body, ensure_ascii=False, indent=2)
 
@@ -128,11 +130,11 @@ def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
         _example("examine", "ถามคนที่อยู่ในตู้นี้", target=loc_open, confidence=0.85),
         _example("examine", "มีใครอยู่ในตู้นี้บ้าง", target=loc_open, confidence=0.9),
 
-        "(สั่งหลายอย่างต่อกัน ให้แตกออกมาครบทุกขั้นเรียงตามที่ผู้เล่นพูด ห้ามทำแค่ขั้นเดียว)",
+        "(สั่งหลายอย่างต่อกัน ให้แตกออกมาครบทุกขั้นเรียงตามที่ผู้เล่นพูด ห้ามทำแค่ขั้นเดียว และใส่ sequence=true)",
         _example("ambiguous", f"เดินไปที่{loc_open_name}แล้วตรวจดู{ev_name}", confidence=0.6,
-                 alternatives=[f"move {loc_open}", f"examine {ev_id}"]),
+                 alternatives=[f"move {loc_open}", f"examine {ev_id}"], sequence=True),
         _example("ambiguous", f"ดู{ev_name}กับ{fixture_name}", confidence=0.6,
-                 alternatives=[f"examine {ev_id}", f"examine {fixture_id}"]),
+                 alternatives=[f"examine {ev_id}", f"examine {fixture_id}"], sequence=True),
 
         "(พูดลอยๆ ว่าจะดูอะไรสักอย่าง ก็คือดูรอบตัว ไม่ใช่กำกวม)",
         _example("examine", "ดูหลักฐานทั้งหมด", target=loc_open, confidence=0.85),
@@ -191,6 +193,8 @@ def build_interpret_system_prompt(world_data: Dict[str, Any]) -> str:
 ⚠️ ประโยคที่สั่งหลายอย่างต่อกัน เช่น "ไปที่ก แล้วตรวจ ข" หรือ "ดู ก กับ ข"
    ให้ตอบ action="ambiguous" แล้วใส่ทุกขั้นตอนเรียงตามลำดับที่ผู้เล่นพูดลงใน alternatives
    รูปแบบของแต่ละตัวเลือกคือ "<action> <id>" เช่น "move {loc_open}"
+   และต้องใส่ sequence=true เพื่อบอกว่าให้ทำทุกขั้น ไม่ใช่ให้เลือกอย่างเดียว
+   ส่วน ambiguous ที่ผู้เล่นพูดไม่เจาะจงจนต้องเลือก (เช่น "เปิดมันหน่อย") ให้ sequence=false
    ห้ามหยิบมาทำแค่ขั้นเดียวแล้วทิ้งขั้นที่เหลือ เพราะผู้เล่นสั่งไว้ทั้งหมด
    ระบบตัดสินได้ทีละคำสั่ง จึงต้องแตกออกมาให้ครบก่อน แล้วชั้นถัดไปจะทำทีละขั้นเอง
 

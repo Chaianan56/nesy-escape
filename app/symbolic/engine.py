@@ -434,7 +434,7 @@ class SymbolicEngine:
         people = [(sid, s) for sid, s in self.world["suspects"].items()
                   if s.get("location") == loc_id]
         if people:
-            who = "\n".join(f"  - {s.get('name_th', sid)} ({s.get('role', '')})"
+            who = "\n".join(f"  - {s.get('name_th', sid)}" + (f" ({s['role']})" if s.get('role') else "")
                             for sid, s in people)
             lines.append(f"คนที่อยู่ในตู้นี้:\n{who}")
         return "\n".join(lines)

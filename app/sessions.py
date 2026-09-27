@@ -14,7 +14,7 @@ MAX_SESSIONS = 1000
 
 @dataclass
 class Session:
-    state: GameState = field(default_factory=lambda: GameState(started_at=time.time()))
+    state: GameState = field(default_factory=GameState)
     submitted_evidence: list[str] | None = None
     touched: float = field(default_factory=time.monotonic)
     lock: Lock = field(default_factory=Lock)

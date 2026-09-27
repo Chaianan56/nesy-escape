@@ -17,13 +17,16 @@ def test_exact_typed_commands_do_not_call_remote(monkeypatch):
     for text, action, target in [('ไปตู้ 4', ActionType.MOVE, 'first_class_car'),
                                  ('ดูรอบๆ', ActionType.EXAMINE, 'lounge_car'),
                                  ('สอบปากคำกิเดียน', ActionType.INTERROGATE, 'gideon_hart'),
-                                 ('ตรวจนาฬิกาพกกลไก', ActionType.EXAMINE, 'pocket_watch')]:
+                                 ('ตรวจนาฬิกาพกกลไก', ActionType.EXAMINE, 'pocket_watch'),
+                                 ('examine pocket_watch', ActionType.EXAMINE, 'pocket_watch'),
+                                 ('move first_class_car', ActionType.MOVE, 'first_class_car')]:
         result = interpret_game(text, state)
         assert (result.action, result.target) == (action, target)
 
 
 def test_negation_compound_and_ambiguous_input_are_not_shortcuts():
-    for text in ['อย่าไปตู้ 4', 'ไปตู้ 4 แล้วตรวจนาฬิกา', 'กล่าวหากิเดียนหรือวินเซนต์', 'ตรวจนาฬิกา']:
+    for text in ['อย่าไปตู้ 4', 'ไปตู้ 4 แล้วตรวจนาฬิกา', 'กล่าวหากิเดียนหรือวินเซนต์', 'ตรวจนาฬิกา',
+                 'examine no_such_thing', 'ambiguous pocket_watch']:
         assert parse_typed_command(text, GameState(), main.engine.world) is None
 
 
@@ -46,7 +49,7 @@ def test_model_has_bounded_timeout_and_no_automatic_retries(monkeypatch):
         return SimpleNamespace(text='{"action":"examine","target":"lounge_car","raw_text":"test"}')
     monkeypatch.setattr(gemini_client, '_clients', lambda:[SimpleNamespace(models=SimpleNamespace(generate_content=generate))])
     gemini_client.interpret('ช่วยมองรอบห้องหน่อย', GameState())
-    assert 0 < configs[0].http_options.timeout <= 12000
+    assert 0 < configs[0].http_options.timeout <= 3000
     assert configs[0].http_options.retry_options.attempts == 1
 
 

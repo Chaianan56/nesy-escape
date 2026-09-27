@@ -9,6 +9,11 @@ def parse_typed_command(text, state, world):
         return ParsedCommand(action=action, target=target, raw_text=text, confidence=1.0)
     if value in ('ดูรอบๆ', 'ดูรอบ ๆ', 'มองรอบๆ', 'สำรวจห้อง'):
         return command(ActionType.EXAMINE, state.current_location)
+    # "<action> <id>" ที่หน้าเว็บส่งมาทีละขั้นของคำสั่งพ่วง ไม่ต้องถาม Gemini ซ้ำ
+    parts = value.split()
+    if (len(parts) == 2 and parts[0] in {'examine', 'take', 'move', 'interrogate', 'accuse', 'burn', 'unlock'}
+            and any(parts[1] in world[g] for g in ('objects', 'suspects', 'locations'))):
+        return command(ActionType(parts[0]), parts[1])
     match = re.fullmatch(r'(?:ไป|ไปที่|เดินไป|เดินไปที่)\s*ตู้\s*([1-6])', value)
     if match:
         locations = list(world['locations'])
