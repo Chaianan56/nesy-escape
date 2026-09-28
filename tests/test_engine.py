@@ -148,6 +148,7 @@ def test_walkthrough_reaches_the_true_ending(engine):
 
 GIDEON_MINIMUM = ["dossier_missing_file_c", "burnt_folder_c", "file_c_initials"]
 GIDEON_TRUE = GIDEON_MINIMUM + [
+    "judicial_transfer_order",  # แรงจูงใจ D03 บังคับในฉากจบแท้
     "pocket_watch", "liora_time_estimate", "gideon_no_early_alibi",
     "red_soot", "gideon_sleeve_soot", "obsidian_cufflink", "gideon_missing_button",
     "wax_seal_imprint", "gideon_signet_ring",
