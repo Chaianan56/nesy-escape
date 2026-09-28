@@ -28,4 +28,6 @@ if __name__ == "__main__":
     else:
         Timer(1.2, open_browser).start()
     print(f"NeSy-Escape กำลังเปิดที่ http://{HOST}:{PORT}")
-    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=not IS_CLOUD)
+    # ไฟล์นี้อยู่ใน scripts/ จึงต้องชี้ root โปรเจกต์ให้ import app ได้ ไม่ว่าจะรันจากโฟลเดอร์ไหน
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=not IS_CLOUD, app_dir=root)
