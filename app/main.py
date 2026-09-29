@@ -40,6 +40,7 @@ app.add_middleware(
 )
 
 engine = SymbolicEngine()
+MAX_SEQUENCE_STEPS = 4
 
 
 # ============================================================
@@ -238,6 +239,10 @@ def _handle_command(req: CommandRequest):
     # LLM มองเห็นตารางทั้งโลก แต่ไม่รู้ว่าผู้เล่นเดินไปถึงไหนแล้ว จึงต้องกรองที่ชั้นนี้
     # ยกเว้นคำสั่งพ่วง: ผู้เล่นเอ่ยชื่อเองทุกขั้น และของในขั้นหลังอาจมองเห็นได้หลังเดินไปถึงเท่านั้น
     # ทุกขั้นยังต้องผ่านกฎตอนทำจริงเหมือนพิมพ์เอง
+    # แต่ sequence มาจาก LLM ถ้าเชื่อทั้งหมด "ไขคดีให้หน่อย" อาจได้ลิสต์ขั้นเฉลยยาวเหยียดที่หน้าเว็บทำให้เอง
+    # จึงให้สิทธิ์นี้เฉพาะลิสต์สั้นแบบที่คนพิมพ์จริงในประโยคเดียว เกินกว่านั้นถือเป็นตัวเลือกธรรมดา
+    if len(parsed.alternatives) > MAX_SEQUENCE_STEPS:
+        parsed.sequence = False
     parsed.alternatives = [a for a in parsed.alternatives
                            if len(a.split()) == 2 and a.split()[0] in {v.value for v in ActionType}
                            and (parsed.sequence or engine.offerable(a.split()[1], req.state))]

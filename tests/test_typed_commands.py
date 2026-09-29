@@ -53,6 +53,19 @@ def test_model_has_bounded_timeout_and_no_automatic_retries(monkeypatch):
     assert configs[0].http_options.retry_options.attempts == 1
 
 
+def test_overloaded_model_is_retried_once_not_hammered(monkeypatch):
+    calls=[]
+    def generate(**kwargs):
+        calls.append(1)
+        raise RuntimeError('503 UNAVAILABLE. This model is currently experiencing high demand')
+    monkeypatch.setattr(gemini_client, '_clients', lambda:[SimpleNamespace(models=SimpleNamespace(generate_content=generate))])
+    try:
+        gemini_client.interpret('สำรวจ', GameState())
+    except gemini_client.NeuralUnavailable:
+        pass
+    assert len(calls) == 2
+
+
 def test_journal_does_not_wait_for_command_lock():
     with TestClient(main.app) as client:
         client.get('/scene')
