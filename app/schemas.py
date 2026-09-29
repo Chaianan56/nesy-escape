@@ -27,6 +27,7 @@ class ActionType(str, Enum):
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
     ACCUSE = "accuse"          # กล่าวหา (จบเกม)
     BURN = "burn"              # ทำลายเอกสาร ทำลายแล้วเรียกคืนไม่ได้
+    SEQUENCE = "sequence"      # คำสั่งต่อเนื่องหลายขั้นตอน (ทำทั้งหมดตามลำดับ)
 
     # --- สอง action นี้สำคัญมากต่อการทดลอง ห้ามตัดออก ---
     AMBIGUOUS = "ambiguous"    # ตีความได้หลายทาง -> กลุ่ม D (30 คำสั่ง)
@@ -54,7 +55,7 @@ class ParsedCommand(BaseModel):
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     alternatives: List[str] = Field(
         default_factory=list,
-        description="ถ้า action=AMBIGUOUS ให้ใส่ตัวเลือกที่เป็นไปได้ไว้ที่นี่",
+        description="ถ้า action=AMBIGUOUS ให้ใส่ตัวเลือกที่เป็นไปได้ หรือถ้า action=SEQUENCE ให้ใส่ขั้นตอนย่อยเรียงตามลำดับ",
     )
 
 

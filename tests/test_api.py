@@ -221,3 +221,35 @@ def test_alternatives_survive_when_the_player_can_already_see_them(fake_llm):
 
     body = post("ดูของสองชิ้นนี้", GameState()).json()
     assert len(body["parsed"]["alternatives"]) == len(near[:2])
+
+
+# ---------- คำสั่งต่อเนื่อง (SEQUENCE PIPELINE) ----------
+
+def test_sequential_commands_execute_all_steps_in_single_roundtrip(fake_llm):
+    """คำสั่ง sequence ต้องถูกรันต่อกันจนครบทุกขั้นใน request เดียว"""
+    fake_llm(
+        ActionType.SEQUENCE,
+        alternatives=["move first_class_car", "examine pocket_watch"]
+    )
+    initial_state = GameState(current_location="lounge_car")
+    body = post("ไปตู้ชั้นหนึ่งแล้วตรวจนาฬิกาพก", initial_state).json()
+
+    assert body["decision"]["allowed"] is True
+    assert body["new_state"]["current_location"] == "first_class_car"
+    assert "pocket_watch" in body["new_state"]["discovered_evidence"]
+    assert len(body["decision"]["reasoning_chain"]) >= 2
+
+
+def test_sequential_commands_fail_early_when_a_step_is_denied(fake_llm):
+    """เมื่อขั้นแรกไม่ผ่าน คำสั่ง sequence ต้องหยุดทำงานทันทีและยกเลิกขั้นที่เหลือ"""
+    fake_llm(
+        ActionType.SEQUENCE,
+        alternatives=["move locomotive", "examine pocket_watch"]
+    )
+    initial_state = GameState(current_location="lounge_car")
+    body = post("ไปหัวรถจักรแล้วตรวจนาฬิกาพก", initial_state).json()
+
+    assert body["decision"]["allowed"] is False
+    assert body["new_state"]["current_location"] == "lounge_car"
+    assert "pocket_watch" not in body["new_state"]["discovered_evidence"]
+    assert "จึงข้ามอีก 1 ขั้นตอนที่รออยู่" in body["decision"]["message"]

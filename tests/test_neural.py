@@ -190,7 +190,7 @@ def test_a_prompt_injection_never_becomes_a_playable_command():
 def test_two_actions_in_one_sentence_come_back_as_separate_steps():
     """สั่งหลายอย่างต่อกันต้องแตกเป็นขั้นๆ เพราะ engine ตัดสินได้ทีละคำสั่ง"""
     p = say("ไปที่ตู้โดยสารชั้นหนึ่งแล้วดูรอบๆ ห้องนั้น")
-    assert p.action is ActionType.AMBIGUOUS, f"ได้ {p.action.value} แทนที่จะเป็น ambiguous"
+    assert p.action in (ActionType.SEQUENCE, ActionType.AMBIGUOUS), f"ได้ {p.action.value} แทนที่จะเป็น sequence หรือ ambiguous"
     assert len(p.alternatives) >= 2, p.alternatives
 
     known = set(STORY_DATA["objects"]) | set(STORY_DATA["suspects"]) | set(STORY_DATA["locations"])

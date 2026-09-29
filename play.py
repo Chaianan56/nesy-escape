@@ -37,6 +37,7 @@ ACTION_TH = {
     ActionType.MOVE: "เคลื่อนที่",
     ActionType.INTERROGATE: "สอบปากคำ",
     ActionType.ACCUSE: "กล่าวหา",
+    ActionType.SEQUENCE: "คำสั่งต่อเนื่อง",
     ActionType.AMBIGUOUS: "คำสั่งกำกวม",
     ActionType.UNKNOWN: "ไม่เข้าใจคำสั่ง",
 }
@@ -185,8 +186,11 @@ while True:
         # ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งสองอย่าง" หรือ "เลือกอย่างใดอย่างหนึ่ง"
         # จึงไม่เดา — ให้ผู้เล่นบอกเอง เพราะเขารู้ว่าตัวเองหมายถึงอะไร
         choices = [a for a in (parsed.alternatives or []) if parse_alt(a)]
-        if parsed.action in (ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
-            print(f"\n  คำสั่งนี้แตกได้ {len(choices)} ขั้น")
+        if parsed.action == ActionType.SEQUENCE and choices:
+            queue = [parse_alt(a) for a in choices]
+            parsed = queue.pop(0)
+        elif parsed.action in (ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
+            print(f"\n  คำสั่งนี้แตกได้ {len(choices)} ทางเลือก")
             for i, alt in enumerate(choices, 1):
                 print(f"    {i}. {describe_alt(alt)}")
             pick = timed_input("  [Enter = ทำทั้งหมดตามลำดับ / เลข = เอาข้อเดียว / n = ยกเลิก] > ").strip()
