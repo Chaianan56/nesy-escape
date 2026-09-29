@@ -141,11 +141,14 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     )
 
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
-    # ค้าง/ล่มชั่วคราวลองคีย์เดิมซ้ำ ครั้งละไม่เกิน 3 วิ (ปกติตอบใน ~2 วิ) จนหมดงบ 8 วิ
+    # ค้าง/ล่มชั่วคราวลองคีย์เดิมซ้ำได้ครั้งเดียว ครั้งละไม่เกิน 3 วิ (ปกติตอบใน ~2 วิ) ในงบรวม 8 วิ
+    # จำกัดจำนวนครั้งไว้ เพราะตอน Google ล่ม 503 กลับมาใน ~1 วิ ถ้าวนตามงบเวลาจะยิง 9 ครั้งต่อคำสั่ง
+    # กินโควตารายนาทีจนโดน 429 ต่อแม้ Google จะกลับมาแล้ว
     # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
     last_error: Optional[Exception] = None
     deadline = time.monotonic() + 8
     queue = list(clients)
+    retried = False
     while queue:
         client = queue[0]
         remaining_ms = min(int((deadline - time.monotonic()) * 1000), 3000)
@@ -177,7 +180,10 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
             last_error = e
             if _is_quota_error(e):
                 queue.pop(0)
-            elif not _is_transient(e):
+                retried = False
+            elif _is_transient(e) and not retried:
+                retried = True
+            else:
                 break
     error_type = NeuralQuotaExceeded if _is_quota_error(last_error) else NeuralUnavailable
     raise error_type(

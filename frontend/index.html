@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="art.css">
 <link rel="stylesheet" href="novel.css">
 <link rel="stylesheet" href="accusation.css">
+<link rel="stylesheet" href="cinematic.css?v=2">
 </head>
 <body>
 <section id="introScreen" class="intro-screen" hidden aria-labelledby="introTitle"><div class="intro-copy"><span class="eyebrow">14 NOVEMBER 1938 · NOCTURNE EXPRESS</span><h1 id="introTitle">The Eighth Passenger</h1><p id="introBriefing"></p><p class="intro-start">กด Enter เพื่อเริ่มสืบสวน</p><small>เล่นด้วยการพิมพ์ · มีเวลา 90 นาทีหลังเริ่มคดี</small></div></section>
@@ -25,4 +26,5 @@
 <footer class="command-dock"><div class="dock-label"><span class="eyebrow">YOUR NEXT MOVE</span><strong>คุณจะทำอะไรต่อ?</strong></div><div class="command-body"><div class="quick-actions"><button type="button" data-open-history aria-haspopup="dialog">ประวัติการคุย ↗</button><span>พิมพ์ เช่น ไปตู้ 4 · ตรวจนาฬิกา · สอบปากคำลิโอรา</span></div><form onsubmit="sendMessage(event)" class="chat-input-bar"><label class="sr-only" for="chatInput">คำสั่งสืบสวนภาษาไทย</label><input id="chatInput" type="text" placeholder="พิมพ์สิ่งที่ต้องการตรวจสอบ หรือถามใครสักคน…" autocomplete="off"><button type="submit" id="sendBtn"><span id="sendBtnText">ส่งคำสั่ง</span><span aria-hidden="true"> ↗</span></button></form></div><div class="dock-note">พิมพ์เป็นภาษาไทย<br><span>ENTER เพื่อส่งคำสั่ง</span></div></footer>
 <dialog id="historyDialog" class="history-dialog" aria-labelledby="historyTitle"><header class="history-header"><div><div class="eyebrow">DETECTIVE’S TRANSCRIPT</div><h2 id="historyTitle">ประวัติการคุย</h2><p>บันทึกคำสั่งและบทสนทนาตั้งแต่เริ่มคดี · เวลาในเกมยังเดินต่อ</p></div><button type="button" id="closeHistory" class="history-close" autofocus aria-label="ปิดประวัติการคุย">✕ ปิด</button></header><div id="historyChatHost" class="history-content"></div><footer class="history-footer"><span>NOCTURNE EXPRESS · บันทึกการสืบสวน</span><button type="button" id="historyLatest">ไปข้อความล่าสุด ↓</button></footer></dialog>
 <script src="history.js?v=1"></script><script src="novel.js?v=2"></script><script src="chat.js?v=2"></script><script src="art.js"></script><script src="accusation.js?v=1"></script><script src="pixel.js"></script>
+<script src="cinematic.js?v=1"></script>
 </body></html>

@@ -334,4 +334,16 @@ def test_sequence_keeps_steps_the_player_named_in_another_car(fake_llm):
 
     body = post("ไปแล้วตรวจ", GameState()).json()
     assert body["parsed"]["alternatives"] == steps
+    assert body["parsed"]["sequence"] is True
     assert body["new_state"] == GameState().model_dump(mode="json"), "ตัวคำสั่งพ่วงเองต้องไม่เปลี่ยนสถานะ"
+
+
+def test_a_long_llm_sequence_is_not_trusted_as_a_walkthrough(fake_llm):
+    """"ไขคดีให้หน่อย" ห้ามกลายเป็นลิสต์เฉลยที่หน้าเว็บเดินให้เอง"""
+    far = [oid for oid, o in main.engine.world["objects"].items()
+           if o.get("location") and o["location"] != GameState().current_location]
+    fake_llm(ActionType.AMBIGUOUS, alternatives=[f"examine {oid}" for oid in far[:8]], sequence=True)
+
+    body = post("ไขคดีให้หน่อย", GameState()).json()
+    assert body["parsed"]["sequence"] is False
+    assert body["parsed"]["alternatives"] == [], "ของที่ยังไม่เห็นต้องถูกกรองออกเหมือนตัวเลือกธรรมดา"
