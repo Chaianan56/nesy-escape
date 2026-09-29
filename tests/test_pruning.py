@@ -11,10 +11,12 @@ from google.genai import types
 from app.schemas import GameState, ParsedCommand
 from app.neural.prompts import build_interpret_system_prompt, prune_world_entities
 
+__test__ = False
+
 load_dotenv()
 
 # โหลดข้อมูลฉากจำลอง
-DATA_PATH = Path(__file__).resolve().parents[0] / "data" / "story.json"
+DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "story.json"
 STORY_DATA: Dict[str, Any] = json.loads(DATA_PATH.read_text(encoding="utf-8"))
 
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")

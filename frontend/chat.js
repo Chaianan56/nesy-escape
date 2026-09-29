@@ -313,11 +313,11 @@ async function sendMessage(e) {
     const data = await submit(text);
     if (!data || gameOver) return;
 
-    // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
-    // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
-    // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
-    const steps = parseSteps(data.parsed);
-    if (steps.length > 1) offerSteps(steps);
+    // เสนอตัวเลือกเฉพาะคำสั่งที่กำกวมจริง (ambiguous) ส่วนคำสั่งต่อเนื่อง (sequence) ถูกรันเสร็จแล้วจาก backend
+    if (data.parsed && data.parsed.action === "ambiguous") {
+      const steps = parseSteps(data.parsed);
+      if (steps.length > 1) offerSteps(steps);
+    }
   });
 }
 
@@ -439,6 +439,10 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
   let statusBadge = "";
   if (isRoomLook) {
     statusBadge = `<span class="badge info">📍 สภาพตู้รถปัจจุบัน</span>`;
+  } else if (parsed && parsed.action === "sequence") {
+    statusBadge = decision.allowed
+      ? `<span class="badge allowed">⚡ คำสั่งต่อเนื่อง (${steps.length} กฎ)</span>`
+      : `<span class="badge denied">✗ คำสั่งต่อเนื่องหยุดชะงัก</span>`;
   } else if (decision.allowed) {
     statusBadge = `<span class="badge allowed">✓ อนุมัติ (ALLOWED)</span>`;
   } else {

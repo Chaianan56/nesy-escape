@@ -21,6 +21,7 @@ from app.schemas import (
     ActionType,
     CommandRequest,
     CommandResponse,
+    Decision,
     GameState,
     ParsedCommand,
 )
@@ -127,7 +128,59 @@ def handle_command(req: CommandRequest):
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
     req.state = sync_clock(req.state)
-    # --- ขั้นที่ 2: ตัดสินด้วยกฎ ---
+
+    # --- โหมดพิเศษ: SEQUENCE (รันหลายคำสั่งตามลำดับใน Request เดียวอย่างรวดเร็วและปลอดภัย) ---
+    if parsed.action == ActionType.SEQUENCE and parsed.alternatives:
+        current_state = req.state
+        combined_messages = []
+        combined_reasoning = []
+        pipeline_allowed = True
+        violated_rule = None
+
+        for idx, alt in enumerate(parsed.alternatives, 1):
+            parts = alt.split()
+            if not parts:
+                continue
+            try:
+                sub_action = ActionType(parts[0].lower())
+            except ValueError:
+                continue
+            sub_target = parts[1] if len(parts) > 1 else None
+            sub_parsed = ParsedCommand(
+                action=sub_action,
+                target=sub_target,
+                raw_text=alt,
+                confidence=1.0,
+            )
+
+            current_state = sync_clock(current_state)
+            sub_decision = engine.decide(sub_parsed, current_state)
+            combined_reasoning.extend(sub_decision.reasoning_chain)
+
+            if sub_decision.allowed:
+                combined_messages.append(sub_decision.message)
+                current_state = apply_changes(current_state, sub_decision.state_changes)
+                if current_state.ending_id:
+                    break
+            else:
+                pipeline_allowed = False
+                violated_rule = sub_decision.violated_rule_id
+                remaining_count = len(parsed.alternatives) - idx
+                fail_msg = f"{sub_decision.message}"
+                if remaining_count > 0:
+                    fail_msg += f"\n(⚠️ ไม่สามารถดำเนินการต่อได้ จึงข้ามอีก {remaining_count} ขั้นตอนที่รออยู่)"
+                combined_messages.append(fail_msg)
+                break
+
+        final_decision = Decision(
+            allowed=pipeline_allowed,
+            message="\n\n".join(combined_messages) if combined_messages else "ดำเนินการตามลำดับเสร็จสิ้น",
+            reasoning_chain=combined_reasoning,
+            violated_rule_id=violated_rule,
+        )
+        return CommandResponse(parsed=parsed, decision=final_decision, new_state=current_state)
+
+    # --- ขั้นที่ 2: ตัดสินด้วยกฎ (คำสั่งเดี่ยวปกติ) ---
     decision = engine.decide(parsed, req.state)
 
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
