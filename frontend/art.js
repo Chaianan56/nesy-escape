@@ -34,7 +34,7 @@ const GameArt = (() => {
       return;
     }
     location=state.current_location;
-    if(command.action==='move') selected={asset:location==='first_class_car'?'scene-04-corridor':rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
+    if(command.action==='move') selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
     else if(command.action==='interrogate' || (command.action==='examine'&&people[command.target])) selected={asset:people[command.target],label:'สนทนาและตรวจสอบบุคคล'};
     else if(command.action==='examine'){
       const asset=evidence[command.target]||rooms[command.target];

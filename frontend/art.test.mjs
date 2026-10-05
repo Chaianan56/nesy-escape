@@ -12,7 +12,7 @@ function setup(){
 test('room, close-up and medical scene follow approved commands',()=>{
   const {art,nodes}=setup();const state={current_location:'first_class_car'};
   art.onResult({new_state:state,parsed:{action:'move',target:'first_class_car'},decision:{allowed:true}});art.sync(state);
-  assert.match(nodes.sceneImage.src,/scene-04-corridor.png$/);
+  assert.match(nodes.sceneImage.src,/scene-04-crime.png$/);
   art.onResult({new_state:state,parsed:{action:'examine',target:'pocket_watch'},decision:{allowed:true}});art.sync(state);
   assert.match(nodes.sceneImage.src,/detail-pocket-watch.png$/);
   art.onResult({new_state:state,parsed:{action:'examine',target:'secret_file'},decision:{allowed:false}});art.sync(state);
@@ -20,6 +20,17 @@ test('room, close-up and medical scene follow approved commands',()=>{
   art.onResult({new_state:state,parsed:{action:'interrogate',target:'dr_liora_venn'},decision:{allowed:true}});art.sync(state);
   assert.match(nodes.sceneImage.src,/scene-04-medical.png$/);
   art.sync({current_location:'lounge_car'});assert.match(nodes.sceneImage.src,/scene-05-lounge.png$/);
+});
+test('entering, examining and reloading the victim room show the same location',()=>{
+  const state={current_location:'first_class_car'};
+  const {art,nodes}=setup();
+  art.onResult({new_state:state,parsed:{action:'move',target:'first_class_car'},decision:{allowed:true}});art.sync(state);
+  const entered=nodes.sceneImage.src;
+  art.onResult({new_state:state,parsed:{action:'examine',target:'pocket_watch'},decision:{allowed:true}});art.sync(state);
+  art.onResult({new_state:state,parsed:{action:'examine',target:'first_class_car'},decision:{allowed:true}});art.sync(state);
+  assert.equal(nodes.sceneImage.src,entered);
+  const reloaded=setup();reloaded.art.sync(state);
+  assert.equal(reloaded.nodes.sceneImage.src,entered);
 });
 test('every evidence item and ending has an existing image',()=>{
   const story=JSON.parse(readFileSync(new URL('../data/story.json',import.meta.url),'utf8'));
