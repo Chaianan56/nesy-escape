@@ -165,7 +165,7 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                     http_options=types.HttpOptions(timeout=remaining_ms,
                         headers={"X-Server-Timeout": "10"},
                         retry_options=types.HttpRetryOptions(attempts=1)),
-                    system_instruction=SYSTEM_INTERPRET_PROMPT,
+                    system_instruction=build_interpret_system_prompt(STORY_DATA, state=state, user_text=text),
                     response_mime_type="application/json",
                     response_schema=ParsedCommand,
                     temperature=0.0,
