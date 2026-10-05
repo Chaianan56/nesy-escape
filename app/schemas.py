@@ -10,7 +10,7 @@ schemas.py — สัญญากลาง (Contract) ระหว่าง Neur
 
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 
 
 # ============================================================
@@ -27,6 +27,7 @@ class ActionType(str, Enum):
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
     ACCUSE = "accuse"          # กล่าวหา (จบเกม)
     BURN = "burn"              # ทำลายเอกสาร ทำลายแล้วเรียกคืนไม่ได้
+    SEQUENCE = "sequence"      # คำสั่งต่อเนื่องหลายขั้นตอน (ทำทั้งหมดตามลำดับ)
 
     # --- สอง action นี้สำคัญมากต่อการทดลอง ห้ามตัดออก ---
     AMBIGUOUS = "ambiguous"    # ตีความได้หลายทาง -> กลุ่ม D (30 คำสั่ง)
@@ -48,13 +49,13 @@ class ParsedCommand(BaseModel):
         None, description="id ของเป้าหมาย เช่น 'cabinet_03' ไม่ใช่ 'ตู้ใบที่สาม'"
     )
     instrument: Optional[str] = Field(
-        None, description="id ของสิ่งที่ใช้ เช่น 'keycard_A'"
+        None, validation_alias=AliasChoices("instrument", "items"), description="id ของสิ่งที่ใช้ เช่น 'keycard_A'"
     )
     raw_text: str = Field(..., description="ข้อความดิบของผู้เล่น เก็บไว้เพื่อ log และตรวจย้อนหลัง")
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     alternatives: List[str] = Field(
         default_factory=list,
-        description="ถ้า action=AMBIGUOUS ให้ใส่ตัวเลือกที่เป็นไปได้ไว้ที่นี่",
+        description="ถ้า action=AMBIGUOUS ให้ใส่ตัวเลือกที่เป็นไปได้ หรือถ้า action=SEQUENCE ให้ใส่ขั้นตอนย่อยเรียงตามลำดับ",
     )
     sequence: bool = Field(
         False,
@@ -114,6 +115,7 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
+    pending_steps: List[str] = Field(default_factory=list, description="Steps awaiting player confirmation; not executed")
     parsed: ParsedCommand
     decision: Decision
     new_state: GameState

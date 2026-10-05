@@ -388,11 +388,15 @@ async function sendMessage(e) {
     const data = await submit(text);
     if (!data || gameOver) return;
 
-    // ประโยคที่สั่งหลายอย่างต่อกันถูกตีความเป็น ambiguous + sequence พร้อมลิสต์ขั้นตอน
-    // ระบบตัดสินได้ทีละคำสั่ง จึงต้องทำเรียงทีละขั้น ไม่ใช่รวดเดียว
-    // หน่วยวัดจึงยังเป็น 1 คำสั่ง = 1 คำตัดสิน เหมือนเดิม
-    steps = parseSteps(data.parsed);
-    sequence = !!data.parsed.sequence;
+    // Backend sequences are already executed. Only pending steps need confirmation.
+    // Retain the old wire format for compatibility with an older server.
+    if (data.pending_steps?.length) {
+      steps = parseSteps({action: 'ambiguous', sequence: true, alternatives: data.pending_steps});
+      sequence = true;
+    } else if (data.parsed?.action !== 'sequence') {
+      steps = parseSteps(data.parsed);
+      sequence = !!data.parsed.sequence;
+    }
     if (!sequence && steps.length > 1) offerSteps(steps);
   });
   if (sequence && steps.length) await runSequence(steps);

@@ -190,7 +190,7 @@ def test_a_prompt_injection_never_becomes_a_playable_command():
 def test_two_actions_in_one_sentence_come_back_as_separate_steps():
     """สั่งหลายอย่างต่อกันต้องแตกเป็นขั้นๆ เพราะ engine ตัดสินได้ทีละคำสั่ง"""
     p = say("ไปที่ตู้โดยสารชั้นหนึ่งแล้วดูรอบๆ ห้องนั้น")
-    assert p.action is ActionType.AMBIGUOUS, f"ได้ {p.action.value} แทนที่จะเป็น ambiguous"
+    assert p.action in (ActionType.SEQUENCE, ActionType.AMBIGUOUS), f"ได้ {p.action.value} แทนที่จะเป็น sequence หรือ ambiguous"
     assert len(p.alternatives) >= 2, p.alternatives
 
     known = set(STORY_DATA["objects"]) | set(STORY_DATA["suspects"]) | set(STORY_DATA["locations"])
@@ -199,3 +199,36 @@ def test_two_actions_in_one_sentence_come_back_as_separate_steps():
         assert len(parts) == 2, f"รูปแบบตัวเลือกต้องเป็น '<action> <id>' ไม่ใช่ {alt!r}"
         assert parts[0] in {a.value for a in ActionType}, alt
         assert parts[1] in known, f"ตัวเลือกอ้าง id ที่ไม่มีในฉาก: {alt}"
+
+
+def test_dynamic_prompt_keeps_timeout_and_retry_budget(monkeypatch):
+    from types import SimpleNamespace
+    from app.neural import gemini_client
+    captured = {}
+    def generate(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(text='{"action":"examine","target":"lounge_car","raw_text":"look"}')
+    monkeypatch.setattr(gemini_client, '_clients', lambda: [SimpleNamespace(models=SimpleNamespace(generate_content=generate))])
+    state = GameState(current_location='lounge_car')
+    gemini_client.interpret('look', state)
+    config = captured['config']
+    assert config.system_instruction == build_interpret_system_prompt(STORY_DATA, state=state, user_text='look')
+    assert len(config.system_instruction) < len(build_interpret_system_prompt(STORY_DATA, prune=False))
+    assert 0 < config.http_options.timeout <= 8000
+    assert config.http_options.retry_options.attempts == 1
+
+
+def test_instrument_accepts_legacy_items_without_truncating_id():
+    command = ParsedCommand(action=ActionType.USE, raw_text='use', items='wire_cutters')
+    assert command.instrument == 'wire_cutters'
+    assert command.model_dump()['instrument'] == 'wire_cutters'
+
+
+def test_pruning_retains_explicit_remote_targets_and_known_evidence():
+    from app.neural.prompts import prune_entities
+    state = GameState(current_location='lounge_car',discovered_evidence=['cut_copper_wire'])
+    objects, suspects, locations = prune_entities(STORY_DATA, state, 'move first_class_car then examine pocket_watch')
+    assert 'pocket_watch' in objects
+    assert 'cut_copper_wire' in objects
+    assert set(locations) == set(STORY_DATA['locations'])
+    assert len(objects) < len(STORY_DATA['objects'])

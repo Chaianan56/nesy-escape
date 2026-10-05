@@ -22,6 +22,7 @@ from app.schemas import (
     ActionType,
     CommandRequest,
     CommandResponse,
+    Decision,
     GameState,
     ParsedCommand,
 )
@@ -215,6 +216,13 @@ def _handle_command(req: CommandRequest):
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
     req.state = sync_clock(req.state)
+    if req.state.ending_id or engine.is_out_of_time(req.state):
+        return terminal_response(req.state, req.text)
+    # Accept the previous wire format, but execute a sequence in one place only.
+    if parsed.action == ActionType.SEQUENCE or (
+        parsed.action == ActionType.AMBIGUOUS and parsed.sequence
+    ):
+        return execute_sequence(parsed, req.state)
     # --- ขั้นที่ 2: ตัดสินด้วยกฎ ---
     if parsed.action == ActionType.ACCUSE and not engine.is_out_of_time(req.state):
         decision = accusation_submission(engine, parsed, req.state, req.submitted_evidence)
@@ -248,6 +256,50 @@ def _handle_command(req: CommandRequest):
                            and (parsed.sequence or engine.offerable(a.split()[1], req.state))]
 
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
+
+
+def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse:
+    parsed = parsed.model_copy(update={"action": ActionType.SEQUENCE, "sequence": False})
+    actions = {a.value for a in ActionType} - {"sequence", "ambiguous", "unknown"}
+    steps = parsed.alternatives
+    # Validate the whole list before any mutation; never silently skip malformed steps.
+    if not steps or len(steps) > MAX_SEQUENCE_STEPS or any(
+        len(step.split()) != 2 or step.split()[0] not in actions for step in steps
+    ):
+        parsed = parsed.model_copy(update={"alternatives": []})
+        return CommandResponse(parsed=parsed, new_state=state, decision=Decision(
+            allowed=False, message="คำสั่งต่อเนื่องยาวเกินไปหรือรูปแบบไม่ถูกต้อง กรุณาแบ่งเป็นคำสั่งสั้น ๆ",
+            violated_rule_id="R_SEQUENCE_FORMAT"))
+    messages, reasoning = [], []
+    for index, step in enumerate(steps):
+        state = sync_clock(state)
+        if state.ending_id or engine.is_out_of_time(state):
+            return terminal_response(state, parsed.raw_text)
+        action, target = step.split()
+        if action in {"accuse", "burn"}:
+            return CommandResponse(parsed=parsed, new_state=state, pending_steps=steps[index:],
+                decision=Decision(allowed=True,
+                    message="\n\n".join(messages + ["ขั้นต่อไปต้องยืนยันก่อนดำเนินการ"]),
+                    reasoning_chain=reasoning))
+        command = ParsedCommand(action=ActionType(action), target=target, raw_text=step, confidence=1)
+        decision = engine.decide(command, state)
+        messages.append(decision.message)
+        reasoning.extend(decision.reasoning_chain)
+        if decision.allowed:
+            state = apply_changes(state, decision.state_changes)
+            if state.started_at is None:
+                state = state.model_copy(update={"started_at": time.time()})
+        elif decision.state_changes.get("ending"):
+            state = state.model_copy(update={"ending_id": decision.state_changes["ending"]})
+        if not decision.allowed or state.ending_id:
+            remaining = len(steps) - index - 1
+            if remaining and not state.ending_id:
+                messages.append(f"จึงข้ามอีก {remaining} ขั้นตอนที่รออยู่")
+            return CommandResponse(parsed=parsed, new_state=state, decision=Decision(
+                allowed=decision.allowed, message="\n\n".join(messages),
+                reasoning_chain=reasoning, violated_rule_id=decision.violated_rule_id))
+    return CommandResponse(parsed=parsed, new_state=state, decision=Decision(
+        allowed=True, message="\n\n".join(messages), reasoning_chain=reasoning))
 
 
 def terminal_response(state: GameState, text: str = "") -> CommandResponse:

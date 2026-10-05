@@ -408,3 +408,39 @@ test("server clock correction clears confirmation and unlocks input", async () =
   assert.equal(c.el('endingStatus').hidden,true);
   assert.equal(c.el('chatInput').disabled,false);
 });
+
+
+test("backend sequences execute once and only pending steps await confirmation", async () => {
+  const sent = [];
+  const c = loadChat(async (url, options) => {
+    sent.push(JSON.parse(options.body).text);
+    const data = await reply().json();
+    data.parsed = {action:'sequence',sequence:false,alternatives:['move first_class_car','burn burnt_folder_c']};
+    data.pending_steps = ['burn burnt_folder_c'];
+    return {ok:true,json:async()=>data};
+  });
+  c.el('chatInput').value = 'ไปตู้ 4 แล้วเผาเอกสาร';
+  await c.sandbox.sendMessage(ev);
+  assert.deepEqual(sent,['ไปตู้ 4 แล้วเผาเอกสาร']);
+  const confirmation = c.el('chatFeed').children.at(-1);
+  assert.match(confirmation.innerHTML,/ย้อนกลับไม่ได้/);
+  assert.match(confirmation.children[0].children[0].textContent,/ยืนยัน/);
+  confirmation.children[0].children[0].onclick();
+  await flush();
+  assert.deepEqual(sent,['ไปตู้ 4 แล้วเผาเอกสาร','burn burnt_folder_c']);
+});
+
+test("completed backend sequence is never replayed by the frontend", async () => {
+  let calls=0;
+  const c = loadChat(async () => {
+    calls++;
+    const data = await reply().json();
+    data.parsed = {action:'sequence',sequence:false,alternatives:['move first_class_car','examine pocket_watch']};
+    data.pending_steps=[];
+    return {ok:true,json:async()=>data};
+  });
+  c.el('chatInput').value='ไปตู้ 4 แล้วตรวจนาฬิกา';
+  await c.sandbox.sendMessage(ev);
+  assert.equal(calls,1);
+  assert.doesNotMatch(c.el('chatFeed').children.at(-1).innerHTML,/ย้อนกลับไม่ได้|ตีความได้/);
+});

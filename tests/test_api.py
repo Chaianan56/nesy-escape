@@ -327,15 +327,14 @@ def test_alternatives_survive_when_the_player_can_already_see_them(fake_llm):
 
 def test_sequence_keeps_steps_the_player_named_in_another_car(fake_llm):
     """"ไปตู้ ก แล้วตรวจ ข" — ข ยังมองไม่เห็นจนกว่าจะเดินไปถึง ขั้นนั้นต้องไม่ถูกตัดทิ้ง"""
-    far = next(oid for oid, o in main.engine.world["objects"].items()
-               if o.get("location") and o["location"] != GameState().current_location)
-    steps = [f"move {main.engine.world['objects'][far]['location']}", f"examine {far}"]
+    steps = ["move first_class_car", "examine pocket_watch"]
     fake_llm(ActionType.AMBIGUOUS, alternatives=steps, sequence=True)
-
     body = post("ไปแล้วตรวจ", GameState()).json()
-    assert body["parsed"]["alternatives"] == steps
-    assert body["parsed"]["sequence"] is True
-    assert body["new_state"] == GameState().model_dump(mode="json"), "ตัวคำสั่งพ่วงเองต้องไม่เปลี่ยนสถานะ"
+    assert body["parsed"]["action"] == "sequence"
+    assert body["parsed"]["sequence"] is False
+    assert body["new_state"]["current_location"] == "first_class_car"
+    assert "pocket_watch" in body["new_state"]["discovered_evidence"]
+    assert body["pending_steps"] == []
 
 
 def test_a_long_llm_sequence_is_not_trusted_as_a_walkthrough(fake_llm):
@@ -364,3 +363,97 @@ def test_reload_after_deadline_preserves_case_and_terminal_response(monkeypatch)
     assert result["decision"]["message"]
     assert result["new_state"]["discovered_evidence"] == ["pocket_watch"]
     assert client.post("/clock", json={}).json()["new_state"]["ending_id"] == "cold_arrival"
+
+# ---------- คำสั่งต่อเนื่อง (SEQUENCE PIPELINE) ----------
+
+def test_sequential_commands_execute_all_steps_in_single_roundtrip(fake_llm):
+    """คำสั่ง sequence ต้องถูกรันต่อกันจนครบทุกขั้นใน request เดียว"""
+    fake_llm(
+        ActionType.SEQUENCE,
+        alternatives=["move first_class_car", "examine pocket_watch"]
+    )
+    initial_state = GameState(current_location="lounge_car")
+    body = post("ไปตู้ชั้นหนึ่งแล้วตรวจนาฬิกาพก", initial_state).json()
+
+    assert body["decision"]["allowed"] is True
+    assert body["new_state"]["current_location"] == "first_class_car"
+    assert "pocket_watch" in body["new_state"]["discovered_evidence"]
+    assert len(body["decision"]["reasoning_chain"]) >= 2
+
+
+def test_sequential_commands_fail_early_when_a_step_is_denied(fake_llm):
+    """เมื่อขั้นแรกไม่ผ่าน คำสั่ง sequence ต้องหยุดทำงานทันทีและยกเลิกขั้นที่เหลือ"""
+    fake_llm(
+        ActionType.SEQUENCE,
+        alternatives=["move locomotive", "examine pocket_watch"]
+    )
+    initial_state = GameState(current_location="lounge_car")
+    body = post("ไปหัวรถจักรแล้วตรวจนาฬิกาพก", initial_state).json()
+
+    assert body["decision"]["allowed"] is False
+    assert body["new_state"]["current_location"] == "lounge_car"
+    assert "pocket_watch" not in body["new_state"]["discovered_evidence"]
+    assert "จึงข้ามอีก 1 ขั้นตอนที่รออยู่" in body["decision"]["message"]
+
+
+@pytest.mark.parametrize("action", ["accuse", "burn"])
+def test_sequence_pauses_before_irreversible_step(fake_llm, action):
+    target = "gideon_hart" if action == "accuse" else "burnt_folder_c"
+    steps = ["move first_class_car", f"{action} {target}", "examine pocket_watch"]
+    fake_llm(ActionType.SEQUENCE, alternatives=steps)
+    body = post("สำรวจแล้วทำต่อ", GameState()).json()
+    assert body["pending_steps"] == steps[1:]
+    assert body["new_state"]["ending_id"] is None
+    assert "pocket_watch" not in body["new_state"]["discovered_evidence"]
+    assert client.get('/scene').json()['initial_state']['current_location'] == 'first_class_car'
+
+
+def test_confirmed_sequence_accusation_still_requires_submitted_evidence(fake_llm):
+    fake_llm(ActionType.SEQUENCE, alternatives=['accuse gideon_hart'])
+    body = post('กล่าวหา', GameState()).json()
+    assert body['pending_steps'] == ['accuse gideon_hart']
+    fake_llm(ActionType.ACCUSE, target='gideon_hart')
+    body = client.post('/command', json={'text':'accuse gideon_hart'}).json()
+    assert body['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
+    assert body['new_state']['ending_id'] is None
+
+
+@pytest.mark.parametrize('steps', [[], ['move first_class_car', 'bogus x'],
+    ['move first_class_car', 'sequence x'], ['examine pocket_watch'] * 9])
+def test_invalid_sequence_does_not_partially_execute(fake_llm, steps):
+    fake_llm(ActionType.SEQUENCE, alternatives=steps)
+    body = post('ทำต่อ', GameState()).json()
+    assert body['decision']['allowed'] is False
+    assert body['new_state'] == GameState().model_dump(mode='json')
+    assert body['parsed']['alternatives'] == []
+
+
+def test_sequence_timeout_between_steps_persists_prior_progress(fake_llm, monkeypatch):
+    fake_llm(ActionType.SEQUENCE, alternatives=['move first_class_car', 'examine pocket_watch'])
+    original = main.engine.decide
+    from app import game_clock
+    now = [100]
+    monkeypatch.setattr(game_clock.time, 'time', lambda: now[0])
+    def decide(command, state):
+        result = original(command, state)
+        if command.action == ActionType.MOVE:
+            now[0] = 100 + main.engine.time_limit_seconds
+        return result
+    monkeypatch.setattr(main.engine, 'decide', decide)
+    body = post('ไปแล้วตรวจ', GameState(started_at=100)).json()
+    assert body['new_state']['ending_id'] == 'cold_arrival'
+    assert body['new_state']['current_location'] == 'first_class_car'
+    assert 'pocket_watch' not in body['new_state']['discovered_evidence']
+    assert client.get('/scene').json()['initial_state']['ending_id'] == 'cold_arrival'
+
+
+def test_sequence_confirmation_then_submission_closes_and_records_evidence(fake_llm):
+    evidence = ['wire_cutters', 'vincent_blood', 'cut_copper_wire']
+    fake_llm(ActionType.SEQUENCE, alternatives=['accuse vincent_gray'])
+    body = post('กล่าวหาวินเซนต์', GameState(discovered_evidence=evidence)).json()
+    assert body['pending_steps'] == ['accuse vincent_gray']
+    assert body['new_state']['ending_id'] is None
+    fake_llm(ActionType.ACCUSE, target='vincent_gray')
+    result = client.post('/command', json={'text':'accuse vincent_gray','submitted_evidence':evidence}).json()
+    assert result['new_state']['ending_id'] == 'the_scapegoat'
+    assert client.post('/journal').json()['submitted_evidence'] == evidence

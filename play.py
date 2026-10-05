@@ -38,6 +38,7 @@ ACTION_TH = {
     ActionType.INTERROGATE: "สอบปากคำ",
     ActionType.ACCUSE: "กล่าวหา",
     ActionType.AMBIGUOUS: "คำสั่งกำกวม",
+    ActionType.SEQUENCE: "คำสั่งต่อเนื่อง",
     ActionType.UNKNOWN: "ไม่เข้าใจคำสั่ง",
 }
 
@@ -154,6 +155,10 @@ while True:
 
     if queue:
         parsed = queue.pop(0)
+        if parsed.action in (ActionType.ACCUSE, ActionType.BURN):
+            if timed_input("ขั้นต่อไปย้อนกลับไม่ได้ พิมพ์ y เพื่อยืนยัน > ").strip().lower() != 'y':
+                queue.clear()
+                continue
         print(f"  ขั้นต่อไป: {ACTION_TH.get(parsed.action, parsed.action.value)}{th_name(parsed.target)}")
     else:
         try:
@@ -175,12 +180,15 @@ while True:
             continue
 
         parsed = interpret(text, state)
+        if parsed.action == ActionType.SEQUENCE and len(parsed.alternatives) > 4:
+            print("กรุณาแบ่งเป็นคำสั่งสั้น ๆ ไม่เกิน 4 ขั้น")
+            continue
 
         # ประโยคพ่วงหลายขั้นถูกตีความเป็น ambiguous พร้อมลิสต์ขั้นตอน
         # ระบบแยกไม่ออกว่าผู้เล่นหมายถึง "ทำทั้งสองอย่าง" หรือ "เลือกอย่างใดอย่างหนึ่ง"
         # จึงไม่เดา — ให้ผู้เล่นบอกเอง เพราะเขารู้ว่าตัวเองหมายถึงอะไร
-        choices = [a for a in (parsed.alternatives or []) if parse_alt(a) and engine.offerable(parse_alt(a).target, state)]
-        if parsed.action in (ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
+        choices = [a for a in (parsed.alternatives or []) if parse_alt(a) and (parsed.action == ActionType.SEQUENCE or engine.offerable(parse_alt(a).target, state))]
+        if parsed.action in (ActionType.SEQUENCE, ActionType.AMBIGUOUS, ActionType.UNKNOWN) and choices:
             print(f"\n  คำสั่งนี้แตกได้ {len(choices)} ขั้น")
             for i, alt in enumerate(choices, 1):
                 print(f"    {i}. {describe_alt(alt)}")
