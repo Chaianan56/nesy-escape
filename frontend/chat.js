@@ -24,6 +24,7 @@ let busy = false;       // มีคำสั่งค้างอยู่ใ�
 let clockTimer = null;
 let clockPending = false;
 let deadlineReached = false;
+let clockFailures = 0;
 let clockAnchor = null;
 let clockElapsed = 0;
 
@@ -43,39 +44,58 @@ async function tickClock() {
   if (elapsedNow() < timeLimitSeconds) return;
   deadlineReached = true;
   setBusy(busy);
-  if (clockPending) return;
+  if (clockPending || clockFailures >= 3) return;
   clockPending = true;
+  setEndingStatus("กำลังยืนยันฉากจบ…");
   try {
     const res = await fetch(`${API_BASE}/clock`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}), signal: AbortSignal.timeout(10000),
     });
+    if (gameOver) return null;
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
       throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${res.status}`);
     }
     const data = await res.json();
     if (gameOver) return;
+    clockFailures = 0;
     // Keep action state if a command completed while this clock request was pending.
     if (data.new_state.ending_id) {
       gameState = { ...gameState, ending_id: data.new_state.ending_id,
         elapsed_seconds: data.new_state.elapsed_seconds };
-      renderSystem(data.decision, data.parsed);
-      showGameOver();
+      showGameOver(data.decision);
     } else {
       gameState.elapsed_seconds = data.new_state.elapsed_seconds;
       anchorClock();
       deadlineReached = false;
+      setEndingStatus("");
       setBusy(busy);
     }
   } catch (err) {
-    // Retry on the next tick; input stays locked at the deadline.
-    document.getElementById("clockText").textContent = "00:00 (กำลังยืนยันฉากจบ...)";
+    if (gameOver) return;
+    clockFailures++;
+    setEndingStatus(clockFailures >= 3
+      ? "ยังยืนยันฉากจบไม่ได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง"
+      : "เชื่อมต่อไม่สำเร็จ กำลังลองยืนยันฉากจบอีกครั้ง…", clockFailures >= 3);
   } finally {
     clockPending = false;
   }
 }
 
+
+function setEndingStatus(message, retry = false) {
+  const status = document.getElementById('endingStatus');
+  const button = document.getElementById('retryEnding');
+  if (status) { status.hidden = !message; status.textContent = message; }
+  if (button) button.hidden = !retry;
+}
+
+function retryEnding() {
+  if (gameOver || clockPending) return;
+  clockFailures = 0;
+  return tickClock();
+}
 
 // ============================================================
 // 1. เริ่มต้นเกม (INIT GAME)
@@ -300,8 +320,10 @@ async function submit(text, opts = {}) {
       body: JSON.stringify({ text: text, ...(opts.submittedEvidence ? {submitted_evidence: opts.submittedEvidence} : {}) }),
       signal: AbortSignal.timeout(12000), // longer than the server's 8s Gemini budget
     });
+    if (gameOver) return null;
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
+      if (gameOver) return null;
       if (typeof error.detail === 'string') { removeLoading(); renderError(`⚠️ ${error.detail}`); return null; }
       throw new Error(`HTTP ${res.status}`);
     }
@@ -313,6 +335,7 @@ async function submit(text, opts = {}) {
     updateLocationHUD();
     updateClock();
     removeLoading();
+    if (gameState?.ending_id) { showGameOver(data.decision); return data; }
     // กล่าวหาโดยยังไม่ยื่นหลักฐาน: เปิดหน้าต่างเลือกหลักฐานแทนการให้พิมพ์เลข
     const askEvidence = data.decision.violated_rule_id === 'R_SUBMITTED_EVIDENCE' && !opts.submittedEvidence
       && data.parsed?.target && typeof AccusationUI !== 'undefined';
@@ -323,15 +346,10 @@ async function submit(text, opts = {}) {
     if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
 
-    // เกมจบแล้วก็คือจบ ไม่ให้พิมพ์ต่อ
-    // กล่าวหาผ่านเงื่อนไขแล้วจึงปิดคดี ส่วนคำสั่งที่หลักฐานไม่พอยังเล่นต่อได้
-    // หมดเวลาก็ปิดคดีเหมือนกัน ฝั่งกฎเป็นคนใส่ ending_id มาให้ในสถานะ
-    // จึงดูที่ ending_id ที่เดียวพอ ไม่ต้องไปจำชื่อกฎข้อไหนไว้ในหน้าเว็บ
-    if (gameState && gameState.ending_id) showGameOver();
-
     return data;
   } catch (err) {
     removeLoading();
+    if (gameOver) return null;
     renderError(err.name === 'TimeoutError'
       ? '⚠️ เซิร์ฟเวอร์ตอบช้าเกินไป ลองส่งคำสั่งอีกครั้ง'
       : `⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
@@ -390,29 +408,27 @@ async function restartGame() {
   }
 }
 
-function showGameOver() {
-  if (typeof NovelUI !== 'undefined') NovelUI.close();
-  if (gameOver) return;   // เรียกซ้ำได้ แต่การ์ดปิดคดีต้องขึ้นครั้งเดียว
+function showGameOver(decision = null) {
+  if (gameOver) return;
   gameOver = true;
-  if (typeof PixelUI !== 'undefined') PixelUI.refresh();
+  deadlineReached = true;
+  removeLoading();
+  setEndingStatus('');
   if (clockTimer !== null) clearInterval(clockTimer);
-  const input = document.getElementById("chatInput");
-  const btn = document.getElementById("sendBtn");
-  input.disabled = true;
-  btn.disabled = true;
-  input.placeholder = "คดีปิดแล้ว";
-  document.getElementById("sendBtnText").textContent = "จบเกม";
-
-  const feed = document.getElementById("chatFeed");
-  const box = document.createElement("div");
-  box.className = "msg-system";
-  box.innerHTML =
-    `<div class="story-text"><strong>คดีนี้ปิดลงแล้ว</strong><br>` +
-    `เรื่องนี้มีฉากจบหลายแบบ ขึ้นอยู่กับว่าคุณชี้ตัวใคร และตอนนั้นมีหลักฐานอยู่ในมือแค่ไหน</div>` +
-    `<div class="chips-scroll"><button type="button" class="chip-btn" ` +
-    `onclick="restartGame()">เริ่มคดีใหม่</button></div>`;
+  if (typeof NovelUI !== 'undefined') NovelUI.close();
+  setBusy(false);
+  updateClock();
+  document.getElementById('chatInput').placeholder = 'คดีปิดแล้ว';
+  const restart = document.getElementById('restartGame');
+  if (restart) restart.hidden = false;
+  const feed = document.getElementById('chatFeed');
+  const box = document.createElement('div');
+  box.className = 'msg-system ending-card';
+  box.innerHTML = `<div class="card-header-bar"><span class="badge info">${gameState?.ending_id === 'cold_arrival' ? 'หมดเวลา · รถไฟถึงปลายทาง' : 'บทสรุปคดี'}</span></div>` +
+    `<div class="story-text">${escapeHtml(decision?.message || 'คดีนี้ปิดลงแล้ว')}</div>`;
   feed.appendChild(box);
-  feed.scrollTop = feed.scrollHeight;
+  feed.scrollTop = 0;
+  if (typeof PixelUI !== 'undefined') PixelUI.refresh();
 }
 
 // ============================================================
@@ -485,7 +501,7 @@ async function runSteps(steps) {
       // ขั้นถัดไปตั้งอยู่บนสมมติฐานว่าขั้นนี้สำเร็จ ทำต่อไปก็ผิดยกแถว
       // คดีปิดกลางทางก็หยุดเหมือนกัน ที่เหลือไม่มีความหมายแล้ว
       if (!data || !data.decision.allowed || gameOver) {
-        if (left > 0) renderError(`ยกเลิกอีก ${left} ขั้นที่รออยู่ เพราะขั้นนี้ไปต่อไม่ได้`);
+        if (left > 0 && !gameOver) renderError(`ยกเลิกอีก ${left} ขั้นที่รออยู่ เพราะขั้นนี้ไปต่อไม่ได้`);
         return;
       }
     }

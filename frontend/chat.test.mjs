@@ -88,7 +88,7 @@ function makeDom() {
     return node;
   };
   for (const id of ["chatInput", "sendBtn", "sendBtnText", "chatFeed",
-                    "locText", "clockText", "clockWidget"]) {
+                    "locText", "clockText", "clockWidget", "endingStatus", "retryEnding", "restartGame"]) {
     byId.set(id, make(id));
   }
   return {
@@ -304,4 +304,107 @@ test("คำสั่งพ่วงทำต่อกันเอง และ�
                             "examine pocket_watch", "move first_class_car"]);
   const shown = el("chatFeed").children.map((c) => c.innerHTML).join("\n");
   assert.match(shown, /ย้อนกลับไม่ได้/, "ต้องหยุดถามก่อนกล่าวหา");
+});
+
+
+test("timeout is an ending, with restart outside the transcript", async () => {
+  const c = loadChat(async () => reply({allowed:false, ending:'cold_arrival'}));
+  c.read('timeLimitSeconds = 1; clockElapsed = 2; clockAnchor = Date.now()');
+  await c.sandbox.tickClock();
+  const html = c.el('chatFeed').children.map(n=>n.innerHTML).join('');
+  assert.match(html, /หมดเวลา · รถไฟถึงปลายทาง/);
+  assert.doesNotMatch(html, /DENIED|ไม่ผ่านกฎ|restartGame/);
+  assert.equal(c.el('restartGame').hidden, false);
+});
+
+test("confirmation failures stop after three attempts and can be retried", async () => {
+  let calls = 0;
+  const c = loadChat(async () => {
+    if (++calls <= 3) throw Error('offline');
+    return reply({allowed:false, ending:'cold_arrival'});
+  });
+  c.read('timeLimitSeconds = 1; clockElapsed = 2; clockAnchor = Date.now()');
+  for(let i=0;i<5;i++) await c.sandbox.tickClock();
+  assert.equal(calls,3);
+  assert.equal(c.el('retryEnding').hidden,false);
+  assert.equal(c.el('chatInput').disabled,true);
+  assert.equal(c.read('gameOver'),false);
+  await c.sandbox.retryEnding();
+  assert.equal(calls,4);
+  assert.equal(c.read('gameOver'),true);
+  assert.equal(c.el('retryEnding').hidden,true);
+});
+
+test("command timeout uses the same terminal presentation", async () => {
+  const c = loadChat(async () => reply({allowed:false, ending:'cold_arrival'}));
+  await c.sandbox.submit('ดูรอบๆ', {isRoomLook:true});
+  assert.match(c.el('chatFeed').children.at(-1).innerHTML,/หมดเวลา/);
+  assert.equal(c.el('restartGame').hidden,false);
+});
+
+test("late clock failure cannot overwrite a completed ending", async () => {
+  let reject;
+  const c = loadChat(() => new Promise((_, fail)=>{reject=fail;}));
+  c.read('timeLimitSeconds = 1; clockElapsed = 2; clockAnchor = Date.now()');
+  const pending = c.sandbox.tickClock();
+  c.read('gameState.ending_id = "cold_arrival"; showGameOver()');
+  reject(Error('offline'));
+  await pending;
+  assert.equal(c.el('endingStatus').hidden,true);
+  assert.equal(c.el('retryEnding').hidden,true);
+});
+
+
+test("late HTTP error cannot append a rejection after the ending", async () => {
+  const pending = pendingFetch();
+  const c = loadChat(pending.fetchImpl);
+  const request = c.sandbox.submit('ดูรอบๆ');
+  await flush();
+  c.read('gameState.ending_id = "cold_arrival"; showGameOver()');
+  const count = c.el('chatFeed').children.length;
+  pending.calls[0].release({ok:false,status:500,json:async()=>({detail:'failure'})});
+  await request;
+  assert.equal(c.el('chatFeed').children.length,count);
+});
+
+
+test("reload of an expired session restores the ending and restart control", async () => {
+  const urls = [];
+  const c = loadChat(async url => {
+    urls.push(url);
+    if(url === '/scene') {
+      const scene = await SCENE.json();
+      scene.initial_state = {current_location:'lounge_car',elapsed_seconds:5400,ending_id:'cold_arrival',started_at:100};
+      return {ok:true,json:async()=>scene};
+    }
+    return reply({allowed:false,ending:'cold_arrival',state:{elapsed_seconds:5400}});
+  });
+  await c.sandbox.initGame();
+  assert.deepEqual(urls,['/scene','/command']);
+  assert.equal(c.read('gameOver'),true);
+  assert.equal(c.el('restartGame').hidden,false);
+  assert.equal(c.el('chatInput').disabled,true);
+  assert.match(c.el('chatFeed').children.at(-1).innerHTML,/หมดเวลา/);
+});
+
+test("pending confirmation does not issue duplicate requests", async () => {
+  const pending = pendingFetch();
+  const c = loadChat(pending.fetchImpl);
+  c.read('timeLimitSeconds = 1; clockElapsed = 2; clockAnchor = Date.now()');
+  const first = c.sandbox.tickClock();
+  await c.sandbox.tickClock();
+  await c.sandbox.retryEnding();
+  assert.equal(pending.calls.length,1);
+  pending.calls[0].release(reply({allowed:false,ending:'cold_arrival'}));
+  await first;
+  assert.equal(c.read('gameOver'),true);
+});
+
+test("server clock correction clears confirmation and unlocks input", async () => {
+  const c = loadChat(async () => reply({state:{elapsed_seconds:2}}));
+  c.read('timeLimitSeconds = 10; clockElapsed = 11; clockAnchor = Date.now()');
+  await c.sandbox.tickClock();
+  assert.equal(c.read('deadlineReached'),false);
+  assert.equal(c.el('endingStatus').hidden,true);
+  assert.equal(c.el('chatInput').disabled,false);
 });

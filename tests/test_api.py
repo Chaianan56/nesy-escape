@@ -347,3 +347,20 @@ def test_a_long_llm_sequence_is_not_trusted_as_a_walkthrough(fake_llm):
     body = post("ไขคดีให้หน่อย", GameState()).json()
     assert body["parsed"]["sequence"] is False
     assert body["parsed"]["alternatives"] == [], "ของที่ยังไม่เห็นต้องถูกกรองออกเหมือนตัวเลือกธรรมดา"
+
+
+def test_reload_after_deadline_preserves_case_and_terminal_response(monkeypatch):
+    from app import game_clock
+    limit = main.engine.time_limit_seconds
+    monkeypatch.setattr(game_clock.time, "time", lambda: limit + 100)
+    def no_neural(*args, **kwargs):
+        raise AssertionError("Expired sessions must not call Neural")
+    monkeypatch.setattr(main, "interpret", no_neural)
+    seed_state(GameState(started_at=100, discovered_evidence=["pocket_watch"]))
+    scene = client.get("/scene").json()
+    assert scene["initial_state"]["ending_id"] == "cold_arrival"
+    result = client.post("/command", json={"text": "ดูรอบๆ"}).json()
+    assert result["new_state"]["ending_id"] == "cold_arrival"
+    assert result["decision"]["message"]
+    assert result["new_state"]["discovered_evidence"] == ["pocket_watch"]
+    assert client.post("/clock", json={}).json()["new_state"]["ending_id"] == "cold_arrival"
