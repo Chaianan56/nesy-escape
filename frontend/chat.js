@@ -342,6 +342,7 @@ async function submit(text, opts = {}) {
     if (askEvidence) AccusationUI.open(data.parsed.target);
     // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
     else if (!(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
+    renderConversationSummary(data.conversation_summaries || []);
     if (typeof GameArt !== 'undefined') GameArt.onResult(data);
     if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
@@ -614,4 +615,16 @@ function escapeHtml(t) {
   const div = document.createElement("div");
   div.textContent = t;
   return div.innerHTML;
+}
+
+function renderConversationSummary(summaries) {
+  for (const summary of summaries) {
+    const card = document.createElement('div');
+    card.className = 'msg-system conversation-summary';
+    card.innerHTML = `<div class="card-header-bar"><strong>ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong></div>` +
+      '<p>บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</p>' +
+      '<ul>' + summary.entries.map(entry => `<li><strong>${escapeHtml(entry.name)}</strong><br>${escapeHtml(entry.description)}</li>`).join('') + '</ul>' +
+      '<p>เปิดสมุดคดี → ประเด็นค้าง เพื่อทบทวนสิ่งที่ยังต้องตรวจสอบ</p>';
+    document.getElementById('chatFeed').appendChild(card);
+  }
 }

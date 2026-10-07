@@ -26,6 +26,7 @@ from app.schemas import (
     GameState,
     ParsedCommand,
 )
+from app.case_notes import evidence_entry, case_questions, conversation_summaries
 from app.game_clock import sync_clock
 from app.sessions import Session, session_for
 from app.symbolic.engine import SymbolicEngine, apply_changes, accusation_submission
@@ -144,9 +145,8 @@ def journal(session: Session = Depends(session_for)):
     w = engine.world
     case = state.model_copy(update={"discovered_evidence": session.submitted_evidence}) if session.submitted_evidence is not None else state
     return {
-        "evidence": [{"id": eid, "name": w["objects"][eid]["name_th"],
-                      "description": w["objects"][eid].get("description", "")}
-                     for eid in state.discovered_evidence if eid in w["objects"]],
+        "evidence": [evidence_entry(w, eid) for eid in state.discovered_evidence if eid in w["objects"]],
+        "questions": case_questions(w, state),
         "deductions": [{"id": did, "name": w["deductions"][did]["name_th"]}
                        for did in sorted(engine.deductions(case)) if state.ending_id],
         "visible": [{"id": eid, "name": obj["name_th"]} for eid, obj in w["objects"].items()
@@ -195,6 +195,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     # Legacy client snapshots are ignored; only the server can change this state.
     req.state = session.state.model_copy(deep=True)
     result = _handle_command(req)
+    result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
     session.state = result.new_state
     if result.parsed.action == ActionType.ACCUSE and result.decision.allowed:
         session.submitted_evidence = list(req.submitted_evidence or [])

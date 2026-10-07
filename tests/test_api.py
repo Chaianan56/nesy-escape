@@ -457,3 +457,73 @@ def test_sequence_confirmation_then_submission_closes_and_records_evidence(fake_
     result = client.post('/command', json={'text':'accuse vincent_gray','submitted_evidence':evidence}).json()
     assert result['new_state']['ending_id'] == 'the_scapegoat'
     assert client.post('/journal').json()['submitted_evidence'] == evidence
+
+
+def test_case_notes_hide_undiscovered_information():
+    result = state_post('/journal', GameState()).json()
+    assert result['questions'] == []
+    assert result['evidence'] == []
+
+
+def test_journal_distinguishes_testimony_and_observation():
+    result = state_post('/journal', GameState(discovered_evidence=['pocket_watch','gideon_no_early_alibi'])).json()
+    physical, testimony = result['evidence']
+    assert physical['kind'] == 'observation'
+    assert testimony['kind'] == 'testimony'
+    assert testimony['source'] == main.engine.world['suspects']['gideon_hart']['name_th']
+    assert [q['id'] for q in result['questions']] == ['gideon_no_early_alibi']
+    assert result['deductions'] == []
+
+
+def test_conversation_summary_only_contains_new_discovered_testimony(fake_llm):
+    fake_llm(ActionType.INTERROGATE, target='gideon_hart')
+    seed_state(GameState())
+    first = client.post('/command', json={'text':'สอบปากคำกิเดียน'}).json()
+    summaries = first['conversation_summaries']
+    assert len(summaries) == 1
+    ids = {entry['id'] for entry in summaries[0]['entries']}
+    assert ids == set(first['new_state']['discovered_evidence'])
+    assert all(entry['kind'] == 'testimony' for entry in summaries[0]['entries'])
+    again = client.post('/command', json={'text':'สอบปากคำกิเดียน'}).json()
+    assert again['conversation_summaries'] == []
+    assert client.post('/journal').json()['questions']
+
+
+def test_failed_interrogation_does_not_create_summary(fake_llm):
+    fake_llm(ActionType.INTERROGATE, target='vincent_gray')
+    result = post('สอบปากคำ', GameState()).json()
+    assert result['decision']['allowed'] is False
+    assert result['conversation_summaries'] == []
+
+
+def test_backend_sequence_also_returns_conversation_summary(fake_llm):
+    fake_llm(ActionType.SEQUENCE, alternatives=['move second_class_car','interrogate vincent_gray'])
+    result = post('ไปถามวินเซนต์', GameState()).json()
+    assert result['decision']['allowed']
+    assert result['conversation_summaries'][0]['person'] == main.engine.world['suspects']['vincent_gray']['name_th']
+
+
+def test_presentation_route_works_without_remote_ai(monkeypatch):
+    from app.neural import gemini_client
+    def no_remote(*args, **kwargs):
+        raise AssertionError("Presentation commands must work without Gemini")
+    monkeypatch.setattr(gemini_client, 'interpret', no_remote)
+    assert client.post('/start').status_code == 200
+    commands = [
+        'สอบปากคำกิเดียน', 'ไปตู้ 2', 'ตรวจสายทองแดงที่ถูกตัด',
+        'ไปตู้ 6', 'ตรวจคีมตัดสายไฟด้ามยาง', 'ตรวจคราบเลือดบนปลายแขนเสื้อวินเซนต์',
+    ]
+    for index, text in enumerate(commands):
+        response = client.post('/command', json={'text':text})
+        assert response.status_code == 200
+        body = response.json()
+        assert body['decision']['allowed'], text
+        if index == 0:
+            assert body['conversation_summaries']
+            assert client.post('/journal').json()['questions']
+    response = client.post('/command', json={'text':'กล่าวหาวินเซนต์'}).json()
+    assert response['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
+    evidence = ['cut_copper_wire', 'wire_cutters', 'vincent_blood']
+    result = client.post('/command', json={'text':'กล่าวหาวินเซนต์','submitted_evidence':evidence}).json()
+    assert result['new_state']['ending_id'] == 'the_scapegoat'
+    assert client.post('/journal').json()['case_closed']

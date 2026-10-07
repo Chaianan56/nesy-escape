@@ -1,0 +1,35 @@
+Generated using built-in image_gen.
+
+Use case: infographic-diagram. Create ONE polished Thai-language presentation infographic image, landscape 16:9, high resolution, easily readable on a classroom projector. Topic: current architecture and roadmap of the actual NeSy-Escape game prototype. Restrained dark navy and warm gold matching a noir train detective game, ivory cards for crisp dark text, teal for implemented, amber for limitations, muted violet for future. Small tasteful illustrated train, browser, server, brain and logic/checklist icons; prioritize accurate Thai typography and generous whitespace, no tiny paragraphs. No invented capabilities.
+
+Top title exact: "NeSy-Escape: ระบบปัจจุบันและแผนพัฒนา"
+Subtitle: "ต้นแบบเกมสืบสวนบนรถไฟ → พัฒนาสู่ Escape Room"
+
+Upper half: architecture diagram title "ตอนนี้ระบบทำงานอย่างไร"
+Left card "FRONTEND" with "HTML • CSS • JavaScript" and lines "รับคำสั่งผู้เล่น" "แสดงฉากและบทสนทนา" "สมุดคดี • เวลา • ยื่นหลักฐาน"
+Arrow labeled "ส่งคำสั่งผ่าน API" to large BACKEND zone labeled "BACKEND · Python / FastAPI". Inside this zone show split interpretation routes from an input node: "คำสั่งตรง → ตัวแปลคำสั่ง" and "ภาษาธรรมชาติ → Gemini AI"; both feed a prominent "SYMBOLIC ENGINE" box with sublines "ตรวจกฎและหลักฐาน" "ตัดสินผลและฉากจบ". Then arrow to "สถานะเกมบนเซิร์ฟเวอร์" with "ตำแหน่ง • หลักฐาน • เวลา • ฉากจบ". Draw clear return arrow toward Frontend labeled "ส่งผลและสถานะกลับ". Bottom caption under architecture: "AI แปลเจตนา • Symbolic ตัดสินตามกฎ". Do NOT imply Gemini is required for every command. Do NOT depict permanent database; states are in memory.
+
+Lower half: three visually separated equal columns with these precise texts:
+Green card header "ทำได้แล้ว"
+"✓ เดินทางและตรวจหลักฐาน"
+"✓ สอบปากคำและเปิดสมุดคดี"
+"✓ กล่าวหาพร้อมยื่นหลักฐาน"
+"✓ จบเกมแบบ Bad Ending ได้จริง"
+"✓ รวมโค้ดใน branch ทดสอบแล้ว"
+
+Amber card header "ยังต้องปรับ"
+"• AI จริงยังมีคำสั่งที่ล้มเหลว"
+"• ภาพและรายการระหว่างโหลด"
+"• กล่องข้อความบังรายละเอียดฉาก"
+"• สถานะเกมหายเมื่อรีสตาร์ตเซิร์ฟเวอร์"
+
+Violet card header "จะเพิ่มต่อไป"
+"1. เก็บและใช้สิ่งของ"
+"2. ปริศนาฟิวส์และวงจรไฟ"
+"3. รหัสและพื้นที่ที่ล็อก"
+"4. เงื่อนไขหลบหนีก่อนหมดเวลา"
+"5. UI กระเป๋าและหน้าปริศนา"
+
+Footer two compact lines: "ผลทดสอบโค้ดหลังรวม: Backend 147 ผ่าน • Frontend 31 ผ่าน • เว้น LLM จริง 5 ข้อ"
+"สถานะ ณ 6 ต.ค. 2026 · Draft PR #2 · ยังไม่ merge เข้า main / deploy"
+Visual distinction between current features and planned ones must be obvious. Render all quoted Thai text faithfully. This is an academic status infographic, not a fictional product advertisement.

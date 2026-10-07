@@ -1,4 +1,4 @@
-﻿const NovelUI = (() => {
+const NovelUI = (() => {
   let pages=[], position=0, box, introResolve=null, speaker='';
   function split(text){
     return String(text).split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
@@ -24,6 +24,7 @@
   }
   function close(){
     pages=[];position=0;if(box)box.hidden=true;
+    const feed=document.getElementById('chatFeed');if(feed)feed.scrollTop=0;
     if(typeof setBusy==='function')setBusy(busy);
   }
   function next(){
