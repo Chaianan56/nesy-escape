@@ -10,3 +10,6 @@ __pycache__/
 logs/
 
 # ผลการทดลองที่ต้องอ้างอิงในงานให้ย้ายมาไว้ที่ results/ ซึ่งเก็บลง git
+
+# Local verification scratch files
+tmp/

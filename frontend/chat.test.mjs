@@ -444,3 +444,17 @@ test("completed backend sequence is never replayed by the frontend", async () =>
   assert.equal(calls,1);
   assert.doesNotMatch(c.el('chatFeed').children.at(-1).innerHTML,/ย้อนกลับไม่ได้|ตีความได้/);
 });
+
+
+test("new conversation notes appear after the answer", async () => {
+  const c=loadChat(async()=>{
+    const data=await reply().json();
+    data.conversation_summaries=[{person:'กิเดียน',entries:[{name:'ที่อยู่',description:'คำให้การใหม่'}]}];
+    return {ok:true,json:async()=>data};
+  });
+  await c.sandbox.submit('สอบปากคำกิเดียน');
+  const summary=c.el('chatFeed').children.at(-1);
+  assert.match(summary.className,/conversation-summary/);
+  assert.match(summary.innerHTML,/คำให้การใหม่/);
+  assert.match(summary.innerHTML,/ประเด็นค้าง/);
+});

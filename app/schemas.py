@@ -115,6 +115,7 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
+    conversation_summaries: List[Dict[str, Any]] = Field(default_factory=list)
     pending_steps: List[str] = Field(default_factory=list, description="Steps awaiting player confirmation; not executed")
     parsed: ParsedCommand
     decision: Decision

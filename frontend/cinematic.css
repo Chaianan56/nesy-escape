@@ -42,3 +42,5 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 @media(max-width:700px){.scene-art{height:420px}.scene-art>img{object-position:center top}}
 
 .ending-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.ending-controls [hidden]{display:none}.ending-controls button{white-space:normal}.ending-controls:has(:not([hidden])){padding-bottom:10px}
+
+.evidence-source{display:block;color:var(--gold);margin:10px 0;line-height:1.7}.case-question{padding:16px;margin:12px 0;border:1px solid var(--line);background:#15212d}.case-question small{color:var(--gold)}.journal-tabs{flex-wrap:wrap}.conversation-summary li{margin:12px 0}.conversation-summary>p{color:var(--muted)}
