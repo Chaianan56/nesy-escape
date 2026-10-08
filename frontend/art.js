@@ -49,7 +49,7 @@ const GameArt = (() => {
     const img=document.getElementById('sceneImage');
     if(!img||!view.asset)return;
     document.getElementById('sceneLabel').textContent=view.label;
-    document.getElementById('sceneStatus').textContent=state.ending_id?'คดีปิดแล้ว':'กำลังสืบสวน';
+    if(state.ending_id)document.getElementById('sceneStatus').textContent='คดีปิดแล้ว';
     if(shown===view.asset)return;
     shown=view.asset;
     const status=document.getElementById('artStatus');status.hidden=false;status.textContent='กำลังโหลดภาพ…';

@@ -17,6 +17,8 @@ let gameState = null;
 let timeLimitSeconds = 3600;
 let locationsMap = {};
 let suspectsMap = {};
+let suspectLocations = {};
+let restrictedLocations = [];
 let objectsMap = {};
 let rulesCount = null;
 let gameOver = false;   // ปิดคดีแล้วหรือหมดเวลาแล้ว ห้ามรับคำสั่งอีก
@@ -133,6 +135,8 @@ async function initGame() {
     timeLimitSeconds = sceneData.time_limit_seconds || 3600;
     locationsMap = sceneData.locations || {};
     suspectsMap = sceneData.suspects || {};
+    suspectLocations = sceneData.suspect_locations || {};
+    restrictedLocations = sceneData.restricted_locations || [];
     objectsMap = sceneData.objects || {};
     rulesCount = sceneData.rules_count || null;
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
@@ -200,6 +204,23 @@ function updateLocationHUD() {
   if (!locText || !gameState) return;
   const locId = gameState.current_location || "passenger_car";
   locText.textContent = locationsMap[locId] || locId;
+  const status = document.getElementById("sceneStatus");
+  if (status && !gameState.ending_id) status.textContent = `เป้าหมาย: ${nextObjective(gameState)}`;
+}
+
+// ชี้ขั้นต่อไปจากสิ่งที่ผู้เล่นทำไปแล้วเท่านั้น ไม่ดูหลักฐานหรือข้อสรุป จึงไม่เฉลยตัวคนร้าย
+function nextObjective(state) {
+  const car = id => (locationsMap[id] || id).split(":")[0];
+  const short = id => (suspectsMap[id] || id).split(" (")[0];
+  const visited = state.visited_locations || [];
+  const talked = state.interrogated_suspects || [];
+  if (!visited.includes("first_class_car")) return "ไปดูที่เกิดเหตุ · พิมพ์ ไปตู้ 4";
+  const left = Object.keys(suspectsMap).filter(id => !talked.includes(id));
+  left.sort((a, b) => (suspectLocations[b] === state.current_location) - (suspectLocations[a] === state.current_location));
+  if (left.length) return `ยังไม่ได้คุยกับ${short(left[0])} (${car(suspectLocations[left[0]])})`;
+  const unseen = Object.keys(locationsMap).filter(id => !visited.includes(id) && !restrictedLocations.includes(id));
+  if (unseen.length) return `ยังไม่ได้สำรวจ ${unseen.map(car).join(", ")}`;
+  return "ตรวจของที่เหลือ แล้วเทียบในสมุดคดี · พร้อมแล้วพิมพ์ กล่าวหา ตามด้วยชื่อ";
 }
 
 function updateClock() {

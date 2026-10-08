@@ -11,6 +11,8 @@ test_api.py — ทดสอบเส้นทางจริงของ API �
 รันด้วย:  python -m pytest tests/test_api.py -v
 """
 
+import json
+from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
@@ -143,7 +145,8 @@ def test_accusation_before_deadline_keeps_its_ending(fake_llm, monkeypatch):
     fake_llm(ActionType.ACCUSE, "gideon_hart")
     state = GameState(started_at=100, discovered_evidence=[k for k, v in main.engine.world["objects"].items() if v["type"] == "evidence"])
     expected = main.engine.ending_for("gideon_hart", state)["id"]
-    body = post("accuse", state).json()
+    seed_state(state)
+    body = client.post("/command", json={"text": "accuse", "submitted_evidence": TRUE_ENDING_EVIDENCE}).json()
     assert body["decision"]["allowed"]
     assert body["new_state"]["ending_id"] == expected
 
@@ -174,7 +177,8 @@ def test_missing_vincent_clue_keeps_case_open_then_allows_accusation(fake_llm):
     state = GameState(discovered_evidence=["wire_cutters", "vincent_blood"])
     denied = post("กล่าวหาวินเซนต์", state).json()
     assert not denied["decision"]["allowed"]
-    assert denied["new_state"] == state.model_dump()
+    assert denied["new_state"] == {**state.model_dump(), "failed_accusations": 1}
+    state.failed_accusations = 1
     state.discovered_evidence.append("cut_copper_wire")
     allowed = post("กล่าวหาวินเซนต์", state).json()
     assert allowed["decision"]["allowed"]
@@ -205,6 +209,36 @@ def test_submission_not_entire_inventory_decides_ending(fake_llm):
     assert 'D01_TRUE_MURDER_WINDOW' not in {d['id'] for d in journal['deductions']}
     client.post('/new-game')
     assert client.post('/journal').json()['submitted_evidence'] is None
+
+
+TRUE_ENDING_EVIDENCE = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))['submitted_evidence']
+
+
+def test_ticking_every_box_is_rejected_without_counting_a_failure(fake_llm):
+    fake_llm(ActionType.ACCUSE, 'gideon_hart')
+    everything = [k for k, v in main.engine.world['objects'].items() if v['type'] == 'evidence']
+    seed_state(GameState(discovered_evidence=everything))
+    result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': everything}).json()
+    assert result['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
+    assert result['new_state']['failed_accusations'] == 0
+    result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': TRUE_ENDING_EVIDENCE}).json()
+    assert result['new_state']['ending_id'] == 'true_ending'
+
+
+def test_two_weak_accusations_show_pillars_and_the_third_closes_the_case(fake_llm):
+    fake_llm(ActionType.ACCUSE, 'gideon_hart')
+    seed_state(GameState(discovered_evidence=TRUE_ENDING_EVIDENCE))
+    weak = {'text': 'กล่าวหากิเดียน', 'submitted_evidence': ['pocket_watch', 'liora_time_estimate']}
+    for attempt, left in ((1, 2), (2, 1)):
+        result = client.post('/command', json=weak).json()
+        assert not result['decision']['allowed']
+        assert result['new_state'] == {**result['new_state'], 'failed_accusations': attempt, 'ending_id': None}
+        message = result['decision']['message']
+        assert '✓ เส้นเวลา' in message and '✗ แรงจูงใจ' in message and f'อีก {left} ครั้ง' in message
+        assert 'แฟ้ม C' not in message  # บอกเสาที่ขาด ไม่บอกชิ้นที่ขาด
+    result = client.post('/command', json=weak).json()
+    assert result['new_state']['ending_id'] == 'unproven'
+    assert result['decision']['reasoning_chain'][-1]['rule_id'] == 'R_ACCUSATION_LIMIT'
 
 
 def test_cannot_omit_known_exculpatory_evidence(fake_llm):

@@ -78,6 +78,7 @@ class GameState(BaseModel):
     turn_count: int = 0
     burned_objects: List[str] = Field(default_factory=list, description="id ของสิ่งที่ถูกทำลายไปแล้ว")
     ending_id: Optional[str] = Field(None, description="id ฉากจบ ถ้าไม่ใช่ None แปลว่าคดีปิดแล้ว")
+    failed_accusations: int = Field(0, description="จำนวนครั้งที่กล่าวหาแล้วหลักฐานไม่พอ ครบเพดานคดีปิด")
 
 
 # ============================================================

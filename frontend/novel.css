@@ -6,5 +6,5 @@
 .intro-screen{position:fixed;inset:0;z-index:100;display:grid;place-items:center;overflow:auto;background:linear-gradient(90deg,#08130cf0,#08130c88),url('/game-art/scene-05-lounge.png') center/cover;color:#f2eddd;padding:32px;box-sizing:border-box}
 .intro-copy{max-width:740px;margin:auto;padding:32px;border-left:2px solid #c5ab72;background:#101713b8}
 .intro-copy h1{font:clamp(32px,6vw,65px)/1.1 Georgia,serif;color:#e2c68a;margin:20px 0}
-.intro-copy p{line-height:1.95;font-size:16px}.intro-copy .intro-start{color:#e2c68a;margin-top:30px}.intro-copy small{color:#b7bbaa}
+.intro-copy p{line-height:1.95;font-size:16px;white-space:pre-line}.intro-copy .intro-start{color:#e2c68a;margin-top:30px}.intro-copy small{color:#b7bbaa}
 @media(max-width:600px){.scene-dialogue{left:6px;right:6px;bottom:6px;padding:10px}.dialogue-text{font-size:12px;max-height:95px}.dialogue-speaker{font-size:13px;margin-bottom:4px}.dialogue-progress{font-size:10px}.intro-screen{padding:16px}.intro-copy{padding:18px}.intro-copy p{font-size:14px}}

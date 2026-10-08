@@ -101,6 +101,18 @@ function makeDom() {
 }
 
 /** โหลด chat.js ขึ้นมาหนึ่งชุด พร้อม fetch ที่เราคุมเอง */
+test("เป้าหมายพาไปที่เกิดเหตุ แล้วคนที่ยังไม่ได้คุย แล้วตู้ที่ยังไม่ได้ไป", () => {
+  const c = loadChat(async () => reply());
+  c.read(`locationsMap = {locomotive:'ตู้ 1: หัวรถจักร', first_class_car:'ตู้ 4: ชั้นหนึ่ง', lounge_car:'ตู้ 5: เลานจ์', second_class_car:'ตู้ 6: ชั้นสอง'};
+    suspectsMap = {gideon_hart:'กิเดียน ฮาร์ต (Gideon Hart)', vincent_gray:'วินเซนต์ เกรย์ (Vincent Gray)'};
+    suspectLocations = {gideon_hart:'lounge_car', vincent_gray:'second_class_car'}; restrictedLocations = ['locomotive'];`);
+  const goal = (s) => c.read(`nextObjective(${JSON.stringify(s)})`);
+  assert.match(goal({current_location:'lounge_car', visited_locations:['lounge_car']}), /ตู้ 4/);
+  assert.equal(goal({current_location:'second_class_car', visited_locations:['first_class_car'], interrogated_suspects:[]}), 'ยังไม่ได้คุยกับวินเซนต์ เกรย์ (ตู้ 6)');
+  assert.equal(goal({visited_locations:['first_class_car'], interrogated_suspects:['gideon_hart','vincent_gray']}), 'ยังไม่ได้สำรวจ ตู้ 5, ตู้ 6');
+  assert.match(goal({visited_locations:['first_class_car','lounge_car','second_class_car'], interrogated_suspects:['gideon_hart','vincent_gray']}), /กล่าวหา/);
+});
+
 function loadChat(fetchImpl) {
   const dom = makeDom();
   const sandbox = {
