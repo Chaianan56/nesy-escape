@@ -29,6 +29,14 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DEFAULT_PILLARS = ("timeline", "motive", "opportunity", "corroboration")
 
 
+# ฉากจบแท้ใช้หลักฐานอย่างน้อย 13 ชิ้น เพดานนี้กันการติ๊กทุกช่องแล้วชนะ
+# ponytail: เพดานตายตัว ถ้าผู้เล่นตัวจริงชนเพดานทั้งที่เลือกถูก ค่อยเปลี่ยนเป็นนับชิ้นที่ไม่เกี่ยว
+MAX_SUBMITTED_EVIDENCE = 15
+# กล่าวหาพลาดได้สองครั้งพร้อมคำบอกเสาที่ขาด ครั้งที่สามคดีปิดแบบพิสูจน์ไม่ได้
+MAX_FAILED_ACCUSATIONS = 3
+ACCUSATION_RULE = "R012_ACCUSE_ENDING_REQUIREMENTS"
+
+
 def accusation_submission(engine, cmd, state, submitted):
     """Evaluate a player's submission without removing anything from their journal."""
     rule = "R_SUBMITTED_EVIDENCE"
@@ -36,15 +44,39 @@ def accusation_submission(engine, cmd, state, submitted):
         message = "พิมพ์ชื่อผู้ถูกกล่าวหาพร้อมเลขหลักฐานจากสมุดคดี เช่น กล่าวหากิเดียน หลักฐาน: 1, 2, 3 การส่งคำกล่าวหาที่เข้าเงื่อนไขอาจจบคดี"
     elif len(set(submitted)) != len(submitted) or not set(submitted) <= set(state.discovered_evidence):
         message = "ใช้ได้เฉพาะหลักฐานที่ค้นพบแล้ว และเลือกแต่ละชิ้นได้ครั้งเดียว"
+    elif len(submitted) > MAX_SUBMITTED_EVIDENCE:
+        message = f"ยื่นหลักฐานได้ไม่เกิน {MAX_SUBMITTED_EVIDENCE} ชิ้น เลือกเฉพาะชิ้นที่รองรับคำกล่าวหานี้จริงๆ"
     else:
         # Check the complete known case first: omitting exculpatory facts must not bypass rules.
-        full = engine.decide(cmd, state)
-        if not full.allowed:
-            return full
         offered = state.model_copy(update={"discovered_evidence": list(submitted)})
-        return engine.decide(cmd, offered)
+        full = engine.decide(cmd, state)
+        decision = engine.decide(cmd, offered) if full.allowed else full
+        if decision.violated_rule_id != ACCUSATION_RULE:
+            return decision
+        return failed_accusation(engine, cmd.target, offered, decision, state.failed_accusations + 1)
     return Decision(allowed=False, message=message, violated_rule_id=rule,
                     reasoning_chain=[ReasoningStep(rule_id=rule, description=message, passed=False)])
+
+
+def failed_accusation(engine, suspect_id, offered, decision, attempt):
+    """บอกว่าเสาไหนพิสูจน์ได้แล้ว โดยไม่บอกว่าขาดหลักฐานชิ้นไหน และปิดคดีเมื่อพลาดครบ"""
+    checklist = engine.pillar_checklist(suspect_id, offered)
+    chain = list(decision.reasoning_chain)
+    if attempt >= MAX_FAILED_ACCUSATIONS:
+        step = f"กล่าวหาไม่ผ่านครบ {MAX_FAILED_ACCUSATIONS} ครั้ง คดีปิดแบบพิสูจน์ไม่ได้"
+        chain.append(ReasoningStep(rule_id="R_ACCUSATION_LIMIT", description=step, passed=False))
+        ending = engine.world["endings"]["unproven"]
+        message = engine._render_ending(ending, [step, ""] + checklist)
+        return Decision(allowed=False, message=message, violated_rule_id=ACCUSATION_RULE,
+                        reasoning_chain=chain, state_changes={"ending": "unproven"})
+    left = MAX_FAILED_ACCUSATIONS - attempt
+    # "เหลือโอกาส" นับเฉพาะครั้งที่หลักฐานไม่พอ ถ้าหลักฐานที่ยื่นเข้าเงื่อนไขฉากจบใด
+    # แม้เป็นฉากจบผิด คดีปิดทันที ข้อความต้องบอกทั้งสองกรณี ไม่ให้ผู้เล่นคิดว่าลองได้ฟรี
+    message = "\n".join(["หลักฐานที่ยื่นยังไม่พอจะสรุปคดี", ""] + checklist + [
+        "", f"ยื่นใหม่ได้อีก {left} ครั้ง ถ้าครั้งสุดท้ายยังไม่พอ คดีจะปิดแบบพิสูจน์ไม่ได้",
+        "ถ้าหลักฐานที่ยื่นพอจะสรุปคดีได้ คดีจะปิดทันทีตามข้อสรุปนั้น แม้ข้อสรุปจะผิดและยังเหลือโอกาสอยู่"])
+    return Decision(allowed=False, message=message, violated_rule_id=ACCUSATION_RULE,
+                    reasoning_chain=chain, state_changes={"failed_accusations": attempt})
 
 
 # ============================================================
@@ -380,10 +412,11 @@ class SymbolicEngine:
         if cmd.action == ActionType.EXAMINE:
             if cmd.target in self.world["locations"]:
                 return {}          # มองรอบๆ ไม่เปลี่ยนสถานะอะไร
-            changes = {"unlocked_add": cmd.target}
+            # ตรวจคือดู ไม่ใช่เปิด สถานะปลดล็อกได้มาจาก UNLOCK เท่านั้น
+            # ไม่งั้นแค่ "ดูกระเป๋า" ก็เปิดกระเป๋าที่ล็อกรหัสได้
             if obj.get("type") == "evidence":
-                changes["discovered_evidence_add"] = cmd.target
-            return changes
+                return {"discovered_evidence_add": cmd.target}
+            return {}
         if cmd.action == ActionType.UNLOCK:
             return {"unlocked_add": cmd.target}
         if cmd.action == ActionType.BURN:
@@ -589,6 +622,15 @@ class SymbolicEngine:
         จึงต้องอ่านจากที่เดียวกัน ไม่งั้น UI บนเว็บกับ UI บนเทอร์มินัลจะเล่าตอนจบคนละแบบ
         """
         return self._render_ending(self.ending_for(on_timeout=True), [])
+
+    def pillar_checklist(self, suspect_id: str, state: GameState) -> List[str]:
+        """สี่เสาแบบ ✓/✗ บอกเฉพาะข้อสรุปที่ผู้เล่นได้แล้ว ไม่บอกว่าขาดอะไร จึงไม่เฉลย"""
+        found = _collect_pillars(suspect_id, state, self.world)
+        labels = self.world.get("pillar_labels", {})
+        rules = self.world.get("deductions", {})
+        return [f"  ✓ {labels.get(p, p)} — {', '.join(rules.get(d, {}).get('name_th', d) for d in found[p])}"
+                if found[p] else f"  ✗ {labels.get(p, p)} — หลักฐานที่ยื่นยังพิสูจน์ด้านนี้ไม่ได้"
+                for p in pillar_names(self.world)]
 
     # ใช้สำหรับ UI และการวิเคราะห์ผล ไม่ใช่ส่วนของการตัดสิน
     def pillar_status(self, target: str, state: GameState) -> Dict[str, List[str]]:

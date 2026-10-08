@@ -109,11 +109,11 @@ def test_progress_is_persistent_and_isolated_between_sessions(clients):
 def test_complete_walkthrough_uses_only_server_state(clients, monkeypatch):
     a, _ = clients
     monkeypatch.setattr(main, 'interpret', lambda text, state: command(ActionType(text.split()[0]), text.split()[1]))
-    steps = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))['steps']
-    for action, target in steps:
+    walkthrough = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))
+    for action, target in walkthrough['steps']:
         payload = {'text': f'{action} {target}'}
         if action == 'accuse':
-            payload['submitted_evidence'] = [e['id'] for e in a.post('/journal').json()['evidence']]
+            payload['submitted_evidence'] = walkthrough['submitted_evidence']
         result = a.post('/command', json=payload).json()
         assert result['decision']['allowed'], result
     assert result['new_state']['ending_id'] == 'true_ending'

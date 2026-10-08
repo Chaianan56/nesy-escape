@@ -105,6 +105,8 @@ def scene(session: Session = Depends(session_for)):
         "locations": {k: v.get("name_th") for k, v in w["locations"].items()},
         "objects": {k: v.get("name_th") for k, v in w["objects"].items() if engine.offerable(k, session.state)},
         "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
+        "suspect_locations": {k: v.get("location") for k, v in w["suspects"].items()},
+        "restricted_locations": [k for k, v in w["locations"].items() if v.get("restricted")],
         "actions": [a.value for a in ActionType],
         "rules_count": len(engine.rules),
         "initial_state": session.state.model_dump(),
@@ -235,11 +237,13 @@ def _handle_command(req: CommandRequest):
         new_state = apply_changes(req.state, decision.state_changes)
         if new_state.started_at is None:
             new_state = new_state.model_copy(update={"started_at": time.time()})
-    elif decision.state_changes.get("ending"):
-        # คำสั่งที่ถูกปฏิเสธไม่กินเวลาและไม่เปลี่ยนอะไร ยกเว้นกรณีที่ตัวกฎเองเป็นคนปิดคดี
-        # (หมดเวลา) ตรงนั้นสถานะต้องปิดจริง ไม่ใช่แค่ขึ้นข้อความฉากจบแล้วเล่นต่อได้เรื่อยๆ
+    elif decision.state_changes.get("ending") or "failed_accusations" in decision.state_changes:
+        # คำสั่งที่ถูกปฏิเสธไม่กินเวลาและไม่เปลี่ยนอะไร ยกเว้นสองอย่างที่ตัวกฎเองบันทึก
+        # คือปิดคดี (หมดเวลา หรือกล่าวหาพลาดครบ) และนับครั้งที่กล่าวหาพลาด
         # เช็คจาก state_changes ไม่ใช่จากชื่อกฎ เพิ่มกฎที่ปิดคดีได้ในอนาคตจึงไม่ต้องแก้ไฟล์นี้
-        new_state = req.state.model_copy(update={"ending_id": decision.state_changes["ending"]})
+        new_state = req.state.model_copy(update={
+            "ending_id": decision.state_changes.get("ending"),
+            "failed_accusations": decision.state_changes.get("failed_accusations", req.state.failed_accusations)})
     else:
         new_state = req.state
 

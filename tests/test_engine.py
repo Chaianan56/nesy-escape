@@ -57,6 +57,14 @@ def test_examine_evidence_in_same_car(engine):
     assert d.state_changes["discovered_evidence_add"] == "pocket_watch"
 
 
+def test_examining_never_unlocks(engine):
+    """ตรวจคือดู ปลดล็อกต้องมาจากคำสั่งปลดล็อกเท่านั้น"""
+    s = apply_changes(GameState(), {"move_to": "first_class_car"})
+    d = engine.decide(cmd(ActionType.EXAMINE, "pocket_watch"), s)
+    assert "unlocked_add" not in d.state_changes
+    assert apply_changes(s, d.state_changes).unlocked_objects == []
+
+
 def test_full_walkthrough_is_completable(engine):
     """เส้นทางหลักของเกมต้องเดินได้จนจบ — กันกฎที่ขัดกันเองจนเกมตัน"""
     s = run_walkthrough(engine)
