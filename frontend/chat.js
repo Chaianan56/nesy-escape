@@ -26,6 +26,22 @@ let clockPending = false;
 let deadlineReached = false;
 let clockAnchor = null;
 let clockElapsed = 0;
+let latestProfile = null;
+
+function updateProfilerHUD(profile) {
+  if (!profile) return;
+  latestProfile = profile;
+  const pill = document.getElementById("profilerWidget");
+  const icon = document.getElementById("profilerIcon");
+  const text = document.getElementById("profilerText");
+  if (pill && icon && text) {
+    icon.textContent = profile.archetype_badge || "⚖️";
+    text.textContent = profile.archetype_name_th || "นักสืบสายสมดุล";
+    const caution = Math.round((profile.dimensions?.caution_score ?? 1) * 100);
+    const methodical = Math.round((profile.dimensions?.methodical_score ?? 0) * 100);
+    pill.title = `รูปแบบการสืบสวน: ${profile.archetype_name_th}\nความรอบคอบ: ${methodical}%\nความเคารพกฎ: ${caution}%`;
+  }
+}
 
 function anchorClock() {
   clockElapsed = gameState.elapsed_seconds || 0;
@@ -269,6 +285,7 @@ async function submit(text, opts = {}) {
 
     if (gameOver) return null; // Ignore late responses after the deadline closed the case.
     if (data.new_state) gameState = data.new_state;
+    if (data.profile) updateProfilerHUD(data.profile);
     anchorClock();
     updateLocationHUD();
     updateClock();
@@ -335,11 +352,44 @@ function showGameOver() {
   const feed = document.getElementById("chatFeed");
   const box = document.createElement("div");
   box.className = "msg-system";
-  box.innerHTML =
-    `<div class="story-text"><strong>คดีนี้ปิดลงแล้ว</strong><br>` +
-    `เรื่องนี้มีฉากจบหลายแบบ ขึ้นอยู่กับว่าคุณชี้ตัวใคร และตอนนั้นมีหลักฐานอยู่ในมือแค่ไหน</div>` +
-    `<div class="chips-scroll"><button type="button" class="chip-btn" ` +
-    `onclick="location.reload()">เริ่มคดีใหม่</button></div>`;
+
+  let dossierHtml = `
+    <div class="story-text"><strong>คดีนี้ปิดลงแล้ว</strong><br>
+    เรื่องนี้มีฉากจบหลายแบบ ขึ้นอยู่กับว่าคุณชี้ตัวใคร และตอนนั้นมีหลักฐานอยู่ในมือแค่ไหน</div>
+  `;
+
+  if (latestProfile) {
+    const d = latestProfile.dimensions || {};
+    dossierHtml += `
+      <div style="border: 1px solid #c5a059; border-radius: 8px; padding: 14px; background: rgba(20, 16, 12, 0.85); margin: 12px 0;">
+        <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(197, 160, 89, 0.3); padding-bottom: 6px; margin-bottom: 10px;">
+          <span style="font-size: 20px;">📜</span>
+          <strong style="color: #d4af37; font-family: 'Cinzel', serif;">แฟ้มสรุปบุคลิกภาพนักสืบ (Detective Dossier)</strong>
+        </div>
+        <div style="margin-bottom: 8px;">
+          <div style="font-size: 15px; font-weight: 600; color: #f5eedb;">${latestProfile.archetype_badge || "⚖️"} ${latestProfile.archetype_name_th}</div>
+          <div style="font-size: 13px; color: #c4baa9; margin-top: 4px; line-height: 1.4;">${latestProfile.archetype_description_th || ""}</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 12px; color: #e0d7c5; background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 6px;">
+          <div>🔬 ความละเอียดรอบคอบ: <strong>${Math.round((d.methodical_score || 0) * 100)}%</strong></div>
+          <div>🗣️ การมุ่งเน้นบุคคล: <strong>${Math.round((d.social_score || 0) * 100)}%</strong></div>
+          <div>🛡️ ความเคารพกฎ: <strong>${Math.round((d.caution_score ?? 1) * 100)}%</strong></div>
+          <div>🗺️ ความครอบคลุมการสำรวจ: <strong>${Math.round((d.curiosity_score || 0) * 100)}%</strong></div>
+          <div>⚡ ความเด็ดขาด: <strong>${Math.round((d.decisiveness_score || 0) * 100)}%</strong></div>
+          <div>📊 อัตราทำผิดกฎ: <strong>${Math.round((latestProfile.rule_violation_rate || 0) * 100)}%</strong></div>
+        </div>
+      </div>
+    `;
+  }
+
+  dossierHtml += `
+    <div class="chips-scroll" style="display: flex; gap: 8px; margin-top: 8px;">
+      <button type="button" class="chip-btn" onclick="location.reload()">เริ่มคดีใหม่</button>
+      <button type="button" class="chip-btn" onclick="window.open('/research/export', '_blank')">📥 ดูข้อมูลวิจัย (Research Export)</button>
+    </div>
+  `;
+
+  box.innerHTML = dossierHtml;
   feed.appendChild(box);
   feed.scrollTop = feed.scrollHeight;
 }
