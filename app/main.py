@@ -31,6 +31,10 @@ from app.game_clock import sync_clock
 from app.game_setup import new_game_state
 from app.sessions import Session, session_for
 from app.symbolic.engine import SymbolicEngine, apply_changes, accusation_submission
+from app.profiler.tracker import BehaviorTracker
+from app.profiler.adaptation import DynamicAdaptationEngine
+from app.profiler.telemetry import save_session_telemetry, load_all_session_summaries
+from app.profiler.schemas import ARCHETYPE_METADATA, PlayerArchetype
 
 
 app = FastAPI(title="NeSy-Escape API", version="0.1")
@@ -44,6 +48,20 @@ app.add_middleware(
 
 engine = SymbolicEngine()
 MAX_SEQUENCE_STEPS = 4
+adaptation_engine = DynamicAdaptationEngine()
+trackers: dict[str, BehaviorTracker] = {}
+latest_profiles: dict[str, dict] = {}
+
+
+def get_tracker(session_id: str | None = None) -> BehaviorTracker:
+    sid = session_id or "default"
+    if sid not in trackers:
+        trackers[sid] = BehaviorTracker(
+            session_id=sid,
+            total_locations=len(engine.world.get("locations", {})),
+            total_evidence=len(engine.world.get("objects", {})),
+        )
+    return trackers[sid]
 
 
 # ============================================================
@@ -133,7 +151,11 @@ def pillars(session: Session = Depends(session_for)):
 @app.post("/new-game")
 def new_game(session: Session = Depends(session_for)):
     """Explicit restart; a normal page reload resumes the existing game."""
-    session.state = new_game_state(engine.world)
+    session_id = session.state.session_id
+    session.state = new_game_state(engine.world).model_copy(update={"session_id": session_id})
+    if session_id:
+        trackers.pop(session_id, None)
+        latest_profiles.pop(session_id, None)
     session.submitted_evidence = None
     session.inference_attempts.clear()
     return {"new_state": session.state.model_dump()}
@@ -217,6 +239,32 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
         result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
     session.state = result.new_state
+    session_id = result.new_state.session_id or "default"
+    tracker = get_tracker(session_id)
+    recent_violation_count = sum(1 for turn in tracker.turns[-3:] if not turn.allowed)
+    pillars_status = {sid: engine.pillar_status(sid, result.new_state) for sid in engine.world["suspects"]}
+    profile = tracker.record_turn(
+        raw_input=req.text,
+        parsed=result.parsed,
+        decision=result.decision,
+        state=result.new_state,
+        pillars_status=pillars_status,
+    )
+    is_looping = tracker.turns[-1].is_looping if tracker.turns else False
+    result.decision, adaptive_note = adaptation_engine.adapt(
+        decision=result.decision,
+        parsed=result.parsed,
+        state=result.new_state,
+        profile=profile,
+        is_looping=is_looping,
+        recent_violation_count=recent_violation_count,
+    )
+    if adaptive_note and tracker.turns:
+        tracker.turns[-1].adaptive_note = adaptive_note
+    latest_profiles[session_id] = profile.model_dump()
+    result.profile = latest_profiles[session_id]
+    if result.new_state.ending_id:
+        save_session_telemetry(tracker.get_summary(result.new_state))
     if result.parsed.action == ActionType.ACCUSE and result.decision.allowed:
         session.submitted_evidence = list(req.submitted_evidence or [])
     if result.parsed.action == ActionType.INFER and req.submitted_evidence is not None:
@@ -244,6 +292,40 @@ def study_export(session: Session = Depends(session_for)):
             "elapsed_seconds": session.state.elapsed_seconds,
             "inference_attempts": list(session.inference_attempts),
             "submitted_evidence": session.submitted_evidence}
+
+
+@app.get("/profiler/profile")
+def get_player_profile(session_id: str = "default"):
+    """ดึงข้อมูลโปรไฟล์ผู้เล่นล่าสุดและสถิติสะสม"""
+    if session_id in latest_profiles:
+        return latest_profiles[session_id]
+    tracker = get_tracker(session_id)
+    state = GameState()
+    dimensions = tracker._calculate_dimensions(state)
+    scores, primary = tracker._classify_archetype(dimensions, state)
+    metadata = ARCHETYPE_METADATA.get(primary, ARCHETYPE_METADATA[PlayerArchetype.BALANCED_INVESTIGATOR])
+    return {
+        "session_id": session_id,
+        "primary_archetype": primary.value,
+        "archetype_name_th": metadata["name_th"],
+        "archetype_badge": metadata["badge"],
+        "archetype_description_th": metadata["description_th"],
+        "scores": scores.model_dump(),
+        "dimensions": dimensions.model_dump(),
+        "total_turns": 0,
+    }
+
+
+@app.get("/research/telemetry")
+def get_research_telemetry(session_id: str = "default"):
+    tracker = get_tracker(session_id)
+    return {"session_id": tracker.session_id, "total_turns": len(tracker.turns),
+            "turns": [turn.model_dump() for turn in tracker.turns]}
+
+
+@app.get("/research/export")
+def export_research_data():
+    return {"count": len(load_all_session_summaries()), "sessions": load_all_session_summaries()}
 
 
 def _handle_command(req: CommandRequest):
@@ -369,9 +451,24 @@ def terminal_response(state: GameState, text: str = "") -> CommandResponse:
 def game_clock(session: Session = Depends(session_for)):
     state = sync_clock(session.state)
     session.state = state
-    if state.ending_id or engine.is_out_of_time(state):
+    if state.ending_id:
+        result = terminal_response(state)
+        return result.model_dump()
+    if engine.is_out_of_time(state):
         result = terminal_response(state)
         session.state = result.new_state
+        session_id = result.new_state.session_id or "default"
+        tracker = get_tracker(session_id)
+        profile = tracker.record_turn(
+            raw_input="timeout",
+            parsed=result.parsed,
+            decision=result.decision,
+            state=result.new_state,
+            pillars_status={sid: engine.pillar_status(sid, result.new_state) for sid in engine.world["suspects"]},
+        )
+        latest_profiles[session_id] = profile.model_dump()
+        result.profile = latest_profiles[session_id]
+        save_session_telemetry(tracker.get_summary(result.new_state))
         return result.model_dump()
     return {"new_state": state.model_dump(), "decision": None, "parsed": None}
 

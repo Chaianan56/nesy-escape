@@ -1,0 +1,192 @@
+"""
+tests/test_profiler.py — ทดสอบระบบ Behavior Profiler, Dynamic Adaptation, และ Research Telemetry
+"""
+
+import os
+from pathlib import Path
+import pytest
+from fastapi.testclient import TestClient
+
+from app import main
+from app.schemas import ActionType, Decision, GameState, ParsedCommand
+from app.profiler.schemas import PlayerArchetype
+from app.profiler.tracker import BehaviorTracker
+from app.profiler.adaptation import DynamicAdaptationEngine
+from app.profiler.telemetry import save_session_telemetry, ensure_telemetry_dir
+
+client = TestClient(main.app)
+
+
+def test_behavior_tracker_records_turns_and_calculates_metrics():
+    """ทดสอบว่า BehaviorTracker บันทึกเทิร์นและคำนวณ Metrics เชิงพฤติกรรมถูกต้อง"""
+    tracker = BehaviorTracker(session_id="test_sess_01")
+    state = GameState(current_location="lounge_car", discovered_evidence=["clue_pocket_watch"])
+
+    # เทิร์นที่ 1: ตรวจดูของ (ผ่าน)
+    parsed1 = ParsedCommand(action=ActionType.EXAMINE, target="second_teacup", raw_text="ตรวจดูถ้วยชา")
+    dec1 = Decision(allowed=True, message="พบถ้วยชา")
+    prof1 = tracker.record_turn("ตรวจดูถ้วยชา", parsed1, dec1, state)
+
+    assert prof1.total_turns == 1
+    assert prof1.allowed_turns == 1
+    assert prof1.denied_turns == 0
+    assert prof1.rule_violation_rate == 0.0
+
+    # เทิร์นที่ 2: สั่งผิดกฎ (ไม่ผ่าน)
+    parsed2 = ParsedCommand(action=ActionType.EXAMINE, target="burnt_folder_c", raw_text="ตรวจแฟ้ม")
+    dec2 = Decision(allowed=False, message="อยู่คนละตู้", violated_rule_id="R005_SAME_LOCATION")
+    prof2 = tracker.record_turn("ตรวจแฟ้ม", parsed2, dec2, state)
+
+    assert prof2.total_turns == 2
+    assert prof2.allowed_turns == 1
+    assert prof2.denied_turns == 1
+    assert prof2.rule_violation_rate == 0.5
+
+
+def test_archetype_classification_forensic_analyst():
+    """ผู้เล่นที่เน้นตรวจดูวัตถุ ละเอียดรอบคอบ และไม่ละเมิดกฎ ควรได้ Forensic Analyst"""
+    tracker = BehaviorTracker(session_id="test_forensic")
+    state = GameState(current_location="first_class_car", discovered_evidence=["clue_1", "clue_2", "clue_3"])
+
+    for i in range(5):
+        parsed = ParsedCommand(action=ActionType.EXAMINE, target=f"obj_{i}", raw_text="ตรวจดู")
+        dec = Decision(allowed=True, message="พบเบาะแส")
+        profile = tracker.record_turn("ตรวจดู", parsed, dec, state)
+
+    assert profile.primary_archetype == PlayerArchetype.FORENSIC_ANALYST
+    assert profile.dimensions.methodical_score > 0.5
+    assert profile.dimensions.caution_score == 1.0
+
+
+def test_archetype_classification_psychological_interrogator():
+    """ผู้เล่นที่เน้นสอบปากคำคน ควรได้ Psychological Interrogator"""
+    tracker = BehaviorTracker(session_id="test_interrogator")
+    state = GameState(
+        current_location="lounge_car",
+        interrogated_suspects=["gideon_hart", "dr_liora_venn", "vincent_gray"],
+    )
+
+    for sus in ["gideon_hart", "dr_liora_venn", "vincent_gray", "gideon_hart"]:
+        parsed = ParsedCommand(action=ActionType.INTERROGATE, target=sus, raw_text="คุย")
+        dec = Decision(allowed=True, message="คำให้การ")
+        profile = tracker.record_turn("คุย", parsed, dec, state)
+
+    assert profile.primary_archetype == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR
+    assert profile.dimensions.social_score > 0.5
+
+
+def test_archetype_classification_maverick_trailblazer():
+    """ผู้เล่นที่ทำผิดกฎบ่อย หรือสั่งทำลายสิ่งของ ควรได้ Maverick Trailblazer"""
+    tracker = BehaviorTracker(session_id="test_maverick")
+    state = GameState(burned_objects=["secret_folder"])
+
+    for _ in range(4):
+        parsed = ParsedCommand(action=ActionType.BURN, target="item", raw_text="เผาทิ้ง")
+        dec = Decision(allowed=False, message="ไม่อนุญาต", violated_rule_id="R007_ACTION_SUPPORTED")
+        profile = tracker.record_turn("เผาทิ้ง", parsed, dec, state)
+
+    assert profile.primary_archetype == PlayerArchetype.MAVERICK_TRAILBLAZER
+    assert profile.rule_violation_rate == 1.0
+    assert profile.dimensions.caution_score < 0.2
+
+
+def test_dynamic_adaptation_suspect_reactions():
+    """ตรวจสอบว่าน้ำเสียงของ NPC ปรับเปลี่ยนตาม Archetype ของผู้เล่น"""
+    adaptation = DynamicAdaptationEngine()
+    state = GameState(current_location="lounge_car", discovered_evidence=["clue_obsidian_cufflink"])
+
+    # สร้าง Profile จำลอง
+    forensic_tracker = BehaviorTracker(session_id="demo_forensic")
+    for _ in range(3):
+        forensic_tracker.record_turn(
+            "ตรวจ",
+            ParsedCommand(action=ActionType.EXAMINE, target="obj", raw_text="ตรวจ"),
+            Decision(allowed=True, message="ok"),
+            state,
+        )
+    profile = forensic_tracker.record_turn(
+        "ตรวจ",
+        ParsedCommand(action=ActionType.EXAMINE, target="obj2", raw_text="ตรวจ"),
+        Decision(allowed=True, message="ok"),
+        state,
+    )
+
+    base_decision = Decision(allowed=True, message="ผมไม่มีส่วนเกี่ยวข้องกับเรื่องนี้ครับ")
+    cmd = ParsedCommand(action=ActionType.INTERROGATE, target="gideon_hart", raw_text="ถามกิเดียน")
+
+    adapted, note = adaptation.adapt(base_decision, cmd, state, profile)
+
+    assert "กิเดียนชะงักไปเล็กน้อย" in adapted.message
+    assert "ผมไม่มีส่วนเกี่ยวข้องกับเรื่องนี้ครับ" in adapted.message
+    assert note is not None
+
+
+def test_dynamic_adaptation_scaffolding_nudge():
+    """ตรวจว่าระบบแทรกคำแนะนำช่วยเหลือ (Scaffolding Nudge) เมื่อทำผิดกฎหรือติดขัด"""
+    adaptation = DynamicAdaptationEngine()
+    state = GameState(current_location="lounge_car")
+
+    tracker = BehaviorTracker(session_id="demo_scaffold")
+    profile = tracker.record_turn(
+        "ไป",
+        ParsedCommand(action=ActionType.MOVE, target="lounge_car", raw_text="ไป"),
+        Decision(allowed=True, message="ok"),
+        state,
+    )
+
+    # ละเมิดกฎ R007_ACTION_SUPPORTED (เช่น พยายามหยิบของที่ห้ามหยิบ)
+    denied_decision = Decision(
+        allowed=False,
+        message="วัตถุนี้ไม่ได้ประกาศว่ารองรับ take",
+        violated_rule_id="R007_ACTION_SUPPORTED",
+    )
+    cmd = ParsedCommand(action=ActionType.TAKE, target="clock", raw_text="หยิบนาฬิกา")
+
+    adapted, note = adaptation.adapt(denied_decision, cmd, state, profile)
+
+    assert "💡 *[ข้อสังเกตของผู้สืบสวน]*" in adapted.message
+    assert "ไม่ควรเคลื่อนย้ายหรือแตะต้อง" in adapted.message
+    assert "Scaffolding nudge triggered" in note
+
+
+def test_telemetry_json_and_csv_export(tmp_path):
+    """ทดสอบการบันทึก Session Telemetry ทั้งไฟล์ JSON และ CSV"""
+    tracker = BehaviorTracker(session_id="test_export_99")
+    state = GameState(ending_id="ending_true_justice")
+
+    tracker.record_turn(
+        "ตรวจ",
+        ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="ตรวจ"),
+        Decision(allowed=True, message="ok"),
+        state,
+    )
+    summary = tracker.get_summary(state)
+
+    saved_path = save_session_telemetry(summary)
+    assert saved_path.exists()
+
+    # ตรวจสอบว่ามีไฟล์ CSV ถูกสร้างขึ้นใน telemetry dir
+    csv_file = saved_path.parent / "research_dataset.csv"
+    assert csv_file.exists()
+
+
+def test_api_profiler_and_research_endpoints():
+    """ทดสอบ Endpoints /profiler/profile, /research/telemetry, /research/export ผ่าน API"""
+    res_prof = client.get("/profiler/profile?session_id=default")
+    assert res_prof.status_code == 200
+    data_prof = res_prof.json()
+    assert "primary_archetype" in data_prof
+    assert "scores" in data_prof
+    assert "dimensions" in data_prof
+
+    res_tele = client.get("/research/telemetry?session_id=default")
+    assert res_tele.status_code == 200
+    data_tele = res_tele.json()
+    assert "session_id" in data_tele
+    assert "turns" in data_tele
+
+    res_exp = client.get("/research/export")
+    assert res_exp.status_code == 200
+    data_exp = res_exp.json()
+    assert "count" in data_exp
+    assert "sessions" in data_exp

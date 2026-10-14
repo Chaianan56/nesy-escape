@@ -11,5 +11,10 @@ logs/
 
 # ผลการทดลองที่ต้องอ้างอิงในงานให้ย้ายมาไว้ที่ results/ ซึ่งเก็บลง git
 
+# telemetry logs จากการเล่นจริงและทดสอบ
+data/telemetry/*.json
+data/telemetry/*.csv
+!data/telemetry/.gitkeep
+
 # Local verification scratch files
 tmp/

@@ -31,6 +31,21 @@ let deadlineReached = false;
 let clockFailures = 0;
 let clockAnchor = null;
 let clockElapsed = 0;
+let latestProfile = null;
+
+function updateProfilerHUD(profile) {
+  if (!profile) return;
+  latestProfile = profile;
+  const pill = document.getElementById("profilerWidget");
+  const icon = document.getElementById("profilerIcon");
+  const label = document.getElementById("profilerText");
+  if (icon) icon.textContent = profile.archetype_badge || "⚖️";
+  if (label) label.textContent = profile.archetype_name_th || "นักสืบสายสมดุล";
+  if (pill) {
+    const dimensions = profile.dimensions || {};
+    pill.title = `ความรอบคอบ ${Math.round((dimensions.methodical_score || 0) * 100)}% · ความเคารพกฎ ${Math.round((dimensions.caution_score ?? 1) * 100)}%`;
+  }
+}
 
 function anchorClock() {
   clockElapsed = gameState.elapsed_seconds || 0;
@@ -63,6 +78,7 @@ async function tickClock() {
     }
     const data = await res.json();
     if (gameOver) return;
+    if (data.profile) updateProfilerHUD(data.profile);
     clockFailures = 0;
     // Keep action state if a command completed while this clock request was pending.
     if (data.new_state.ending_id) {
@@ -360,6 +376,7 @@ async function submit(text, opts = {}) {
 
     if (gameOver) return null; // Ignore late responses after the deadline closed the case.
     if (data.new_state) gameState = data.new_state;
+    if (data.profile) updateProfilerHUD(data.profile);
     anchorClock();
     updateLocationHUD();
     updateClock();
@@ -479,6 +496,18 @@ function showGameOver(decision = null) {
   box.className = 'msg-system ending-card';
   box.innerHTML = `<div class="card-header-bar"><span class="badge info">${gameState?.ending_id === 'cold_arrival' ? 'หมดเวลา · รถไฟถึงปลายทาง' : 'บทสรุปคดี'}</span></div>` +
     `<div class="story-text">${escapeHtml(decision?.message || 'คดีนี้ปิดลงแล้ว')}</div>`;
+  if (latestProfile) {
+    const profileCard = document.createElement('div');
+    profileCard.className = 'story-text';
+    profileCard.textContent = `${latestProfile.archetype_badge || '⚖️'} ${latestProfile.archetype_name_th || 'นักสืบสายสมดุล'} · ${latestProfile.archetype_description_th || ''}`;
+    box.appendChild(profileCard);
+    const exportButton = document.createElement('button');
+    exportButton.type = 'button';
+    exportButton.className = 'chip-btn';
+    exportButton.textContent = 'ดูข้อมูลวิจัย';
+    exportButton.addEventListener('click', () => window.open(`${API_BASE}/research/export`, '_blank'));
+    box.appendChild(exportButton);
+  }
   feed.appendChild(box);
   feed.scrollTop = 0;
   if (typeof PixelUI !== 'undefined') PixelUI.refresh();
