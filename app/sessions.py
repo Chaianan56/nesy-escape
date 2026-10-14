@@ -6,6 +6,7 @@ import time
 
 from fastapi import HTTPException, Request, Response
 from app.schemas import GameState
+from app.game_setup import new_game_state
 
 COOKIE = "nesy_session"
 TTL = 24 * 60 * 60
@@ -14,8 +15,9 @@ MAX_SESSIONS = 1000
 
 @dataclass
 class Session:
-    state: GameState = field(default_factory=GameState)
+    state: GameState = field(default_factory=new_game_state)
     submitted_evidence: list[str] | None = None
+    inference_attempts: list[dict] = field(default_factory=list)
     touched: float = field(default_factory=time.monotonic)
     lock: Lock = field(default_factory=Lock)
 

@@ -6,6 +6,8 @@ const NovelUI = (() => {
   function elements(){
     if(box)return;
     box=document.getElementById('sceneDialogue');
+    const start=document.getElementById('startInvestigation');
+    if(start)start.onclick=()=>next();
     document.addEventListener('keydown',event=>{
       if(!active()||event.isComposing||event.repeat||event.key!=='Enter')return;
       if(document.querySelector('dialog[open]'))return;

@@ -28,6 +28,7 @@ from app.schemas import (
 )
 from app.case_notes import evidence_entry, case_questions, conversation_summaries
 from app.game_clock import sync_clock
+from app.game_setup import new_game_state
 from app.sessions import Session, session_for
 from app.symbolic.engine import SymbolicEngine, apply_changes, accusation_submission
 
@@ -101,11 +102,15 @@ def scene(session: Session = Depends(session_for)):
     return {
         "title": w.get("title"),
         "briefing": w.get("briefing"),
+        "opening_scene": engine.narrative_scene("boarding", session.state)
+                         if session.state.started_at is None and not session.state.ending_id else None,
         "time_limit_seconds": engine.time_limit_seconds,
         "locations": {k: v.get("name_th") for k, v in w["locations"].items()},
         "objects": {k: v.get("name_th") for k, v in w["objects"].items() if engine.offerable(k, session.state)},
         "suspects": {k: v.get("name_th") for k, v in w["suspects"].items()},
         "suspect_locations": {k: v.get("location") for k, v in w["suspects"].items()},
+        "accusable_suspects": [k for k, v in w["suspects"].items() if v.get("accusable", True)],
+        "max_submitted_evidence": w.get("max_submitted_evidence", 15),
         "restricted_locations": [k for k, v in w["locations"].items() if v.get("restricted")],
         "actions": [a.value for a in ActionType],
         "rules_count": len(engine.rules),
@@ -122,14 +127,15 @@ def pillars(session: Session = Depends(session_for)):
     if not session.state.ending_id:
         return {}
     state = session.state.model_copy(update={"discovered_evidence": session.submitted_evidence}) if session.submitted_evidence is not None else session.state
-    return {sid: engine.pillar_status(sid, state) for sid in engine.world["suspects"]}
+    return {sid: engine.pillar_status(sid, state) for sid, person in engine.world["suspects"].items() if person.get("accusable", True)}
 
 
 @app.post("/new-game")
 def new_game(session: Session = Depends(session_for)):
     """Explicit restart; a normal page reload resumes the existing game."""
-    session.state = GameState()
+    session.state = new_game_state(engine.world)
     session.submitted_evidence = None
+    session.inference_attempts.clear()
     return {"new_state": session.state.model_dump()}
 
 
@@ -148,6 +154,9 @@ def journal(session: Session = Depends(session_for)):
     case = state.model_copy(update={"discovered_evidence": session.submitted_evidence}) if session.submitted_evidence is not None else state
     return {
         "evidence": [evidence_entry(w, eid) for eid in state.discovered_evidence if eid in w["objects"]],
+        "inventory": [{"id": oid, "name": w["objects"][oid]["name_th"],
+                       "description": w["objects"][oid].get("description", "")}
+                      for oid in state.inventory if oid in w["objects"]],
         "questions": case_questions(w, state),
         "deductions": [{"id": did, "name": w["deductions"][did]["name_th"]}
                        for did in sorted(engine.deductions(case)) if state.ending_id],
@@ -156,9 +165,16 @@ def journal(session: Session = Depends(session_for)):
                     and engine.offerable(eid, state)],
         "people": [{"id": sid, "name": sus["name_th"],
                     "here": sus.get("location") == state.current_location,
+                    "location": sus.get("location"),
+                    "accusable": sus.get("accusable", True),
+                    "topics": engine.dialogue_options(sid, state) if not state.ending_id else [],
                     "interrogated": sid in state.interrogated_suspects}
                    for sid, sus in w["suspects"].items()],
-        "pillars": {sid: engine.pillar_status(sid, case) for sid in w["suspects"]} if state.ending_id else {},
+        "pillars": {sid: engine.pillar_status(sid, case) for sid, person in w["suspects"].items() if person.get("accusable", True)} if state.ending_id else {},
+        "inference_questions": engine.inference_questions(state) if not state.ending_id else [],
+        "scene_followups": engine.narrative_followups(state),
+        "validated_claims": [{"id": cid, "name": w.get("claims", {}).get(cid, {}).get("name_th", cid)} for cid in state.validated_claims],
+        "max_submitted_evidence": w.get("max_submitted_evidence", 15),
         "submitted_evidence": session.submitted_evidence,
         "case_closed": bool(state.ending_id),
         "background": [entry for entry in CASE_BACKGROUND
@@ -170,8 +186,8 @@ def journal(session: Session = Depends(session_for)):
 CASE_BACKGROUND = [
     {"title": "สำนวนเบลล์เวเธอร์ ปี 1923", "requires_evidence": ["dossier_missing_file_c"],
      "text": "ปกสำนวนระบุเหตุรถไฟชนที่เบลล์เวเธอร์เมื่อสิบห้าปีก่อน คดีถูกปิดเป็นอุบัติเหตุ เอกสารแบ่งเป็นแฟ้ม A ถึง D แต่ช่อง C ว่างอยู่"},
-    {"title": "คำให้การที่ไม่ตรงกับบัญชีผู้โดยสาร", "requires_evidence": ["secret_file"],
-     "text": "เอเลียส เวนน์ บิดาของลิโอรา ให้การว่าเห็นผู้โดยสารคนที่แปดขึ้นขบวนในปี 1923 แต่บัญชีทางการระบุเจ็ดคน เอกสารนี้บันทึกความขัดแย้งของข้อมูล ยังไม่ได้อธิบายว่าเกิดจากอะไร"},
+    {"title": "คำให้การที่ถูกตัดออกจากสำนวน", "requires_evidence": ["secret_file"],
+     "text": "เอเลียส เวนน์ บิดาของลิโอรา รอดชีวิตจากเหตุปี 1923 และให้การถึงคำเตือนก่อนปล่อยรถ คำให้การถูกตัดออกจากสำนวน เขาเสียชีวิตในปี 1931 ลิโอราเก็บสำเนาไว้เพื่อคืนความน่าเชื่อถือให้บิดา เอกสารนี้อธิบายอดีต ยังไม่ยืนยันว่าใครฆ่าแคสเซียนคืนนี้"},
     {"title": "การรื้อคดีในปี 1938", "requires_evidence": ["judicial_transfer_order"],
      "text": "แคสเซียนกำลังนำสำนวนเบลล์เวเธอร์ส่งให้หน่วยงานตุลาการ หนังสือนำส่งลงวันที่ 14 พฤศจิกายน 1938 เป็นการนำคดีที่ปิดไปแล้วกลับเข้าสู่การตรวจสอบ"},
 ]
@@ -197,11 +213,37 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     # Legacy client snapshots are ignored; only the server can change this state.
     req.state = session.state.model_copy(deep=True)
     result = _handle_command(req)
+    if result.decision.allowed and result.parsed.action == ActionType.INTERROGATE:
+        result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
     session.state = result.new_state
     if result.parsed.action == ActionType.ACCUSE and result.decision.allowed:
         session.submitted_evidence = list(req.submitted_evidence or [])
+    if result.parsed.action == ActionType.INFER and req.submitted_evidence is not None:
+        session.inference_attempts.append({"claim": result.parsed.target,
+            "evidence": list(req.submitted_evidence or []), "accepted": result.decision.allowed,
+            "elapsed_seconds": result.new_state.elapsed_seconds})
+        session.inference_attempts = session.inference_attempts[-200:]
     return result
+
+
+@app.get("/reconstruction")
+def reconstruction(session: Session = Depends(session_for)):
+    """An opt-in recap of the submitted successful case, never a pre-ending hint."""
+    if session.state.ending_id != "true_ending" or session.submitted_evidence is None:
+        return {"scene": None}
+    return {"scene": engine.narrative_scene("case_reconstruction", session.state,
+                                           evidence_scope=session.submitted_evidence)}
+
+
+@app.get("/study-export")
+def study_export(session: Session = Depends(session_for)):
+    """Local session record, distinct from a claim that the player understood the case."""
+    return {"story_version": engine.world.get("content_version", engine.world.get("scene_id")),
+            "mode": "nesy", "ending": session.state.ending_id,
+            "elapsed_seconds": session.state.elapsed_seconds,
+            "inference_attempts": list(session.inference_attempts),
+            "submitted_evidence": session.submitted_evidence}
 
 
 def _handle_command(req: CommandRequest):
@@ -230,6 +272,8 @@ def _handle_command(req: CommandRequest):
     if parsed.action == ActionType.ACCUSE and not engine.is_out_of_time(req.state):
         decision = accusation_submission(engine, parsed, req.state, req.submitted_evidence)
     else:
+        if parsed.action == ActionType.INFER:
+            parsed = parsed.model_copy(update={"evidence": list(req.submitted_evidence or [])})
         decision = engine.decide(parsed, req.state)
 
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
@@ -281,19 +325,24 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
         if state.ending_id or engine.is_out_of_time(state):
             return terminal_response(state, parsed.raw_text)
         action, target = step.split()
-        if action in {"accuse", "burn"}:
+        if action in {"accuse", "burn", "infer"}:
             return CommandResponse(parsed=parsed, new_state=state, pending_steps=steps[index:],
                 decision=Decision(allowed=True,
                     message="\n\n".join(messages + ["ขั้นต่อไปต้องยืนยันก่อนดำเนินการ"]),
                     reasoning_chain=reasoning))
         command = ParsedCommand(action=ActionType(action), target=target, raw_text=step, confidence=1)
         decision = engine.decide(command, state)
+        scene_playback = engine.dialogue_scene(command, state) if decision.allowed else None
         messages.append(decision.message)
         reasoning.extend(decision.reasoning_chain)
         if decision.allowed:
             state = apply_changes(state, decision.state_changes)
             if state.started_at is None:
                 state = state.model_copy(update={"started_at": time.time()})
+            if scene_playback:
+                return CommandResponse(parsed=parsed, new_state=state,
+                    narrative_scene=scene_playback, pending_steps=steps[index + 1:],
+                    decision=Decision(allowed=True, message="\n\n".join(messages), reasoning_chain=reasoning))
         elif decision.state_changes.get("ending"):
             state = state.model_copy(update={"ending_id": decision.state_changes["ending"]})
         if not decision.allowed or state.ending_id:

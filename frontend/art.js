@@ -5,23 +5,25 @@ const GameArt = (() => {
     dining_car_staff:'scene-03-dining', first_class_car:'scene-04-crime',
     lounge_car:'scene-05-lounge', second_class_car:'scene-06-second-class'
   };
-  const people = {gideon_hart:'scene-05-lounge',vincent_gray:'scene-06-second-class',dr_liora_venn:'scene-04-medical'};
+  const people = {gideon_hart:'scene-05-lounge',vincent_gray:'scene-06-second-class',dr_liora_venn:'scene-04-medical',car_attendant:'scene-03-dining',patient_witness:'scene-03-dining'};
   const endings = {true_ending:'ending-true',cold_justice:'ending-incomplete',the_scapegoat:'ending-scapegoat',the_paranoia_trap:'ending-paranoia',unproven:'ending-unproven',cold_arrival:'ending-arrival'};
   const evidence = {};
   const groups = {
     'detail-electrical-controls':['power_panel','fuse_box','backup_switch'],
-    'detail-cut-wire':['cut_copper_wire','tool_marks'], 'detail-electrical-log':['maintenance_log'],
+    'detail-cut-wire':['cut_copper_wire','tool_marks'], 'detail-electrical-log':['maintenance_log','tunnel_schedule'],
     'detail-patient-log':['liora_patient_log'], 'detail-pocket-watch':['pocket_watch'],
     'detail-burnt-paper':['burnt_folder_c','file_c_initials'], 'detail-teacups':['second_teacup','tea_lozenge_trace'],
     'detail-wax':['wax_seal_imprint'], 'detail-cufflink-soot':['obsidian_cufflink','red_soot'],
-    'detail-dossier':['dossier_missing_file_c','judicial_transfer_order'], 'detail-wall-clock':['wall_clock'],
-    'detail-medical-file':['secret_file'],
+    'detail-dossier':['dossier_missing_file_c','judicial_transfer_order','dossier_bag','case_year_note','mara_job_note'], 'detail-wall-clock':['wall_clock'],
+    'detail-medical-file':['secret_file','medical_key'],
+    'scene-04-crime':['letter_opener'],
+    'scene-02-electrical':['electrical_room_door','staff_key'],
     'detail-gideon':['gideon_lozenge_tin','gideon_signet_ring','gideon_missing_button','gideon_sleeve_soot'],
-    'detail-vincent':['wire_cutters','vincent_blood'],
-    'scene-03-dining':['liora_patient_witness'],
-    'scene-05-lounge':['gideon_blackout_alibi','gideon_no_early_alibi'],
+    'detail-vincent':['wire_cutters','vincent_blood','vincent_ticket'],
+    'scene-03-dining':['liora_patient_witness','staff_impact_testimony','staff_service_record','staff_no_message','vincent_station_alibi'],
+    'scene-05-lounge':['gideon_blackout_alibi','gideon_no_early_alibi','postponed_meeting_claim'],
     'scene-06-second-class':['vincent_body_testimony','vincent_blackout_confession','vincent_theft_motive'],
-    'scene-04-medical':['liora_time_estimate','liora_medical_access','liora_time_hesitation']
+    'scene-04-medical':['liora_time_estimate','liora_medical_access','liora_time_hesitation','medical_room_door']
   };
   Object.entries(groups).forEach(([asset,ids])=>ids.forEach(id=>evidence[id]=asset));
   let selected=null, location=null, shown=null;

@@ -25,6 +25,7 @@ class ActionType(str, Enum):
     UNLOCK = "unlock"          # ปลดล็อก
     MOVE = "move"              # เคลื่อนย้ายตัวเอง/วัตถุ
     INTERROGATE = "interrogate"  # สอบปากคำผู้ต้องสงสัย
+    INFER = "infer"            # เสนอข้อสรุปพร้อมหลักฐานที่เลือก
     ACCUSE = "accuse"          # กล่าวหา (จบเกม)
     BURN = "burn"              # ทำลายเอกสาร ทำลายแล้วเรียกคืนไม่ได้
     SEQUENCE = "sequence"      # คำสั่งต่อเนื่องหลายขั้นตอน (ทำทั้งหมดตามลำดับ)
@@ -51,6 +52,9 @@ class ParsedCommand(BaseModel):
     instrument: Optional[str] = Field(
         None, validation_alias=AliasChoices("instrument", "items"), description="id ของสิ่งที่ใช้ เช่น 'keycard_A'"
     )
+    topic: Optional[str] = None
+    code: Optional[str] = None
+    evidence: List[str] = Field(default_factory=list)
     raw_text: str = Field(..., description="ข้อความดิบของผู้เล่น เก็บไว้เพื่อ log และตรวจย้อนหลัง")
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     alternatives: List[str] = Field(
@@ -74,6 +78,10 @@ class GameState(BaseModel):
     unlocked_objects: List[str] = Field(default_factory=list)
     visited_locations: List[str] = Field(default_factory=lambda: ["lounge_car"])
     interrogated_suspects: List[str] = Field(default_factory=list)
+    dialogue_history: List[str] = Field(default_factory=list)
+    examined_objects: List[str] = Field(default_factory=list)
+    validated_claims: List[str] = Field(default_factory=list)
+    claim_evidence: Dict[str, List[str]] = Field(default_factory=dict)
     elapsed_seconds: int = 0
     turn_count: int = 0
     burned_objects: List[str] = Field(default_factory=list, description="id ของสิ่งที่ถูกทำลายไปแล้ว")
@@ -116,6 +124,7 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
+    narrative_scene: Optional[Dict[str, Any]] = None
     conversation_summaries: List[Dict[str, Any]] = Field(default_factory=list)
     pending_steps: List[str] = Field(default_factory=list, description="Steps awaiting player confirmation; not executed")
     parsed: ParsedCommand

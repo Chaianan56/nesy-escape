@@ -1,6 +1,7 @@
 const AccusationUI = (() => {
   // ต้องตรงกับ MAX_SUBMITTED_EVIDENCE / MAX_FAILED_ACCUSATIONS ใน app/symbolic/engine.py
-  const MAX_EVIDENCE = 15, MAX_TRIES = 3;
+  let maxEvidence = 15;
+  const MAX_TRIES = 3;
   let dialog, target, evidence = [], opener, busy = false, request = 0;
   const drafts = new Map();
   function init() {
@@ -42,22 +43,23 @@ const AccusationUI = (() => {
   function limits() {
     const tries = MAX_TRIES - (gameState?.failed_accusations || 0);
     dialog.querySelector('#accusationLimits').textContent =
-      `เลือกได้ไม่เกิน ${MAX_EVIDENCE} ชิ้น · ยื่นได้อีก ${tries} ครั้ง
+      `เลือกได้ไม่เกิน ${maxEvidence} ชิ้น · ยื่นได้อีก ${tries} ครั้ง
 `
       + 'หลักฐานพอสรุปคดีได้ → คดีปิดทันที แม้ข้อสรุปผิด · ยังไม่พอ → ได้คำติชมแล้วยื่นใหม่ได้ · ครั้งสุดท้ายยังไม่พอ → คดีปิดแบบพิสูจน์ไม่ได้';
   }
   function status(text) { dialog.querySelector('#accusationStatus').textContent = text; }
   function controls() {
-    dialog.querySelector('#confirmAccusation').disabled = busy || gameOver || !(drafts.get(target)?.size);
+    dialog.querySelector('#confirmAccusation').disabled = busy || gameOver || !(drafts.get(target)?.size) || drafts.get(target).size > maxEvidence;
     dialog.querySelector('#cancelAccusation').disabled = busy;
     dialog.querySelectorAll('input').forEach(input => { input.disabled = busy; });
   }
   async function open(suspect) {
-    if (gameOver || busy || !suspectsMap[suspect]) return;
+    if (gameOver || busy || !suspectsMap[suspect] || (accusableSuspects && !accusableSuspects.includes(suspect))) return;
     if (!dialog) init();
     const revision = ++request;
     opener = document.activeElement; target = suspect;
     dialog.querySelector('#accusationPerson').textContent = suspectsMap[suspect];
+    maxEvidence = maxSubmittedEvidence;
     limits();
     const list = dialog.querySelector('#accusationEvidence'); list.replaceChildren();
     status('กำลังเปิดรายการหลักฐาน…');
@@ -69,6 +71,9 @@ const AccusationUI = (() => {
       const journal = await response.json();
       if (request !== revision || !dialog.open) return;
       if (gameOver || journal.case_closed) { dialog.close(); return; }
+      if (journal.people?.find(person => person.id === suspect)?.accusable === false) { dialog.close(); return; }
+      maxEvidence = journal.max_submitted_evidence || maxEvidence;
+      limits();
       evidence = journal.evidence;
       const available = new Set(evidence.map(item => item.id));
       const chosen = new Set([...(drafts.get(target) || [])].filter(id => available.has(id)));
@@ -79,9 +84,9 @@ const AccusationUI = (() => {
         const copy = document.createElement('span'); const title = document.createElement('strong'); title.textContent = item.name;
         const description = document.createElement('small'); description.textContent = item.description;
         copy.append(title, description); label.append(checkbox, copy); list.append(label);
-        checkbox.onchange = () => { checkbox.checked ? chosen.add(item.id) : chosen.delete(item.id); status(`เลือก ${chosen.size} จาก ${evidence.length} รายการ (ไม่เกิน ${MAX_EVIDENCE})`); controls(); };
+        checkbox.onchange = () => { checkbox.checked ? chosen.add(item.id) : chosen.delete(item.id); status(`เลือก ${chosen.size} จาก ${evidence.length} รายการ (ไม่เกิน ${maxEvidence})`); controls(); };
       });
-      status(evidence.length ? `เลือก ${chosen.size} จาก ${evidence.length} รายการ (ไม่เกิน ${MAX_EVIDENCE})` : 'ยังไม่มีหลักฐาน กลับไปตรวจสิ่งของและสอบปากคำก่อน');
+      status(evidence.length ? `เลือก ${chosen.size} จาก ${evidence.length} รายการ (ไม่เกิน ${maxEvidence})` : 'ยังไม่มีหลักฐาน กลับไปตรวจสิ่งของและสอบปากคำก่อน');
       controls();
     } catch { if (revision === request) status('เปิดหลักฐานไม่สำเร็จ ปิดหน้าต่างแล้วลองอีกครั้ง'); }
   }

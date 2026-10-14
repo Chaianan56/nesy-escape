@@ -99,6 +99,19 @@
       "message_fail": "หลักฐานนี้ต้องได้รับจากการสอบปากคำก่อน กรุณาพูดคุยกับผู้เกี่ยวข้อง"
     },
     {
+      "check": "visible",
+      "message_fail": "ยังเข้าถึงสิ่งนี้ไม่ได้ ตรวจสถานะประตูหรือเบาะแสก่อน",
+      "description": "เป้าหมายต้องเข้าถึงได้ตามหลักฐานและสถานะประตู",
+      "id": "R009_VISIBLE",
+      "applies_to": [
+        "examine",
+        "take",
+        "unlock",
+        "use",
+        "burn"
+      ]
+    },
+    {
       "id": "R007_ACTION_SUPPORTED",
       "description": "สิ่งของต้องประกาศไว้ในฉากว่ารองรับการกระทำนี้",
       "applies_to": [
@@ -108,7 +121,44 @@
         "burn"
       ],
       "check": "object_supports_action",
-      "message_fail": "สิ่งนี้ทำแบบนั้นไม่ได้ ในคดีนี้ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว ห้ามหยิบ ห้ามเคลื่อนย้าย และห้ามทำลาย สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ"
+      "message_fail": "สิ่งนี้ไม่รองรับการกระทำดังกล่าว ลองตรวจดูหรืออ่านวิธีใช้งานก่อน"
+    },
+    {
+      "check": "unlock_ready",
+      "message_fail": "ยังเปิดสิ่งนี้ไม่ได้",
+      "description": "ต้องมีรหัสหรือกุญแจที่ตรงกับเป้าหมาย",
+      "id": "R010_UNLOCK_REQUIREMENTS",
+      "applies_to": [
+        "unlock",
+        "use"
+      ]
+    },
+    {
+      "check": "dialogue_available",
+      "message_fail": "ยังไม่มีข้อมูลสำหรับถามประเด็นนี้",
+      "description": "บทสนทนาต้องเปิดแล้วตามความรู้ของผู้เล่น",
+      "id": "R011_DIALOGUE_AVAILABLE",
+      "applies_to": [
+        "interrogate"
+      ]
+    },
+    {
+      "check": "inference_ready",
+      "message_fail": "หลักฐานที่เลือกยังไม่รองรับข้อสรุปนี้",
+      "description": "ข้อสรุปต้องอยู่ในประเด็นที่เปิดแล้วและมีหลักฐานที่ยื่นรองรับ",
+      "id": "R015_INFERENCE_SUPPORTED",
+      "applies_to": [
+        "infer"
+      ]
+    },
+    {
+      "check": "accusable",
+      "message_fail": "กล่าวหาบุคคลนี้ไม่ได้",
+      "description": "บุคคลต้องเป็นผู้ต้องสงสัยและไม่มีข้อพิสูจน์ที่หักล้างคำกล่าวหา",
+      "id": "R016_ACCUSABLE",
+      "applies_to": [
+        "accuse"
+      ]
     },
     {
       "id": "R012_ACCUSE_ENDING_REQUIREMENTS",

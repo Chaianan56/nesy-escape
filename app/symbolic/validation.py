@@ -1,5 +1,6 @@
 """Fail early on malformed rule references instead of failing during play."""
 import math
+import re
 
 
 def validate_world(rules, world, checkers, actions):
@@ -23,6 +24,19 @@ def validate_world(rules, world, checkers, actions):
     require(not (locations & objects or objects & suspects or locations & suspects), "entity IDs must be unique across groups")
     evidence = {k for k, v in world['objects'].items() if v.get('type') == 'evidence'}
     deductions = set(world['deductions'])
+    require(isinstance(world.get('claims', {}), dict), 'claims must be an object')
+    claims = set(world.get('claims', {}))
+    scenes = world.get('narrative_scenes', {})
+    require(isinstance(scenes, dict), 'narrative_scenes must be an object')
+    cap = world.get('max_submitted_evidence', 15)
+    require(type(cap) is int and cap > 0, 'max_submitted_evidence must be a positive integer')
+
+    def requirements(cond, label):
+        require(isinstance(cond, dict), label + ' must be an object')
+        for name, known in [('evidence', evidence), ('deductions', deductions),
+                            ('unlocked', objects), ('inventory', objects), ('claims', claims)]:
+            refs(cond.get('requires_' + name, []), known, label + '.requires_' + name)
+
     limit = world.get('time_limit_seconds', 3600)
     require(isinstance(limit, (int, float)) and not isinstance(limit, bool) and math.isfinite(limit) and limit > 0, "time_limit_seconds must be positive")
     for group in ('objects', 'suspects'):
@@ -30,11 +44,37 @@ def validate_world(rules, world, checkers, actions):
             require(entity.get('location') is None or entity['location'] in locations, key + ': unknown location')
             refs(entity.get('supports', []), actions, key + '.supports')
             refs(entity.get('grants_evidence', []), evidence, key + '.grants_evidence')
+            requirements(entity.get('visible_requirements', {}), key + '.visible_requirements')
+            if 'unlock_requirements' in entity:
+                gate = entity['unlock_requirements']
+                requirements(gate, key + '.unlock_requirements')
+                require('code' in gate or 'key' in gate, key + ': unlock needs code or key')
+                require('code' not in gate or isinstance(gate['code'], str), key + ': code must be a string')
+                require('key' not in gate or gate['key'] in objects, key + ': unknown key')
+            if group == 'suspects':
+                require(type(entity.get('accusable', True)) is bool, key + ': accusable must be boolean')
+                refs(entity.get('exculpatory_evidence', []), evidence, key + '.exculpatory_evidence')
+                refs(entity.get('exculpatory_deductions', []), deductions, key + '.exculpatory_deductions')
+                nodes = entity.get('dialogue_nodes', [])
+                require(isinstance(nodes, list) and all(isinstance(n, dict) for n in nodes), key + ': dialogue_nodes must be objects')
+                unique([n.get('id') for n in nodes], key + '.dialogue node IDs')
+                for node in nodes:
+                    label = key + ':' + node['id']
+                    require(isinstance(node.get('topic'), str) and isinstance(node.get('text'), str) and bool(node['text']), label + ': missing topic/text')
+                    requirements(node, label)
+                    refs(node.get('grants_evidence', []), evidence, label + '.grants_evidence')
+                    refs(node.get('grants_inventory', []), objects, label + '.grants_inventory')
+                    require('scene_id' not in node or (isinstance(node['scene_id'], str) and node['scene_id'] in scenes),
+                            label + ': unknown narrative scene')
             require(not entity.get('grants_object') or entity['grants_object'] in objects, key + ': unknown grants_object')
             owner = entity.get('from_testimony')
             if owner:
                 require(owner in suspects, key + ': unknown testimony owner')
-                require(key in world['suspects'][owner].get('grants_evidence', []), key + ': testimony owner does not grant evidence')
+                person = world['suspects'][owner]
+                grants = set(person.get('grants_evidence', []))
+                for node in person.get('dialogue_nodes', []):
+                    grants.update(node.get('grants_evidence', []))
+                require(key in grants, key + ': testimony owner does not grant evidence')
     graph = {}
     for key, cond in world['deductions'].items():
         refs(cond.get('requires_evidence', []), evidence, key + '.requires_evidence')
@@ -66,10 +106,44 @@ def validate_world(rules, world, checkers, actions):
         require(set(spec) <= set(pillars), 'unknown pillar name')
         for name, cond in spec.items():
             refs(cond.get('requires_deductions', []), deductions, sid + '.' + name)
+            refs(cond.get('requires_claims', []), claims, sid + '.' + name + '.requires_claims')
+    for cid, claim in world.get('claims', {}).items():
+        requirements(claim, cid)
+        require(type(claim.get('supported')) is bool, cid + ': supported must be boolean')
+        require(isinstance(claim.get('name_th'), str), cid + ': missing name_th')
+        require(isinstance(claim.get('feedback'), str), cid + ': missing feedback')
+    for scene_id, scene in scenes.items():
+        require(isinstance(scene_id, str) and re.fullmatch(r'[a-z][a-z0-9_]*', scene_id) is not None,
+                'invalid narrative scene ID')
+        require(isinstance(scene, dict) and isinstance(scene.get('title'), str) and bool(scene['title'].strip()),
+                scene_id + ': missing scene title')
+        pages = scene.get('pages')
+        require(isinstance(pages, list) and bool(pages) and all(isinstance(page, dict) for page in pages),
+                scene_id + ': pages must be a nonempty list of objects')
+        unique([page.get('id') for page in pages], scene_id + '.page IDs')
+        for page in pages:
+            label = scene_id + '.' + page['id']
+            require(re.fullmatch(r'[a-z][a-z0-9_]*', page['id']) is not None, label + ': invalid page ID')
+            for field in ('speaker', 'time_label', 'text'):
+                require(isinstance(page.get(field), str) and bool(page[field].strip()), label + ': missing ' + field)
+            require(isinstance(page.get('art'), str) and re.fullmatch(r'[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*', page['art']) is not None,
+                    label + ': art must be an asset ID, not a path or URL')
+            requirements(page, label)
+            refs(page.get('evidence_ids', []), evidence, label + '.evidence_ids')
+    questions = world.get('inference_questions', [])
+    require(isinstance(questions, list) and all(isinstance(q, dict) for q in questions), 'inference_questions must contain objects')
+    unique([q.get('id') for q in questions], 'question IDs')
+    for q in questions:
+        requirements(q, q['id'])
+        choices = q.get('choices', [])
+        require(isinstance(choices, list) and bool(choices) and all(isinstance(c, dict) for c in choices), q['id'] + ': choices required')
+        unique([c.get('id') for c in choices], q['id'] + '.choice IDs')
+        for choice in choices:
+            require(choice.get('target') in claims and isinstance(choice.get('label'), str), q['id'] + ': invalid choice')
     for key, ending in world['endings'].items():
         require(ending.get('on_timeout') or ending.get('accuse') in suspects | {'*'}, key + ': invalid accuse')
         for prefix in ('requires_', 'denies_'):
-            for name, known in [('evidence', evidence), ('deductions', deductions), ('pillars', set(pillars))]:
+            for name, known in [('evidence', evidence), ('deductions', deductions), ('pillars', set(pillars)), ('claims', claims)]:
                 refs(ending.get(prefix + name, []), known, key + '.' + prefix + name)
     order = world.get('ending_order', list(world['endings']))
     refs(order, set(world['endings']), 'ending_order')
