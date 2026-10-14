@@ -45,6 +45,7 @@ def session_for(request: Request, response: Response):
                 raise HTTPException(503, "มีเกมใช้งานเต็ม กรุณาลองใหม่ภายหลัง")
             token = secrets.token_urlsafe(32)
             session = sessions[token] = Session()
+            session.state = session.state.model_copy(update={"session_id": token})
             response.set_cookie(COOKIE, token, httponly=True, samesite="strict",
                                 secure=request.url.scheme == "https", max_age=TTL)
         session.touched = now
