@@ -470,3 +470,96 @@ test("new conversation notes appear after the answer", async () => {
   assert.match(summary.innerHTML,/คำให้การใหม่/);
   assert.match(summary.innerHTML,/ประเด็นค้าง/);
 });
+
+// The scene player owns a promise that resolves when reading finishes (or the
+// clock closes it). Exercise the real send/sequence flow around that boundary.
+function pendingStoryScenes(chat) {
+  const played = [], replayed = [];
+  let finish, stops = 0;
+  chat.sandbox.StoryScenes = {
+    play(scene) {
+      played.push(scene);
+      return new Promise(resolve => { finish = resolve; });
+    },
+    appendReplay(scene) { replayed.push(scene); },
+    stop() { stops++; finish?.(); },
+  };
+  return {played, replayed, finish: () => finish(), stops: () => stops};
+}
+
+async function confrontationReply({allowed = true, pending = []} = {}) {
+  const data = await reply({allowed}).json();
+  data.parsed = pending.length
+    ? {action:'sequence', sequence:false, alternatives:['interrogate gideon_hart', ...pending]}
+    : {action:'interrogate', target:'gideon_hart', topic:'confrontation', alternatives:[]};
+  data.narrative_scene = {id:'gideon_confrontation', title:'สองเวลา', pages:[{text:'บทสนทนา'}]};
+  data.pending_steps = pending;
+  return {ok:true, json:async()=>data};
+}
+
+test("approved confrontation finishes before a pending sequence resumes", async () => {
+  const sent = [];
+  const c = loadChat(async (url, options) => {
+    sent.push(JSON.parse(options.body).text);
+    return sent.length === 1
+      ? confrontationReply({pending:['move first_class_car']}) : reply();
+  });
+  const scenes = pendingStoryScenes(c);
+  c.el('chatInput').value = 'ทักท้วงกิเดียนแล้วไปตู้ 4';
+  let finished = false;
+  const action = c.sandbox.sendMessage(ev).then(() => { finished = true; });
+  await flush();
+  assert.equal(scenes.played.length, 1);
+  assert.equal(scenes.played[0].id, 'gideon_confrontation');
+  assert.equal(scenes.replayed.length, 1);
+  assert.equal(finished, false);
+  assert.equal(c.read('busy'), true);
+  assert.equal(c.el('chatInput').disabled, true);
+  assert.deepEqual(sent, ['ทักท้วงกิเดียนแล้วไปตู้ 4']);
+
+  scenes.finish();
+  await action;
+  assert.deepEqual(sent, ['ทักท้วงกิเดียนแล้วไปตู้ 4', 'move first_class_car']);
+  assert.equal(scenes.played.length, 1, 'the completed interrogation must not be replayed');
+  assert.equal(c.read('busy'), false);
+  assert.equal(c.el('chatInput').disabled, false);
+});
+
+test("a denied command cannot open or offer replay of an attached narrative", async () => {
+  const c = loadChat(async () => confrontationReply({allowed:false}));
+  const scenes = pendingStoryScenes(c);
+  c.el('chatInput').value = 'ทักท้วงกิเดียน';
+  await c.sandbox.sendMessage(ev);
+  assert.equal(scenes.played.length, 0);
+  assert.equal(scenes.replayed.length, 0);
+  assert.equal(c.read('busy'), false);
+  assert.match(c.el('chatFeed').children.at(-1).className, /denied/);
+});
+
+for (const ending of ['cold_arrival', 'true_ending']) {
+  test(`${ending} closes an active scene and cancels pending commands`, async () => {
+    const requests = [];
+    const c = loadChat(async (url, options) => {
+      requests.push(url);
+      if (url === '/clock') return reply({allowed:false, ending});
+      return confrontationReply({pending:['move first_class_car']});
+    });
+    const scenes = pendingStoryScenes(c);
+    c.el('chatInput').value = 'ทักท้วงกิเดียนแล้วไปตู้ 4';
+    const action = c.sandbox.sendMessage(ev);
+    await flush();
+    assert.equal(scenes.played.length, 1);
+    assert.equal(c.read('busy'), true);
+
+    c.read('timeLimitSeconds = 1; clockElapsed = 2; clockAnchor = Date.now()');
+    await c.sandbox.tickClock();
+    await action;
+    assert.equal(scenes.stops(), 1);
+    assert.deepEqual(requests, ['/command', '/clock']);
+    assert.equal(c.read('gameState.ending_id'), ending);
+    assert.equal(c.read('gameOver'), true);
+    assert.equal(c.read('busy'), false);
+    assert.equal(c.el('chatInput').disabled, true);
+    assert.equal(c.el('sendBtnText').textContent, 'จบเกม');
+  });
+}

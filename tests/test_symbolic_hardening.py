@@ -10,6 +10,7 @@ from app import main, game_clock
 from app.schemas import ActionType, GameState, ParsedCommand
 from app.sessions import COOKIE, sessions
 from app.symbolic.engine import SymbolicEngine, apply_changes
+from app.walkthrough import parse_step
 
 
 def command(action, target=None):
@@ -26,9 +27,15 @@ def test_testimony_cannot_be_examined_until_interrogated():
         denied = engine.decide(command(ActionType.EXAMINE, eid), state)
         assert not denied.allowed
         assert denied.violated_rule_id == 'R008_EVIDENCE_SOURCE'
-        interview = engine.decide(command(ActionType.INTERROGATE, owner), state)
-        assert interview.allowed
-        state = apply_changes(state, interview.state_changes)
+        # The source rule applies to the exact spoken node, not merely a prior greeting.
+        state.discovered_evidence = [key for key, value in engine.world['objects'].items()
+                                     if value.get('type') == 'evidence' and key != eid]
+        for _ in range(max(1, len(engine.world['suspects'][owner].get('dialogue_nodes', [])))):
+            interview = engine.decide(command(ActionType.INTERROGATE, owner), state)
+            assert interview.allowed
+            state = apply_changes(state, interview.state_changes)
+            if eid in state.discovered_evidence:
+                break
         assert eid in state.discovered_evidence
         assert engine.decide(command(ActionType.EXAMINE, eid), state).allowed
 
@@ -58,7 +65,7 @@ def test_bad_data_rejected_at_startup(tmp_path, broken):
     if broken == 'order': world['ending_order'].remove('true_ending')
     if broken == 'threshold': world['deductions']['D07_GIDEON_IN_CASSIAN_ROOM']['at_least'] = 9
     if broken == 'cycle': world['deductions']['D01_TRUE_MURDER_WINDOW']['requires_deductions'] = ['D01_TRUE_MURDER_WINDOW']
-    if broken == 'duplicate_pool': world['deductions']['D07_GIDEON_IN_CASSIAN_ROOM']['of'] *= 2
+    if broken == 'duplicate_pool': world['deductions']['C02_PERSONAL_LINK']['of'] *= 2
     if broken == 'zero_time': rules[1]['params'] = {'limit_seconds': 0}
     rp, sp = tmp_path/'rules.json', tmp_path/'story.json'
     rp.write_text(json.dumps({'rules': rules}), encoding='utf-8')
@@ -82,14 +89,15 @@ def test_client_cannot_forge_evidence_clock_or_location(clients, monkeypatch):
     original = a.get('/scene').json()['initial_state']
     fake = GameState(current_location='first_class_car', discovered_evidence=list(main.engine.world['objects']),
                      started_at=None, ending_id='true_ending').model_dump()
-    assert a.post('/journal', json=fake).json()['evidence'] == []
+    opening = set(original['discovered_evidence'])
+    assert {e['id'] for e in a.post('/journal', json=fake).json()['evidence']} == opening
     assert a.post('/clock', json=fake).json()['new_state']['started_at'] == original['started_at']
     monkeypatch.setattr(main, 'interpret', lambda text, state: command(ActionType.ACCUSE, 'gideon_hart'))
     rejected = a.post('/command', json={'text':'accuse', 'state': fake}).json()
     assert not rejected['decision']['allowed']
     assert rejected['new_state']['ending_id'] is None
-    assert rejected['new_state']['discovered_evidence'] == []
-    assert b.post('/journal').json()['evidence'] == []
+    assert set(rejected['new_state']['discovered_evidence']) == opening
+    assert {e['id'] for e in b.post('/journal').json()['evidence']} == opening
 
 
 def test_progress_is_persistent_and_isolated_between_sessions(clients):
@@ -108,12 +116,15 @@ def test_progress_is_persistent_and_isolated_between_sessions(clients):
 
 def test_complete_walkthrough_uses_only_server_state(clients, monkeypatch):
     a, _ = clients
-    monkeypatch.setattr(main, 'interpret', lambda text, state: command(ActionType(text.split()[0]), text.split()[1]))
     walkthrough = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))
-    for action, target in walkthrough['steps']:
-        payload = {'text': f'{action} {target}'}
-        if action == 'accuse':
+    for step in walkthrough['steps']:
+        parsed = parse_step(step, walkthrough)
+        monkeypatch.setattr(main, 'interpret', lambda text, state, parsed=parsed: parsed)
+        payload = {'text': 'walkthrough step'}
+        if parsed.action == ActionType.ACCUSE:
             payload['submitted_evidence'] = walkthrough['submitted_evidence']
+        elif parsed.action == ActionType.INFER:
+            payload['submitted_evidence'] = parsed.evidence
         result = a.post('/command', json=payload).json()
         assert result['decision']['allowed'], result
     assert result['new_state']['ending_id'] == 'true_ending'

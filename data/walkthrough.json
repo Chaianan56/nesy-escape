@@ -1,25 +1,10 @@
 {
-  "note": "เส้นทางเฉลย เก็บหลักฐานครบทุกชิ้นแล้วกล่าวหา ใช้ในเทสเพื่อพิสูจน์ว่าเกมเดินได้จนจบจริง",
+  "note": "เส้นทางแกนสั้นใช้กระดุม+ตรา ไม่ต้องเก็บทุกหลักฐาน ช่องที่สามคือ topic สำหรับ interrogate หรือ code/key สำหรับ unlock; INFER แนบ inference_evidence; ACCUSE แนบ submitted_evidence",
   "steps": [
     [
-      "examine",
-      "gideon_lozenge_tin"
-    ],
-    [
-      "examine",
-      "gideon_signet_ring"
-    ],
-    [
-      "examine",
-      "gideon_missing_button"
-    ],
-    [
-      "examine",
-      "gideon_sleeve_soot"
-    ],
-    [
       "interrogate",
-      "gideon_hart"
+      "gideon_hart",
+      "account"
     ],
     [
       "move",
@@ -31,31 +16,20 @@
     ],
     [
       "examine",
-      "burnt_folder_c"
-    ],
-    [
-      "examine",
-      "second_teacup"
-    ],
-    [
-      "examine",
-      "wax_seal_imprint"
-    ],
-    [
-      "examine",
-      "obsidian_cufflink"
-    ],
-    [
-      "examine",
       "red_soot"
     ],
     [
       "examine",
-      "secret_file"
+      "wall_clock"
     ],
     [
       "examine",
-      "wall_clock"
+      "case_year_note"
+    ],
+    [
+      "unlock",
+      "dossier_bag",
+      "1923"
     ],
     [
       "examine",
@@ -71,86 +45,168 @@
     ],
     [
       "examine",
-      "tea_lozenge_trace"
+      "burnt_folder_c"
     ],
     [
-      "interrogate",
-      "dr_liora_venn"
+      "examine",
+      "obsidian_cufflink"
+    ],
+    [
+      "examine",
+      "wax_seal_imprint"
     ],
     [
       "move",
       "dining_car_staff"
     ],
     [
-      "examine",
-      "liora_patient_log"
-    ],
-    [
-      "examine",
-      "liora_patient_witness"
-    ],
-    [
-      "move",
-      "second_class_car"
-    ],
-    [
-      "examine",
-      "wire_cutters"
-    ],
-    [
-      "examine",
-      "vincent_blood"
+      "interrogate",
+      "car_attendant",
+      "service"
     ],
     [
       "interrogate",
-      "vincent_gray"
+      "car_attendant",
+      "impact"
+    ],
+    [
+      "examine",
+      "tunnel_schedule"
+    ],
+    [
+      "take",
+      "staff_key"
     ],
     [
       "move",
       "luggage_van_electrical"
     ],
     [
-      "examine",
-      "power_panel"
-    ],
-    [
-      "examine",
-      "fuse_box"
-    ],
-    [
-      "examine",
-      "cut_copper_wire"
-    ],
-    [
-      "examine",
-      "tool_marks"
-    ],
-    [
-      "examine",
-      "backup_switch"
+      "unlock",
+      "electrical_room_door",
+      "staff_key"
     ],
     [
       "examine",
       "maintenance_log"
     ],
     [
+      "move",
+      "lounge_car"
+    ],
+    [
+      "examine",
+      "gideon_missing_button"
+    ],
+    [
+      "examine",
+      "gideon_signet_ring"
+    ],
+    [
+      "infer",
+      "claim_two_times"
+    ],
+    [
       "accuse",
       "gideon_hart"
     ]
   ],
+  "inference_evidence": [
+    "pocket_watch",
+    "red_soot",
+    "tunnel_schedule",
+    "staff_impact_testimony",
+    "wall_clock",
+    "maintenance_log",
+    "gideon_blackout_alibi"
+  ],
   "submitted_evidence": [
     "pocket_watch",
-    "liora_time_estimate",
+    "red_soot",
+    "tunnel_schedule",
+    "staff_impact_testimony",
+    "wall_clock",
+    "maintenance_log",
+    "gideon_blackout_alibi",
     "judicial_transfer_order",
     "dossier_missing_file_c",
     "burnt_folder_c",
     "file_c_initials",
     "gideon_no_early_alibi",
+    "staff_service_record",
+    "postponed_meeting_claim",
+    "staff_no_message",
     "obsidian_cufflink",
     "gideon_missing_button",
     "wax_seal_imprint",
-    "gideon_signet_ring",
-    "red_soot",
-    "gideon_sleeve_soot"
-  ]
+    "gideon_signet_ring"
+  ],
+  "winning_cases": {
+    "button_wax": [
+      "pocket_watch",
+      "red_soot",
+      "tunnel_schedule",
+      "staff_impact_testimony",
+      "wall_clock",
+      "maintenance_log",
+      "gideon_blackout_alibi",
+      "judicial_transfer_order",
+      "dossier_missing_file_c",
+      "burnt_folder_c",
+      "file_c_initials",
+      "gideon_no_early_alibi",
+      "staff_service_record",
+      "postponed_meeting_claim",
+      "staff_no_message",
+      "obsidian_cufflink",
+      "gideon_missing_button",
+      "wax_seal_imprint",
+      "gideon_signet_ring"
+    ],
+    "tea_button": [
+      "pocket_watch",
+      "red_soot",
+      "tunnel_schedule",
+      "staff_impact_testimony",
+      "wall_clock",
+      "maintenance_log",
+      "gideon_blackout_alibi",
+      "judicial_transfer_order",
+      "dossier_missing_file_c",
+      "burnt_folder_c",
+      "file_c_initials",
+      "gideon_no_early_alibi",
+      "staff_service_record",
+      "postponed_meeting_claim",
+      "staff_no_message",
+      "second_teacup",
+      "tea_lozenge_trace",
+      "gideon_lozenge_tin",
+      "obsidian_cufflink",
+      "gideon_missing_button"
+    ],
+    "tea_wax": [
+      "pocket_watch",
+      "red_soot",
+      "tunnel_schedule",
+      "staff_impact_testimony",
+      "wall_clock",
+      "maintenance_log",
+      "gideon_blackout_alibi",
+      "judicial_transfer_order",
+      "dossier_missing_file_c",
+      "burnt_folder_c",
+      "file_c_initials",
+      "gideon_no_early_alibi",
+      "staff_service_record",
+      "postponed_meeting_claim",
+      "staff_no_message",
+      "second_teacup",
+      "tea_lozenge_trace",
+      "gideon_lozenge_tin",
+      "wax_seal_imprint",
+      "gideon_signet_ring"
+    ]
+  },
+  "expected_ending": "true_ending"
 }

@@ -5,15 +5,26 @@ test_engine.py — ทดสอบ Symbolic Engine ของ Nocturne Express 19
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-STEPS = [tuple(x) for x in json.loads(
+WALKTHROUGH = json.loads(
     (Path(__file__).resolve().parents[1] / "data" / "walkthrough.json")
-    .read_text(encoding="utf-8"))["steps"]]
+    .read_text(encoding="utf-8"))
 from app.schemas import ActionType, ParsedCommand, GameState
-from app.symbolic.engine import SymbolicEngine, apply_changes
+from app.symbolic.engine import SymbolicEngine, apply_changes, accusation_submission
+from app.walkthrough import parse_step
+
+TIME_EVIDENCE = ['pocket_watch', 'red_soot', 'tunnel_schedule', 'staff_impact_testimony']
+INFERENCE_EVIDENCE = WALKTHROUGH['inference_evidence']
+
+
+def with_claim(state):
+    state.validated_claims = ['claim_two_times']
+    state.claim_evidence = {'claim_two_times': list(INFERENCE_EVIDENCE)}
+    return state
 
 
 @pytest.fixture
@@ -27,14 +38,16 @@ def cmd(action, target=None, instrument=None, text="(mock)"):
 
 
 # เส้นทางเฉลยอยู่ใน data/walkthrough.json ที่เดียว
-FULL_WALKTHROUGH = [(ActionType(a), t) for a, t in STEPS]
+FULL_WALKTHROUGH = WALKTHROUGH["steps"]
 
 
 def run_walkthrough(engine, steps=None) -> GameState:
-    s = GameState()
-    for action, target in (steps or FULL_WALKTHROUGH):
-        d = engine.decide(cmd(action, target), s)
-        assert d.allowed, f"{action.value} {target} ควรผ่านแต่ถูกปฏิเสธ: {d.message}"
+    s = GameState(**engine.world.get("initial_state", {}))
+    for step in (steps or FULL_WALKTHROUGH):
+        parsed = parse_step(step, WALKTHROUGH)
+        d = (accusation_submission(engine, parsed, s, WALKTHROUGH['submitted_evidence'])
+             if parsed.action == ActionType.ACCUSE else engine.decide(parsed, s))
+        assert d.allowed, f"{parsed.action.value} {parsed.target} ควรผ่านแต่ถูกปฏิเสธ: {d.message}"
         s = apply_changes(s, d.state_changes)
     return s
 
@@ -119,7 +132,8 @@ def test_true_murder_window_is_what_unlocks_the_case(engine):
     D01 = "D01_TRUE_MURDER_WINDOW"
     assert D01 not in engine.deductions(ev(engine, "wall_clock"))
     assert D01 not in engine.deductions(ev(engine, "pocket_watch"))
-    assert D01 in engine.deductions(ev(engine, "pocket_watch", "liora_time_estimate"))
+    assert D01 not in engine.deductions(ev(engine, "pocket_watch", "liora_time_estimate"))
+    assert D01 in engine.deductions(ev(engine, *TIME_EVIDENCE))
 
 
 def test_opportunity_needs_at_least_two_independent_links(engine):
@@ -129,7 +143,7 @@ def test_opportunity_needs_at_least_two_independent_links(engine):
                   "obsidian_cufflink", "gideon_missing_button")
     assert D07 not in engine.deductions(one_link)
 
-    two_links = ev(engine, "gideon_no_early_alibi",
+    two_links = ev(engine, "gideon_no_early_alibi", "staff_service_record",
                    "obsidian_cufflink", "gideon_missing_button",
                    "wax_seal_imprint", "gideon_signet_ring")
     assert D07 in engine.deductions(two_links)
@@ -155,16 +169,11 @@ def test_walkthrough_reaches_the_true_ending(engine):
 
 
 GIDEON_MINIMUM = ["dossier_missing_file_c", "burnt_folder_c", "file_c_initials"]
-GIDEON_TRUE = GIDEON_MINIMUM + [
-    "judicial_transfer_order",  # แรงจูงใจ D03 บังคับในฉากจบแท้
-    "pocket_watch", "liora_time_estimate", "gideon_no_early_alibi",
-    "red_soot", "gideon_sleeve_soot", "obsidian_cufflink", "gideon_missing_button",
-    "wax_seal_imprint", "gideon_signet_ring",
-]
+GIDEON_TRUE = WALKTHROUGH['submitted_evidence']
 
 
 def test_gideon_true_ending_matches_diagram_without_clearing_others(engine):
-    state = ev(engine, *GIDEON_TRUE)
+    state = with_claim(ev(engine, *GIDEON_TRUE))
     held = engine.deductions(state)
     assert "D08_VINCENT_CLEARED" not in held
     assert "D09_LIORA_CLEARED" not in held
@@ -173,9 +182,9 @@ def test_gideon_true_ending_matches_diagram_without_clearing_others(engine):
     assert d.state_changes["ending"] == "true_ending"
 
 
-@pytest.mark.parametrize("missing", GIDEON_TRUE[len(GIDEON_MINIMUM):])
+@pytest.mark.parametrize("missing", [e for e in GIDEON_TRUE if e not in GIDEON_MINIMUM])
 def test_gideon_missing_any_true_ending_clue_gets_incomplete(engine, missing):
-    state = ev(engine, *[e for e in GIDEON_TRUE if e != missing])
+    state = with_claim(ev(engine, *[e for e in GIDEON_TRUE if e != missing]))
     d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
     assert d.allowed
     assert d.state_changes["ending"] == "cold_justice"
@@ -186,7 +195,7 @@ def test_file_c_link_alone_can_reach_incomplete_ending(engine):
     d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
     assert d.allowed
     assert d.state_changes["ending"] == "cold_justice"
-    assert "Ending C" in d.message
+    assert engine.world['endings']['cold_justice']['title'] in d.message
 
 
 @pytest.mark.parametrize("missing", GIDEON_MINIMUM)
@@ -199,22 +208,22 @@ def test_gideon_missing_file_c_link_cannot_accuse(engine, missing):
 
 def test_cold_justice_is_right_suspect_but_unproven_case(engine):
     """สามเสาครบแต่หลักฐานสนับสนุนไม่ครบ ต้องได้ฉากจบขมขื่น ไม่ใช่ฉากจบแท้"""
-    short = ev(engine, *[x for x in all_evidence(engine) if x != "gideon_sleeve_soot"])
+    short = with_claim(ev(engine, *[x for x in all_evidence(engine) if x != "staff_no_message"]))
+    assert sum(bool(value) for value in engine.pillar_status('gideon_hart', short).values()) == 3
     assert engine.ending_for("gideon_hart", short)["id"] == "cold_justice"
 
 
-def test_scapegoat_only_happens_before_the_timeline_is_broken(engine):
-    """กล่าวหาวินเซนต์เป็นความผิดพลาดเชิงเหตุผล ไม่ใช่ผลของหลักฐาน
-
-    ถ้าผู้เล่นหักล้างเวลาตายลวงตาไปแล้ว ความผิดพลาดนั้นหายไป
-    การกล่าวหาเขาจึงไม่ควรได้ฉากจบเดิมอีก
-    """
-    ignorant = ev(engine, "vincent_blood", "wire_cutters", "cut_copper_wire", "wall_clock")
+def test_vincent_is_cleared_by_a_positive_alibi_not_merely_the_earlier_time(engine):
+    """Knowing when the assault occurred does not itself locate Vincent elsewhere."""
+    base = ["vincent_blood", "wire_cutters", "cut_copper_wire", "wall_clock"]
+    ignorant = ev(engine, *base)
     assert engine.ending_for("vincent_gray", ignorant)["id"] == "the_scapegoat"
-
-    knows_time = ev(engine, "vincent_blood", "wire_cutters",
-                    "pocket_watch", "liora_time_estimate")
-    assert engine.ending_for("vincent_gray", knows_time)["id"] != "the_scapegoat"
+    knows_time = ev(engine, *base, *TIME_EVIDENCE, 'vincent_blackout_confession')
+    assert 'D08_VINCENT_CLEARED' not in engine.deductions(knows_time)
+    assert engine.ending_for("vincent_gray", knows_time)["id"] == "the_scapegoat"
+    knows_alibi = ev(engine, *knows_time.discovered_evidence, 'vincent_ticket', 'vincent_station_alibi')
+    assert 'D08_VINCENT_CLEARED' in engine.deductions(knows_alibi)
+    assert not engine.decide(cmd(ActionType.ACCUSE, 'vincent_gray'), knows_alibi).allowed
 
 
 def test_paranoia_trap_treats_a_secret_as_if_it_were_proof(engine):
@@ -227,18 +236,34 @@ def test_only_the_culprit_can_ever_close_the_case(engine):
 
     SUSPICION != PROOF ตามที่สเปกเขียนไว้
     """
-    full = ev(engine, *all_evidence(engine))
+    full = with_claim(ev(engine, *all_evidence(engine)))
     for sid in engine.world["suspects"]:
         solved = engine.ending_for(sid, full).get("solved", False)
         assert solved == (sid == "gideon_hart"), f"{sid} ให้ผล solved={solved}"
 
 
 def test_incomplete_proof_can_still_reach_cold_justice(engine):
-    state = ev(engine, *[x for x in all_evidence(engine) if x != "gideon_sleeve_soot"])
+    state = with_claim(ev(engine, *[x for x in all_evidence(engine) if x != "staff_no_message"]))
     d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
     assert d.allowed
     assert d.state_changes["ending"] == "cold_justice"
     assert not next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS").passed
+
+
+@pytest.mark.parametrize('route', ['button_wax', 'tea_button', 'tea_wax'])
+def test_each_two_contact_route_reaches_true_within_the_submission_cap(engine, route):
+    offered = WALKTHROUGH['winning_cases'][route]
+    state = with_claim(ev(engine, *offered))
+    assert len(offered) <= engine.max_submitted_evidence
+    assert len(offered) < len(all_evidence(engine))
+    assert 'gideon_sleeve_soot' not in offered
+    decision = accusation_submission(engine, cmd(ActionType.ACCUSE, 'gideon_hart'), state, offered)
+    assert decision.allowed and decision.state_changes['ending'] == 'true_ending'
+    assert all(engine.pillar_status('gideon_hart', state).values())
+    for omitted in offered:
+        partial = state.model_copy(update={'discovered_evidence': [eid for eid in offered if eid != omitted]})
+        assert not engine.pillars_complete('gideon_hart', partial), f'{route}: {omitted} was not needed'
+        assert engine.ending_for('gideon_hart', partial).get('id') != 'true_ending'
 
 
 # ---------- กันทางตัน ----------
@@ -271,11 +296,12 @@ def test_liora_needs_project_link_and_hesitation(engine, mask):
     ["vincent_blackout_confession"],
     ["power_panel", "fuse_box", "cut_copper_wire", "tool_marks", "wire_cutters"],
 ])
-def test_liora_cannot_be_accused_after_identifying_the_saboteur(engine, identified):
+def test_identifying_saboteur_does_not_establish_liora_alibi(engine, identified):
     state = ev(engine, "secret_file", "liora_time_hesitation", *identified)
     d = engine.decide(cmd(ActionType.ACCUSE, "dr_liora_venn"), state)
-    assert not d.allowed
-    assert d.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
+    assert d.allowed and d.state_changes['ending'] == 'the_paranoia_trap'
+    state.discovered_evidence.extend(TIME_EVIDENCE + ['liora_patient_log', 'liora_patient_witness'])
+    assert not engine.decide(cmd(ActionType.ACCUSE, 'dr_liora_venn'), state).allowed
 
 
 @pytest.mark.parametrize("suspect", ["vincent_gray", "dr_liora_venn", "gideon_hart"])
@@ -287,11 +313,21 @@ def test_empty_case_cannot_use_fallback_ending_to_accuse(engine, suspect):
 
 def test_liora_new_clues_are_obtainable_and_shown(engine):
     state = GameState(current_location="first_class_car")
+    assert not engine.decide(cmd(ActionType.EXAMINE, "secret_file"), state).allowed
+    interview = engine.decide(ParsedCommand(action=ActionType.INTERROGATE, target="dr_liora_venn",
+                                           topic="examination", raw_text="test"), state)
+    assert interview.allowed
+    state = apply_changes(state, interview.state_changes)
+    assert "medical_key" in state.inventory
+    unlocked = engine.decide(cmd(ActionType.USE, "medical_room_door", instrument="medical_key"), state)
+    assert unlocked.allowed
+    state = apply_changes(state, unlocked.state_changes)
     file = engine.decide(cmd(ActionType.EXAMINE, "secret_file"), state)
-    assert "Project Nocturne" in file.message
+    assert file.allowed and "1931" in file.message
     state = apply_changes(state, file.state_changes)
-    interview = engine.decide(cmd(ActionType.INTERROGATE, "dr_liora_venn"), state)
-    assert "ลังเล" in interview.message
+    interview = engine.decide(ParsedCommand(action=ActionType.INTERROGATE, target="dr_liora_venn",
+                                           topic="father", raw_text="test"), state)
+    assert interview.allowed and "1931" in interview.message
     state = apply_changes(state, interview.state_changes)
     assert engine.decide(cmd(ActionType.ACCUSE, "dr_liora_venn"), state).allowed
 
@@ -312,55 +348,77 @@ def test_physical_clues_describe_observations_without_identifying_owner(engine):
         assert 'กิเดียน' not in description
     # Matching observations remain available; the player makes the connection.
     for key in ('wax_seal_imprint', 'gideon_signet_ring'):
-        assert 'สี่เหลี่ยมข้าวหลามตัด' in engine.world['objects'][key]['description']
+        assert 'ข้าวหลามตัด' in engine.world['objects'][key]['description']
 
 
-def test_a_player_who_only_reads_the_game_can_finish(engine):
-    """จำลองผู้เล่นที่ทำตามข้อความในเกมอย่างเดียว ไม่ใช้เฉลย ต้องเก็บหลักฐานได้ครบ
+def test_visible_exploration_and_earned_keys_can_reach_every_evidence_source(engine):
+    """Reachability check using visible objects/topics and codes read in returned text.
 
-    เทสนี้จับทางตันที่เทสอื่นไม่เห็น เพราะมันไม่รู้ล่วงหน้าว่าอะไรอยู่ที่ไหน
-    รู้เท่าที่เกมบอกเท่านั้น เหมือนคนเล่นจริง
+    This is a mechanical dead-end check, not evidence that a human understands the story.
+    Hidden grant tables and authored unlock answers never seed player state.
     """
     w = engine.world
     s = GameState(**w.get("initial_state", {}))
-    cars = {v["name_th"]: k for k, v in w["locations"].items()}
-    cars.update({v["name_th"].split(":")[0].strip(): k for k, v in w["locations"].items()})
     seen = w["briefing"] + w["locations"][s.current_location]["description"]
-    examined, progress = set(), True
-    while progress:
+    progress = True
+    passes = 0
+    while progress and passes < 20:
+        passes += 1
         progress = False
-        for th, loc in cars.items():
-            if th not in seen and loc != s.current_location:
-                continue
+        for loc in w["locations"]:  # the public train map lists these places
             if s.current_location != loc:
                 d = engine.decide(cmd(ActionType.MOVE, loc), s)
                 if not d.allowed:
                     continue
                 s = apply_changes(s, d.state_changes)
-            for _ in range(2):
-                # ของที่ "มองเห็นตอนนี้" ต้องดูจากตู้ที่ยืนอยู่ ไม่ใช่ข้อความสะสมทั้งเกม
-                view = engine.look_around(loc, s)
-                seen += view
-                for oid, o in w["objects"].items():
-                    if o.get("name_th") in view and oid not in examined:
-                        examined.add(oid)
-                        d = engine.decide(cmd(ActionType.EXAMINE, oid), s)
-                        if d.allowed and oid not in s.discovered_evidence:
-                            s = apply_changes(s, d.state_changes)
-                            seen += o["description"]
-                            progress = True
-                for sid, sus in w["suspects"].items():
-                    if sus["name_th"] in view and sid not in s.interrogated_suspects:
-                        d = engine.decide(cmd(ActionType.INTERROGATE, sid), s)
+            before = (set(s.discovered_evidence), set(s.dialogue_history), set(s.inventory),
+                      set(s.unlocked_objects), set(s.examined_objects))
+            view = engine.look_around(loc, s)
+            seen += view
+            for oid, obj in w["objects"].items():
+                if obj.get("name_th") not in view:
+                    continue
+                if oid not in s.examined_objects:
+                    d = engine.decide(cmd(ActionType.EXAMINE, oid), s)
+                    if d.allowed:
+                        s = apply_changes(s, d.state_changes)
+                        seen += d.message
+                if obj.get('type') == 'key' and oid not in s.inventory:
+                    d = engine.decide(cmd(ActionType.TAKE, oid), s)
+                    if d.allowed:
+                        s = apply_changes(s, d.state_changes)
+                        seen += d.message
+                if oid not in s.unlocked_objects:
+                    attempts = [ParsedCommand(action=ActionType.UNLOCK, target=oid, code=code, raw_text="test")
+                                for code in sorted(set(re.findall(r'\b\d{4}\b', seen)))]
+                    attempts += [cmd(ActionType.USE, oid, instrument=key) for key in s.inventory]
+                    for attempt in attempts:
+                        d = engine.decide(attempt, s)
                         if d.allowed:
                             s = apply_changes(s, d.state_changes)
-                            seen += sus.get("testimony", "") + " ".join(
-                                w["objects"][x]["description"] for x in sus.get("grants_evidence", []))
-                            progress = True
+                            seen += d.message
+                            break
+            for sid, person in w["suspects"].items():
+                if person["name_th"] not in view:
+                    continue
+                for option in engine.dialogue_options(sid, s):
+                    d = engine.decide(ParsedCommand(action=ActionType.INTERROGATE, target=sid,
+                                                   topic=option['topic'], raw_text="test"), s)
+                    assert d.allowed
+                    s = apply_changes(s, d.state_changes)
+                    seen += d.message
+            after = (set(s.discovered_evidence), set(s.dialogue_history), set(s.inventory),
+                     set(s.unlocked_objects), set(s.examined_objects))
+            progress = progress or before != after
 
     missing = [o for o, v in w["objects"].items()
                if v["type"] == "evidence" and o not in s.discovered_evidence]
-    assert not missing, f"ผู้เล่นที่อ่านข้อความอย่างเดียวหาไม่เจอ: {missing}"
+    assert not missing, f"Unreachable evidence after visible exploration: {missing}"
+    assert any(c['target'] == 'claim_two_times' for q in engine.inference_questions(s) for c in q['choices'])
+    inferred = engine.decide(ParsedCommand(action=ActionType.INFER, target='claim_two_times',
+                                           evidence=INFERENCE_EVIDENCE, raw_text='test'), s)
+    assert inferred.allowed
+    s = apply_changes(s, inferred.state_changes)
     assert engine.ending_for("gideon_hart", s)["id"] == "true_ending"
     assert s.elapsed_seconds <= w["time_limit_seconds"], "เก็บครบแต่หมดเวลาก่อน"
 
@@ -418,8 +476,8 @@ def test_blackout_window_does_not_overlap_the_murder_window(engine):
     """บันทึกเวลาของระบบไฟกับเวลาตายจริง ต้องประกอบกันเป็นข้อสรุปว่าสองช่วงนี้คนละช่วง"""
     D15 = "D15_BLACKOUT_IS_NOT_MURDER_TIME"
     only_blackout = ev(engine, "maintenance_log")
-    only_murder = ev(engine, "pocket_watch", "liora_time_estimate")
-    both = ev(engine, "maintenance_log", "pocket_watch", "liora_time_estimate")
+    only_murder = ev(engine, *TIME_EVIDENCE)
+    both = ev(engine, "maintenance_log", "wall_clock", *TIME_EVIDENCE)
     assert D15 not in engine.deductions(only_blackout)
     assert D15 not in engine.deductions(only_murder)
     assert D15 in engine.deductions(both)
@@ -431,10 +489,10 @@ def test_vincent_can_be_cleared_without_his_own_confession(engine):
     ถ้าทางเดียวคือคำสารภาพ ผู้เล่นก็ต้องเชื่อคำพูดของผู้ต้องสงสัย ซึ่งขัดกับ PLAYER_CLAIM != FACT
     """
     D08 = "D08_VINCENT_CLEARED"
-    by_evidence = ev(engine, "pocket_watch", "liora_time_estimate", "maintenance_log")
-    by_confession = ev(engine, "pocket_watch", "liora_time_estimate", "vincent_blackout_confession")
+    by_evidence = ev(engine, *TIME_EVIDENCE, 'vincent_ticket', 'vincent_station_alibi')
+    by_confession = ev(engine, *TIME_EVIDENCE, "vincent_blackout_confession")
     assert D08 in engine.deductions(by_evidence)
-    assert D08 in engine.deductions(by_confession)
+    assert D08 not in engine.deductions(by_confession)
 
 
 # ---------- บทพูดของผู้ต้องสงสัย ----------
@@ -481,15 +539,10 @@ def _an_object_in(engine, loc):
 
 
 @pytest.mark.parametrize("action", UNSUPPORTED)
-def test_nothing_in_this_scene_can_be_taken_used_unlocked_or_burned(engine, action):
-    """สี่คำสั่งนี้เคยไม่มีกฎเฉพาะคุมเลย หยิบอะไรก็ได้ เผาอะไรก็ได้
-
-    ฉากนี้ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว การปฏิเสธจึงต้องมาจากกฎที่ตรวจจริง
-    ไม่ใช่ปล่อยผ่านเงียบๆ แล้วขึ้นข้อความว่าทำสำเร็จ
-    """
-    here = GameState().current_location
-    s = GameState()
-    d = engine.decide(cmd(action, _an_object_in(engine, here)), s)
+def test_ordinary_evidence_cannot_be_taken_used_unlocked_or_burned(engine, action):
+    """การมีประตูและกุญแจไม่เปิดสิทธิ์ให้หยิบหรือทำลายหลักฐานทุกชิ้น"""
+    s = GameState(current_location='first_class_car')
+    d = engine.decide(cmd(action, 'pocket_watch'), s)
     assert not d.allowed, f"{action.value} ไม่ควรผ่าน"
     assert d.violated_rule_id == "R007_ACTION_SUPPORTED"
 
@@ -507,12 +560,12 @@ def test_a_scene_can_re_enable_an_action_without_touching_the_code(engine):
 
     ข้อนี้คือหลักฐานว่ากฎ R007 ไม่ได้ปิดตายสี่คำสั่งนั้นไว้ในโค้ด
     """
-    here = GameState().current_location
-    oid = _an_object_in(engine, here)
+    s = GameState(current_location='first_class_car')
+    oid = 'pocket_watch'
     engine.world["objects"][oid]["supports"] = ["take"]
     try:
-        assert engine.decide(cmd(ActionType.TAKE, oid), GameState()).allowed
-        assert not engine.decide(cmd(ActionType.BURN, oid), GameState()).allowed
+        assert engine.decide(cmd(ActionType.TAKE, oid), s).allowed
+        assert not engine.decide(cmd(ActionType.BURN, oid), s).allowed
     finally:
         del engine.world["objects"][oid]["supports"]
 

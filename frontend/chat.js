@@ -17,6 +17,8 @@ let gameState = null;
 let timeLimitSeconds = 3600;
 let locationsMap = {};
 let suspectsMap = {};
+let accusableSuspects = null;
+let maxSubmittedEvidence = 15;
 let suspectLocations = {};
 let restrictedLocations = [];
 let objectsMap = {};
@@ -122,8 +124,12 @@ async function initGame() {
 
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
-    if (typeof NovelUI !== 'undefined' && gameState.started_at == null && !gameState.ending_id) {
-      await NovelUI.intro(sceneData.briefing);
+    if (gameState.started_at == null && !gameState.ending_id) {
+      if (sceneData.opening_scene && typeof StoryScenes !== 'undefined') {
+        await StoryScenes.play(sceneData.opening_scene, {mode:'opening'});
+      } else if (typeof NovelUI !== 'undefined') {
+        await NovelUI.intro(sceneData.briefing);
+      }
       const started = await fetch(`${API_BASE}/start`, {method:'POST'});
       if (!started.ok) throw Error(`HTTP ${started.status}`);
       gameState = (await started.json()).new_state;
@@ -135,6 +141,8 @@ async function initGame() {
     timeLimitSeconds = sceneData.time_limit_seconds || 3600;
     locationsMap = sceneData.locations || {};
     suspectsMap = sceneData.suspects || {};
+    accusableSuspects = sceneData.accusable_suspects || Object.keys(suspectsMap);
+    maxSubmittedEvidence = sceneData.max_submitted_evidence || 15;
     suspectLocations = sceneData.suspect_locations || {};
     restrictedLocations = sceneData.restricted_locations || [];
     objectsMap = sceneData.objects || {};
@@ -358,15 +366,28 @@ async function submit(text, opts = {}) {
     removeLoading();
     if (gameState?.ending_id) { showGameOver(data.decision); return data; }
     // กล่าวหาโดยยังไม่ยื่นหลักฐาน: เปิดหน้าต่างเลือกหลักฐานแทนการให้พิมพ์เลข
-    const askEvidence = data.decision.violated_rule_id === 'R_SUBMITTED_EVIDENCE' && !opts.submittedEvidence
+    const askEvidence = data.parsed?.action === 'accuse' && data.decision.violated_rule_id === 'R_SUBMITTED_EVIDENCE' && !opts.submittedEvidence
       && data.parsed?.target && typeof AccusationUI !== 'undefined';
+    let askInference = false;
+    if (data.parsed?.action === 'infer' && !opts.submittedEvidence && !data.decision.allowed
+        && typeof InferenceUI !== 'undefined') {
+      const response = await fetch(`${API_BASE}/journal`, {method:'POST', signal: AbortSignal.timeout(8000)});
+      if (!response.ok) throw Error(`HTTP ${response.status}`);
+      const journal = await response.json();
+      const question = (journal.inference_questions || []).find(q => q.choices.some(c => c.target === data.parsed.target));
+      if (question && !gameOver) { InferenceUI.open(question, journal.evidence); askInference = true; }
+    }
     if (askEvidence) AccusationUI.open(data.parsed.target);
     // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
-    else if (!(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
+    else if (!askInference && !(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
     renderConversationSummary(data.conversation_summaries || []);
     if (typeof GameArt !== 'undefined') GameArt.onResult(data);
-    if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
+    if (data.decision.allowed && data.narrative_scene && typeof StoryScenes !== 'undefined') {
+      if (typeof NovelUI !== 'undefined') NovelUI.close();
+      StoryScenes.appendReplay(data.narrative_scene);
+      await StoryScenes.play(data.narrative_scene);
+    } else if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
 
     return data;
   } catch (err) {
@@ -386,7 +407,7 @@ function showLoading() {
   loadingDiv.id = "activeLoading";
   loadingDiv.innerHTML = `
     <div class="spinner"></div>
-    <span>NeSy Engine กำลังตีความและตรวจกฎ${rulesCount ? " " + rulesCount + " ข้อ" : ""}...</span>
+    <span>กำลังตรวจสอบคำสั่งและข้อมูลในคดี…</span>
   `;
   feed.appendChild(loadingDiv);
   feed.scrollTop = feed.scrollHeight;
@@ -441,12 +462,18 @@ function showGameOver(decision = null) {
   removeLoading();
   setEndingStatus('');
   if (clockTimer !== null) clearInterval(clockTimer);
+  if (typeof StoryScenes !== 'undefined') StoryScenes.stop();
   if (typeof NovelUI !== 'undefined') NovelUI.close();
   setBusy(false);
   updateClock();
   document.getElementById('chatInput').placeholder = 'คดีปิดแล้ว';
   const restart = document.getElementById('restartGame');
   if (restart) restart.hidden = false;
+  const reconstruction = document.getElementById('reconstructCase');
+  if (reconstruction && typeof StoryScenes !== 'undefined') {
+    reconstruction.hidden = gameState?.ending_id !== 'true_ending';
+    reconstruction.onclick = StoryScenes.reconstruct;
+  }
   const feed = document.getElementById('chatFeed');
   const box = document.createElement('div');
   box.className = 'msg-system ending-card';
@@ -461,8 +488,8 @@ function showGameOver(decision = null) {
 // คิวคำสั่งพ่วง — แปลง alternatives เป็นลำดับขั้นแล้วทำทีละขั้น
 // ============================================================
 const VERB_TH = { examine: "ตรวจ", move: "ไป", interrogate: "สอบปากคำ", take: "หยิบ",
-                  accuse: "กล่าวหา", burn: "เผา", unlock: "ปลดล็อก", use: "ใช้" };
-const IRREVERSIBLE = new Set(["accuse", "burn"]);
+                  accuse: "กล่าวหา", burn: "เผา", unlock: "ปลดล็อก", use: "ใช้", infer: "เสนอข้อสรุป" };
+const REQUIRES_CONFIRMATION = new Set(["accuse", "burn", "infer"]);
 
 function parseSteps(parsed) {
   if (!parsed || (parsed.action !== "ambiguous" && parsed.action !== "unknown")) return [];
@@ -480,7 +507,7 @@ function parseSteps(parsed) {
 // สั่งหลายอย่างต่อกัน (sequence) ทำให้เลยตามลำดับ
 // ยกเว้นกล่าวหา/เผา ที่ย้อนกลับไม่ได้ หยุดรอให้ผู้เล่นกดยืนยันก่อน
 async function runSequence(steps) {
-  const cut = steps.findIndex(st => IRREVERSIBLE.has(st.action));
+  const cut = steps.findIndex(st => REQUIRES_CONFIRMATION.has(st.action));
   const now = cut === -1 ? steps : steps.slice(0, cut);
   if (now.length && !(await runSteps(now))) return;
   if (cut !== -1 && !gameOver) offerSteps(steps.slice(cut), true);
@@ -493,7 +520,9 @@ function offerSteps(steps, confirm = false) {
   const box = document.createElement("div");
   box.className = "msg-system";
   box.innerHTML = confirm
-    ? `<div class="story-text"><strong>ขั้นต่อไปย้อนกลับไม่ได้</strong><br>กดยืนยันถ้าต้องการทำต่อ</div>`
+    ? (steps[0]?.action === 'infer'
+      ? `<div class="story-text"><strong>ขั้นต่อไปต้องให้คุณเสนอข้อสรุปเอง</strong><br>เลือกทำต่อเพื่อเลือกข้อสรุปและแนบหลักฐาน</div>`
+      : `<div class="story-text"><strong>ขั้นต่อไปย้อนกลับไม่ได้</strong><br>กดยืนยันถ้าต้องการทำต่อ</div>`)
     : `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>เลือกสิ่งที่ต้องการ</div>`;
   const wrap = document.createElement("div");
   wrap.className = "chips-scroll";

@@ -9,7 +9,7 @@ const PixelUI = (() => {
   let data = null, activeTab = 'evidence', revision = 0;
   function button(label, command, className='object-button') {
     const b = document.createElement('button'); b.type='button'; b.className=className;
-    b.textContent=label; b.onclick=()=>fillInput(command); return b;
+    b.textContent=label; b.onclick=()=>{document.getElementById('casebookDialog')?.close();fillInput(command);}; return b;
   }
   function empty(title, text) {
     const box=document.createElement('div'); box.className='empty-state';
@@ -26,21 +26,32 @@ const PixelUI = (() => {
   }
   function board() {
     const wrap=$('pillarBoard');wrap.replaceChildren();if(!data)return;
-    if(!data.case_closed){wrap.append(empty('ประเมินจากหลักฐาน', 'ใช้เวลา แรงจูงใจ โอกาส และร่องรอยประกอบกัน ข้อสรุปของระบบจะเปิดหลังจบคดี'));return;}
+    if(!data.case_closed){wrap.append(empty('ประกอบเหตุผลของคุณ', 'เทียบเวลา แรงจูงใจ โอกาส และคำให้การ แล้วเสนอข้อสรุปในแท็บประเด็นค้าง'));return;}
     const status=data.pillars[$('suspectSelect').value]||{};
     Object.entries(data.pillar_labels).forEach(([id,label])=>{const yes=(status[id]||[]).length>0;const row=document.createElement('div');row.className='pillar-row';const line=document.createElement('div');const l=document.createElement('span');l.textContent=label;const r=document.createElement('span');r.textContent=yes?'มีข้อสรุป':'ยังไม่ครบ';line.append(l,r);const p=document.createElement('progress');p.max=1;p.value=yes?1:0;p.setAttribute('aria-label',label);row.append(line,p);wrap.append(row)});
   }
   function journal() {
     const wrap=$('journalContent');wrap.replaceChildren();if(!data){wrap.append(empty('กำลังเปิดสมุด','รอสักครู่…'));return}
     if(activeTab==='evidence'){
+      if(data.inventory?.length){const carried=document.createElement('div');carried.className='inventory-note';const heading=document.createElement('strong');heading.textContent='สิ่งของที่พก';carried.append(heading);data.inventory.forEach(item=>{const line=document.createElement('p');line.textContent=item.name;line.title=item.description;carried.append(line)});wrap.append(carried);}
       if(!data.evidence.length)wrap.append(empty('ยังไม่พบหลักฐาน','ตรวจสิ่งของในฉาก แล้วหลักฐานที่พบจะถูกบันทึกไว้ที่นี่'));
       data.evidence.forEach((e,i)=>{const box=document.createElement('details');box.className='evidence-card';const title=document.createElement('summary');const icon=document.createElement('span');icon.className='clue-icon';icon.textContent=String(i+1).padStart(2,'0');title.append(icon,document.createTextNode(e.name));const p=document.createElement('p');p.textContent=e.description;const source=document.createElement('small');source.className='evidence-source';source.textContent=`${e.kind==='testimony'?'คำให้การ / บันทึกการสนทนา':'หลักฐานที่ตรวจพบ'} · ${e.source || ''} — ${e.source_note || ''}`;box.append(title,source,p);box.addEventListener('toggle',()=>{if(box.open&&!box.querySelector('img')){const image=GameArt.journalImage(e.id,e.name);if(image)box.append(image);}});wrap.append(box)});
     }else if(activeTab==='questions'){
-      const intro=document.createElement('p');intro.textContent='ประเด็นจากข้อมูลที่พบแล้ว ให้คุณตรวจสอบและเชื่อมโยงเอง ไม่ใช่คำใบ้หรือข้อสรุปของระบบ';wrap.append(intro);
+      const intro=document.createElement('p');intro.textContent='ทบทวนข้อมูลที่พบแล้ว เลือกข้อสรุปของคุณและแนบหลักฐานที่รองรับ';wrap.append(intro);
+      (data.scene_followups||[]).forEach(item=>{
+        const box=document.createElement('div');box.className='case-question scene-followup';
+        const title=document.createElement('strong');title.textContent=`มีประเด็นใหม่กับ${item.person_name}`;
+        const here=gameState?.current_location===item.location;
+        const action=button(here?`ถามต่อ: ${item.label}`:`ไปพบที่${locationsMap[item.location]||item.location}`,
+          here?`ถาม${item.person_name} เรื่อง${item.label}`:`move ${item.location}`);
+        action.disabled=gameOver;box.append(title,action);wrap.append(box);
+      });
+      (data.inference_questions||[]).forEach(q=>{const box=document.createElement('div');box.className='case-question';const title=document.createElement('strong');title.textContent=q.prompt;const action=document.createElement('button');action.type='button';action.className='object-button';action.textContent='เสนอข้อสรุปและแนบหลักฐาน';action.onclick=()=>InferenceUI.open(q,data.evidence);action.disabled=gameOver;box.append(title,action);wrap.append(box)});
+      (data.validated_claims||[]).forEach(claim=>{const note=document.createElement('p');note.className='note';note.textContent=`ข้อสรุปที่คุณตรวจสอบแล้ว: ${claim.name}`;wrap.append(note)});
       if(!data.questions?.length)wrap.append(empty('ยังไม่มีประเด็นจากการสนทนา','สอบปากคำบุคคล แล้วกลับมาทบทวนข้อมูลที่ได้'));
       (data.questions||[]).forEach(q=>{const box=document.createElement('div');box.className='case-question';const title=document.createElement('strong');title.textContent=q.question;const source=document.createElement('p');source.textContent=`จาก: ${q.source}`;const status=document.createElement('small');status.textContent=q.status;box.append(title,source,status);wrap.append(box)});
     }else if(activeTab==='people'){
-      data.people.forEach(p=>{const box=document.createElement('div');box.className='person-card';const name=document.createElement('strong');name.textContent=p.name;const status=document.createElement('small');status.textContent=(p.here?'อยู่ในตู้เดียวกัน · ':'')+(p.interrogated?'สอบปากคำแล้ว':'ยังไม่ได้สอบปากคำ');box.append(name,status);wrap.append(box)});
+      data.people.forEach(p=>{const box=document.createElement('div');box.className='person-card';const name=document.createElement('strong');name.textContent=p.name;const status=document.createElement('small');status.textContent=(p.accusable===false?'พยาน · ':'')+(p.here?'อยู่ในตู้เดียวกัน · ':'')+(p.interrogated?'เคยสนทนาแล้ว':'ยังไม่ได้สนทนา');box.append(name,status);if(p.here&&!gameOver){box.append(button('เริ่มสนทนา',`สอบปากคำ${p.name}`));(p.topics||[]).forEach(topic=>box.append(button(topic.label,`ถาม${p.name} เรื่อง${topic.label}`)));}wrap.append(box)});
     }else{
       if(data.submitted_evidence){const summary=document.createElement('p');summary.textContent=`ข้อสรุปจากหลักฐานที่ยื่น ${data.submitted_evidence.length} รายการ (หลักฐานที่พบทั้งหมดอยู่ในแท็บหลักฐาน)`;wrap.append(summary);}
       (data.background||[]).forEach(entry=>{const box=document.createElement('details');box.className='evidence-card';const title=document.createElement('summary');title.textContent=entry.title;const p=document.createElement('p');p.textContent=entry.text;box.append(title,p);wrap.append(box)});
@@ -57,9 +68,9 @@ const PixelUI = (() => {
     try{const res=await fetch(`${API_BASE}/journal`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({}),signal:AbortSignal.timeout(8000)});if(!res.ok)throw Error();const next=await res.json();if(request!==revision)return;data=next;
       for(const item of [...data.evidence,...data.visible]) objectsMap[item.id]=item.name;
       $('evidenceCount').textContent=data.evidence.length;$('deductionCount').textContent=data.case_closed?data.deductions.length:'—';
-      const select=$('suspectSelect');if(!select.options.length)data.people.forEach(p=>{const opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name.split(' (')[0];select.append(opt)});
+      const select=$('suspectSelect');if(!select.options.length)data.people.filter(p=>p.accusable!==false).forEach(p=>{const opt=document.createElement('option');opt.value=p.id;opt.textContent=p.name.split(' (')[0];select.append(opt)});
       const visible=$('visibleObjects');visible.replaceChildren();data.visible.forEach(o=>{const label=document.createElement('span');label.className='object-button';label.textContent=o.name;visible.append(label)});if(!data.visible.length)visible.textContent=gameOver?'คดีปิดแล้ว':'ไม่มีสิ่งที่ตรวจเพิ่มได้ในตู้นี้';
-      $('journalStatus').textContent=gameOver?'ปิดแฟ้มคดีแล้ว':'บันทึกจากหลักฐานที่ค้นพบจริง';board();journal();
+      $('journalStatus').textContent=gameOver?'ปิดแฟ้มคดีแล้ว':(data.scene_followups?.length?'มีบทสนทนาใหม่ในแท็บประเด็นค้าง':data.inference_questions?.length&&!data.validated_claims?.length?'มีประเด็นให้เสนอข้อสรุปในแท็บประเด็นค้าง':'บันทึกจากหลักฐานที่ค้นพบจริง');board();journal();
     }catch{if(request===revision){$('journalStatus').textContent='โหลดสมุดไม่สำเร็จ · ลองใหม่';$('journalStatus').onclick=refresh;}}
   }
   function init(){

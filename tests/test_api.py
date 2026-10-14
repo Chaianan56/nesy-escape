@@ -49,7 +49,7 @@ def test_journal_shows_only_discovered_evidence_and_earned_deductions():
     assert empty['deductions'] == []
     assert all(main.engine.world['objects'][o['id']].get('location') == 'lounge_car'
                for o in empty['visible'])
-    state = GameState(discovered_evidence=['pocket_watch', 'liora_time_estimate'])
+    state = GameState(discovered_evidence=['pocket_watch', 'red_soot', 'tunnel_schedule', 'staff_impact_testimony'])
     found = state_post('/journal', state).json()
     assert {e['id'] for e in found['evidence']} == set(state.discovered_evidence)
     assert found['deductions'] == []
@@ -212,12 +212,39 @@ def test_submission_not_entire_inventory_decides_ending(fake_llm):
 
 
 TRUE_ENDING_EVIDENCE = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))['submitted_evidence']
+INFERENCE_EVIDENCE = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))['inference_evidence']
+
+
+def test_journal_lists_only_held_keys_and_their_useful_description():
+    assert state_post('/journal', GameState()).json()['inventory'] == []
+    journal = state_post('/journal', GameState(inventory=['medical_key'])).json()
+    assert journal['inventory'] == [{'id': 'medical_key',
+        'name': main.engine.world['objects']['medical_key']['name_th'],
+        'description': main.engine.world['objects']['medical_key']['description']}]
+
+
+def test_inference_uses_actual_submission_and_exports_attempts(monkeypatch):
+    seed_state(GameState(discovered_evidence=INFERENCE_EVIDENCE))
+    monkeypatch.setattr(main, 'interpret', lambda text, state: ParsedCommand(
+        action=ActionType.INFER, target='claim_two_times', evidence=INFERENCE_EVIDENCE, raw_text=text))
+    rejected = client.post('/command', json={'text': 'เสนอข้อสรุป', 'submitted_evidence': []}).json()
+    assert not rejected['decision']['allowed']
+    assert rejected['new_state']['validated_claims'] == []
+    accepted = client.post('/command', json={'text': 'เสนอข้อสรุป', 'submitted_evidence': INFERENCE_EVIDENCE}).json()
+    assert accepted['decision']['allowed']
+    assert accepted['new_state']['claim_evidence'] == {'claim_two_times': INFERENCE_EVIDENCE}
+    export = client.get('/study-export').json()
+    assert export['story_version'] == main.engine.world['content_version']
+    assert [attempt['accepted'] for attempt in export['inference_attempts']] == [False, True]
+    assert export['inference_attempts'][0]['evidence'] == []
+    assert export['inference_attempts'][1]['evidence'] == INFERENCE_EVIDENCE
 
 
 def test_ticking_every_box_is_rejected_without_counting_a_failure(fake_llm):
     fake_llm(ActionType.ACCUSE, 'gideon_hart')
     everything = [k for k, v in main.engine.world['objects'].items() if v['type'] == 'evidence']
-    seed_state(GameState(discovered_evidence=everything))
+    seed_state(GameState(discovered_evidence=everything, validated_claims=['claim_two_times'],
+                        claim_evidence={'claim_two_times': INFERENCE_EVIDENCE}))
     result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': everything}).json()
     assert result['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
     assert result['new_state']['failed_accusations'] == 0
@@ -227,8 +254,9 @@ def test_ticking_every_box_is_rejected_without_counting_a_failure(fake_llm):
 
 def test_two_weak_accusations_show_pillars_and_the_third_closes_the_case(fake_llm):
     fake_llm(ActionType.ACCUSE, 'gideon_hart')
-    seed_state(GameState(discovered_evidence=TRUE_ENDING_EVIDENCE))
-    weak = {'text': 'กล่าวหากิเดียน', 'submitted_evidence': ['pocket_watch', 'liora_time_estimate']}
+    seed_state(GameState(discovered_evidence=TRUE_ENDING_EVIDENCE, validated_claims=['claim_two_times'],
+                        claim_evidence={'claim_two_times': INFERENCE_EVIDENCE}))
+    weak = {'text': 'กล่าวหากิเดียน', 'submitted_evidence': INFERENCE_EVIDENCE}
     for attempt, left in ((1, 2), (2, 1)):
         result = client.post('/command', json=weak).json()
         assert not result['decision']['allowed']
@@ -238,13 +266,14 @@ def test_two_weak_accusations_show_pillars_and_the_third_closes_the_case(fake_ll
         assert 'แฟ้ม C' not in message  # บอกเสาที่ขาด ไม่บอกชิ้นที่ขาด
     result = client.post('/command', json=weak).json()
     assert result['new_state']['ending_id'] == 'unproven'
+    assert result['new_state']['failed_accusations'] == 3
     assert result['decision']['reasoning_chain'][-1]['rule_id'] == 'R_ACCUSATION_LIMIT'
 
 
 def test_cannot_omit_known_exculpatory_evidence(fake_llm):
     fake_llm(ActionType.ACCUSE, 'vincent_gray')
     selected = ['wire_cutters', 'vincent_blood', 'cut_copper_wire']
-    seed_state(GameState(discovered_evidence=selected + ['pocket_watch', 'liora_time_estimate']))
+    seed_state(GameState(discovered_evidence=selected + ['pocket_watch', 'red_soot', 'tunnel_schedule', 'staff_impact_testimony', 'vincent_ticket', 'vincent_station_alibi']))
     result = client.post('/command', json={'text': 'กล่าวหาวินเซนต์', 'submitted_evidence': selected}).json()
     assert not result['decision']['allowed']
     assert result['new_state']['ending_id'] is None
@@ -257,7 +286,7 @@ def test_scene_hands_out_the_ids_the_engine_actually_uses():
     s = client.get("/scene").json()
     assert s["rules_count"] == len(main.engine.rules)
     assert set(s["locations"]) == set(main.engine.world["locations"])
-    assert set(s["objects"]) == {oid for oid in main.engine.world["objects"] if main.engine.offerable(oid, GameState())}
+    assert set(s["objects"]) == {oid for oid in main.engine.world["objects"] if main.engine.offerable(oid, GameState(**s['initial_state']))}
     assert s["initial_state"]["current_location"] in s["locations"]
 
 
@@ -350,12 +379,13 @@ def test_offered_alternatives_never_name_undiscovered_evidence(fake_llm):
 
 def test_alternatives_survive_when_the_player_can_already_see_them(fake_llm):
     """ของที่อยู่ตรงหน้าเสนอได้ ไม่งั้นคำสั่งพ่วงจะแตกขั้นไม่ได้เลย"""
-    here = GameState().current_location
+    state = GameState(current_location='first_class_car')
+    here = state.current_location
     near = [oid for oid, o in main.engine.world["objects"].items()
-            if o.get("location") == here]
+            if o.get("location") == here and main.engine.offerable(oid, state)]
     fake_llm(ActionType.AMBIGUOUS, alternatives=[f"examine {oid}" for oid in near[:2]])
 
-    body = post("ดูของสองชิ้นนี้", GameState()).json()
+    body = post("ดูของสองชิ้นนี้", state).json()
     assert len(body["parsed"]["alternatives"]) == len(near[:2])
 
 
@@ -440,6 +470,28 @@ def test_sequence_pauses_before_irreversible_step(fake_llm, action):
     assert body["new_state"]["ending_id"] is None
     assert "pocket_watch" not in body["new_state"]["discovered_evidence"]
     assert client.get('/scene').json()['initial_state']['current_location'] == 'first_class_car'
+
+
+def test_sequence_pauses_before_inference_and_logs_only_the_explicit_submission(fake_llm):
+    steps = ['move first_class_car', 'infer claim_two_times', 'examine letter_opener']
+    fake_llm(ActionType.SEQUENCE, alternatives=steps)
+    seed_state(GameState(discovered_evidence=INFERENCE_EVIDENCE))
+    body = client.post('/command', json={'text': 'ไปตรวจแล้วสรุปต่อ',
+                                       'submitted_evidence': INFERENCE_EVIDENCE}).json()
+    assert body['decision']['allowed']
+    assert body['pending_steps'] == steps[1:]
+    assert body['new_state']['current_location'] == 'first_class_car'
+    assert body['new_state']['validated_claims'] == []
+    assert body['new_state']['claim_evidence'] == {}
+    assert 'letter_opener' not in body['new_state']['discovered_evidence']
+    assert client.get('/study-export').json()['inference_attempts'] == []
+    fake_llm(ActionType.INFER, target='claim_two_times')
+    resumed = client.post('/command', json={'text': 'infer claim_two_times',
+                                           'submitted_evidence': INFERENCE_EVIDENCE}).json()
+    assert resumed['decision']['allowed']
+    assert resumed['new_state']['validated_claims'] == ['claim_two_times']
+    attempts = client.get('/study-export').json()['inference_attempts']
+    assert len(attempts) == 1 and attempts[0]['accepted'] is True
 
 
 def test_confirmed_sequence_accusation_still_requires_submitted_evidence(fake_llm):
@@ -531,10 +583,10 @@ def test_failed_interrogation_does_not_create_summary(fake_llm):
 
 
 def test_backend_sequence_also_returns_conversation_summary(fake_llm):
-    fake_llm(ActionType.SEQUENCE, alternatives=['move second_class_car','interrogate vincent_gray'])
+    fake_llm(ActionType.SEQUENCE, alternatives=['move first_class_car','interrogate dr_liora_venn'])
     result = post('ไปถามวินเซนต์', GameState()).json()
     assert result['decision']['allowed']
-    assert result['conversation_summaries'][0]['person'] == main.engine.world['suspects']['vincent_gray']['name_th']
+    assert result['conversation_summaries'][0]['person'] == main.engine.world['suspects']['dr_liora_venn']['name_th']
 
 
 def test_presentation_route_works_without_remote_ai(monkeypatch):
@@ -544,7 +596,8 @@ def test_presentation_route_works_without_remote_ai(monkeypatch):
     monkeypatch.setattr(gemini_client, 'interpret', no_remote)
     assert client.post('/start').status_code == 200
     commands = [
-        'สอบปากคำกิเดียน', 'ไปตู้ 2', 'ตรวจสายทองแดงที่ถูกตัด',
+        'สอบปากคำกิเดียน', 'ไปตู้ 3', 'หยิบกุญแจห้องระบบไฟ', 'ไปตู้ 2',
+        'ใช้กุญแจห้องระบบไฟกับประตูห้องระบบไฟ', 'ตรวจสายทองแดงที่ถูกตัด',
         'ไปตู้ 6', 'ตรวจคีมตัดสายไฟด้ามยาง', 'ตรวจคราบเลือดบนปลายแขนเสื้อวินเซนต์',
     ]
     for index, text in enumerate(commands):

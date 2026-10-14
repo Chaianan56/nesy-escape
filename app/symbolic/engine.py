@@ -29,8 +29,7 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DEFAULT_PILLARS = ("timeline", "motive", "opportunity", "corroboration")
 
 
-# ฉากจบแท้ใช้หลักฐานอย่างน้อย 13 ชิ้น เพดานนี้กันการติ๊กทุกช่องแล้วชนะ
-# ponytail: เพดานตายตัว ถ้าผู้เล่นตัวจริงชนเพดานทั้งที่เลือกถูก ค่อยเปลี่ยนเป็นนับชิ้นที่ไม่เกี่ยว
+# ค่าเริ่มต้นสำหรับฉากเก่า ฉากใหม่กำหนดเพดานจากเส้นทางหลักฐานที่ตรวจแล้ว
 MAX_SUBMITTED_EVIDENCE = 15
 # กล่าวหาพลาดได้สองครั้งพร้อมคำบอกเสาที่ขาด ครั้งที่สามคดีปิดแบบพิสูจน์ไม่ได้
 MAX_FAILED_ACCUSATIONS = 3
@@ -44,8 +43,8 @@ def accusation_submission(engine, cmd, state, submitted):
         message = "พิมพ์ชื่อผู้ถูกกล่าวหาพร้อมเลขหลักฐานจากสมุดคดี เช่น กล่าวหากิเดียน หลักฐาน: 1, 2, 3 การส่งคำกล่าวหาที่เข้าเงื่อนไขอาจจบคดี"
     elif len(set(submitted)) != len(submitted) or not set(submitted) <= set(state.discovered_evidence):
         message = "ใช้ได้เฉพาะหลักฐานที่ค้นพบแล้ว และเลือกแต่ละชิ้นได้ครั้งเดียว"
-    elif len(submitted) > MAX_SUBMITTED_EVIDENCE:
-        message = f"ยื่นหลักฐานได้ไม่เกิน {MAX_SUBMITTED_EVIDENCE} ชิ้น เลือกเฉพาะชิ้นที่รองรับคำกล่าวหานี้จริงๆ"
+    elif len(submitted) > engine.max_submitted_evidence:
+        message = f"ยื่นหลักฐานได้ไม่เกิน {engine.max_submitted_evidence} ชิ้น เลือกเฉพาะชิ้นที่รองรับคำกล่าวหานี้จริงๆ"
     else:
         # Check the complete known case first: omitting exculpatory facts must not bypass rules.
         offered = state.model_copy(update={"discovered_evidence": list(submitted)})
@@ -68,7 +67,7 @@ def failed_accusation(engine, suspect_id, offered, decision, attempt):
         ending = engine.world["endings"]["unproven"]
         message = engine._render_ending(ending, [step, ""] + checklist)
         return Decision(allowed=False, message=message, violated_rule_id=ACCUSATION_RULE,
-                        reasoning_chain=chain, state_changes={"ending": "unproven"})
+                        reasoning_chain=chain, state_changes={"ending": "unproven", "failed_accusations": attempt})
     left = MAX_FAILED_ACCUSATIONS - attempt
     # "เหลือโอกาส" นับเฉพาะครั้งที่หลักฐานไม่พอ ถ้าหลักฐานที่ยื่นเข้าเงื่อนไขฉากจบใด
     # แม้เป็นฉากจบผิด คดีปิดทันที ข้อความต้องบอกทั้งสองกรณี ไม่ให้ผู้เล่นคิดว่าลองได้ฟรี
@@ -85,7 +84,7 @@ def failed_accusation(engine, suspect_id, offered, decision, attempt):
 # ============================================================
 
 def _action_is_known(cmd, state, world, p):
-    if cmd.action in (ActionType.UNKNOWN, ActionType.AMBIGUOUS):
+    if cmd.action in (ActionType.UNKNOWN, ActionType.AMBIGUOUS, ActionType.SEQUENCE):
         return False, f"action={cmd.action.value}"
     return True, ""
 
@@ -196,8 +195,10 @@ def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, Li
     held = deductions_held(state, world)
     found = {}
     for pillar in pillar_names(world):
-        need = spec.get(pillar, {}).get("requires_deductions", [])
-        found[pillar] = [d for d in need if d in held] if need and all(d in held for d in need) else []
+        condition = spec.get(pillar, {})
+        need = condition.get("requires_deductions", [])
+        claims_ok = all(_claim_held(cid, state, world) for cid in condition.get("requires_claims", []))
+        found[pillar] = list(need) if need and all(d in held for d in need) and claims_ok else []
     return found
 
 
@@ -219,6 +220,7 @@ def _ending_matches(ending, suspect_id, state, world):
         and not any(d in held for d in ending.get("denies_deductions", []))
         and all(e in state.discovered_evidence for e in ending.get("requires_evidence", []))
         and not any(e in state.discovered_evidence for e in ending.get("denies_evidence", []))
+        and all(_claim_held(cid, state, world) for cid in ending.get("requires_claims", []))
     )
 
 
@@ -255,22 +257,104 @@ def _location_accessible(cmd, state, world, p):
 
 
 def _object_supports_action(cmd, state, world, p):
-    """ของชิ้นนี้รองรับการกระทำนี้หรือเปล่า อ่านจากฟิลด์ supports ใน story.json
-
-    ฉากนี้ไม่มีของชิ้นไหนประกาศ supports ไว้เลย เก็บ ใช้ ปลดล็อก เผา จึงถูกปฏิเสธทั้งหมด
-    ซึ่งตรงกับความจริงของคดี ทุกอย่างเป็นหลักฐานที่ดูได้อย่างเดียว
-
-    ไม่ได้ลบสี่ action นี้ทิ้ง เพราะหน้าที่ของชั้น neural คือสกัดเจตนาให้ได้ก่อน
-    แล้วให้ชั้น symbolic เป็นคนปฏิเสธพร้อมบอกว่าติดกฎข้อไหน ถ้าลบ action ออกจาก enum
-    การปฏิเสธจะย้ายไปอยู่ที่ LLM ซึ่งเป็นสิ่งที่งานนี้ตั้งใจไม่ให้เกิด
-
-    วันไหนฉากอยากมีของที่หยิบได้จริง ก็เติม "supports": ["take"] ลง story.json พอ
-    ไม่ต้องแก้ไฟล์นี้
-    """
+    """สิทธิ์ทำกับวัตถุอ่านจาก supports; รหัส กุญแจ และการเข้าถึงตรวจอีกกฎหนึ่ง"""
     obj = world["objects"].get(cmd.target, {})
     if cmd.action.value in obj.get("supports", []):
         return True, ""
     return False, f"'{obj.get('name_th', cmd.target)}' ไม่ได้ประกาศว่ารองรับ {cmd.action.value}"
+
+
+def _requirements_met(requirements, state, world):
+    return (_condition_met(requirements, set(state.discovered_evidence), deductions_held(state, world))
+            and set(requirements.get("requires_unlocked", [])) <= set(state.unlocked_objects)
+            and set(requirements.get("requires_inventory", [])) <= set(state.inventory)
+            and all(_claim_held(cid, state, world) for cid in requirements.get("requires_claims", [])))
+
+
+def _visible(cmd, state, world, p):
+    entity = world["objects"].get(cmd.target, {})
+    if cmd.target in state.burned_objects:
+        return False, "สิ่งนี้ถูกทำลายแล้ว"
+    return _requirements_met(entity.get("visible_requirements", {}), state, world), ""
+
+
+def _unlock_ready(cmd, state, world, p):
+    obj = world["objects"].get(cmd.target, {})
+    requirement = obj.get("unlock_requirements")
+    if not requirement:
+        return False, "เป้าหมายไม่มีวิธีปลดล็อกที่กำหนดไว้"
+    if cmd.target in state.unlocked_objects:
+        return True, "ปลดล็อกแล้ว"
+    if not _requirements_met(requirement, state, world):
+        return False, "ยังไม่มีหลักฐานหรือสิ่งของที่ต้องใช้"
+    if "code" in requirement and cmd.code != str(requirement["code"]):
+        return False, "รหัสไม่ถูกต้อง"
+    key = requirement.get("key")
+    if key and (cmd.instrument != key or key not in state.inventory):
+        return False, "ต้องใช้กุญแจที่ถูกต้องและมีอยู่ในครอบครอง"
+    return True, ""
+
+
+def _eligible_dialogue(person, state, world):
+    return [node for node in person.get("dialogue_nodes", []) if _requirements_met(node, state, world)]
+
+
+def _dialogue_node(sid, topic, state, world):
+    nodes = _eligible_dialogue(world["suspects"].get(sid, {}), state, world)
+    if topic:
+        matching = [node for node in nodes if node.get("topic") == topic]
+        return matching[-1] if matching else None
+    unseen = [node for node in nodes if f"{sid}:{node['id']}" not in state.dialogue_history]
+    return unseen[0] if unseen else (nodes[-1] if nodes else None)
+
+
+def _dialogue_available(cmd, state, world, p):
+    person = world["suspects"].get(cmd.target, {})
+    if "dialogue_nodes" not in person:
+        return not cmd.topic, "ยังไม่มีบทสำหรับประเด็นนี้" if cmd.topic else ""
+    return _dialogue_node(cmd.target, cmd.topic, state, world) is not None, ""
+
+
+def _accusable(cmd, state, world, p):
+    person = world["suspects"].get(cmd.target, {})
+    if person.get("accusable", True) is False:
+        return False, "บุคคลนี้เป็นพยาน ไม่ใช่ผู้ต้องสงสัย"
+    held = deductions_held(state, world)
+    if (set(person.get("exculpatory_deductions", [])) & held
+            or set(person.get("exculpatory_evidence", [])) & set(state.discovered_evidence)):
+        return False, "หลักฐานที่คุณทราบแล้วหักล้างข้อกล่าวหานี้"
+    return True, ""
+
+
+def _available_questions(state, world):
+    return [q for q in world.get("inference_questions", []) if _requirements_met(q, state, world)]
+
+
+def _claim_supported(cid, evidence, state, world):
+    claim = world.get("claims", {}).get(cid, {})
+    offered = state.model_copy(update={"discovered_evidence": list(evidence)})
+    return bool(claim.get("supported")) and _condition_met(
+        claim, set(evidence), deductions_held(offered, world))
+
+
+def _claim_held(cid, state, world):
+    # Keep the player's earned reasoning, but do not turn optional supporting
+    # observations into mandatory evidence in every later accusation.
+    known = set(state.discovered_evidence)
+    evidence = [eid for eid in state.claim_evidence.get(cid, []) if eid in known]
+    return (cid in state.validated_claims and bool(evidence)
+            and _claim_supported(cid, evidence, state, world))
+
+
+def _inference_ready(cmd, state, world, p):
+    available = {choice["target"] for q in _available_questions(state, world) for choice in q.get("choices", [])}
+    if cmd.target not in available:
+        return False, "ยังไม่มีประเด็นนี้ในสมุดคดี"
+    if not cmd.evidence or len(cmd.evidence) != len(set(cmd.evidence)) or not set(cmd.evidence) <= set(state.discovered_evidence):
+        return False, "เลือกหลักฐานที่ค้นพบแล้ว โดยแต่ละชิ้นใช้ได้ครั้งเดียว"
+    if not _claim_supported(cmd.target, cmd.evidence, state, world):
+        return False, world.get("claims", {}).get(cmd.target, {}).get("feedback", "หลักฐานที่เลือกยังไม่รองรับข้อสรุปนี้")
+    return True, "ข้อสรุปได้รับการรองรับจากหลักฐานที่เลือก"
 
 
 def _game_not_over(cmd, state, world, p):
@@ -297,6 +381,11 @@ def _within_time_limit(cmd, state, world, p):
 
 
 CHECKERS: Dict[str, Callable] = {
+    "visible": _visible,
+    "unlock_ready": _unlock_ready,
+    "dialogue_available": _dialogue_available,
+    "accusable": _accusable,
+    "inference_ready": _inference_ready,
     "evidence_source_available": _evidence_source_available,
     "accusation_ready": _accusation_ready,
     "action_is_known": _action_is_known,
@@ -322,6 +411,10 @@ class SymbolicEngine:
         self.rules: List[dict] = json.loads(rules_path.read_text(encoding="utf-8"))["rules"]
         self.world: dict = json.loads(story_path.read_text(encoding="utf-8"))
         validate_world(self.rules, self.world, CHECKERS, {a.value for a in ActionType})
+
+    @property
+    def max_submitted_evidence(self):
+        return self.world.get("max_submitted_evidence", MAX_SUBMITTED_EVIDENCE)
 
     @property
     def time_limit_seconds(self):
@@ -356,6 +449,8 @@ class SymbolicEngine:
                 # กฎข้อแรกครอบทั้ง unknown และ ambiguous ด้วยข้อความเดียว แต่ผู้เล่นต้องการ
                 # คำแนะนำคนละแบบ เกมนี้พิมพ์ล้วนไม่มีปุ่ม ถ้าบอกแค่ว่าไม่เข้าใจ ผู้เล่นจะตันทันที
                 message = rule["message_fail"]
+                if rule["check"] in {"inference_ready", "accusable", "unlock_ready"} and detail:
+                    message = detail
                 closes = {}
                 if rule["id"] == "R000_KNOWN_ACTION" and cmd.action is ActionType.AMBIGUOUS:
                     message = ("คำสั่งนี้กว้างเกินไป ระบบจะไม่เดาแทนผู้เล่น "
@@ -415,10 +510,12 @@ class SymbolicEngine:
             # ตรวจคือดู ไม่ใช่เปิด สถานะปลดล็อกได้มาจาก UNLOCK เท่านั้น
             # ไม่งั้นแค่ "ดูกระเป๋า" ก็เปิดกระเป๋าที่ล็อกรหัสได้
             if obj.get("type") == "evidence":
-                return {"discovered_evidence_add": cmd.target}
-            return {}
-        if cmd.action == ActionType.UNLOCK:
+                return {"discovered_evidence_add": cmd.target, "examined_add": cmd.target}
+            return {"examined_add": cmd.target}
+        if cmd.action in (ActionType.UNLOCK, ActionType.USE):
             return {"unlocked_add": cmd.target}
+        if cmd.action == ActionType.INFER:
+            return {"validated_claims_add": cmd.target, "claim_evidence": {cmd.target: list(cmd.evidence)}}
         if cmd.action == ActionType.BURN:
             return {"burned_add": cmd.target}
         if cmd.action == ActionType.ACCUSE:
@@ -427,6 +524,12 @@ class SymbolicEngine:
         if cmd.action == ActionType.INTERROGATE:
             sus = self.world["suspects"].get(cmd.target, {})
             changes = {"interrogated_add": cmd.target}
+            if "dialogue_nodes" in sus:
+                node = _dialogue_node(cmd.target, cmd.topic, state, self.world)
+                changes["dialogue_history_add"] = f"{cmd.target}:{node['id']}"
+                changes["discovered_evidence_add"] = node.get("grants_evidence", [])
+                changes["inventory_add"] = node.get("grants_inventory", [])
+                return changes
             granted = sus.get("grants_object")
             if granted:
                 changes["inventory_add"] = granted
@@ -510,10 +613,15 @@ class SymbolicEngine:
             if cmd.target in doc_map:
                 from app.document_loader import load_in_game_document
                 return load_in_game_document(doc_map[cmd.target])
-            return obj.get("description") or f"ตรวจสอบ{name}อย่างละเอียด แต่ไม่พบอะไรเพิ่มเติม"
+            return obj.get("description") or sus.get("description") or f"ตรวจสอบ{name}อย่างละเอียด แต่ไม่พบอะไรเพิ่มเติม"
 
         if cmd.action == ActionType.INTERROGATE:
+            if "dialogue_nodes" in sus:
+                return _dialogue_node(cmd.target, cmd.topic, state, self.world)["text"]
             return sus.get("testimony") or f"สอบปากคำ {name} แต่ไม่ได้ข้อมูลเพิ่ม"
+        if cmd.action == ActionType.INFER:
+            return self.world["claims"][cmd.target].get("feedback_success") or (
+                "บันทึกข้อสรุปที่คุณเสนอ: " + self.world["claims"][cmd.target].get("name_th", cmd.target))
         if cmd.action == ActionType.MOVE:
             return self.look_around(cmd.target, state.model_copy(update={"current_location": cmd.target}))
         if cmd.action == ActionType.ACCUSE:
@@ -522,7 +630,7 @@ class SymbolicEngine:
         templates = {
             ActionType.TAKE: f"เก็บ{name}ไว้เป็นหลักฐาน",
             ActionType.UNLOCK: f"เปิด{name}ได้แล้ว",
-            ActionType.USE: f"ใช้งานกับ{name}",
+            ActionType.USE: f"เปิด{name}ด้วยกุญแจได้แล้ว",
             ActionType.BURN: f"คุณเผา{name}ทิ้ง เถ้าที่เหลือเรียกอะไรกลับมาไม่ได้อีก",
         }
         return templates.get(cmd.action, "ดำเนินการเรียบร้อย")
@@ -531,6 +639,74 @@ class SymbolicEngine:
         """ผู้ถูกกล่าวหาคนนี้มีหลักฐานครบทุกเสาแล้วหรือยัง"""
         found = _collect_pillars(suspect_id, state, self.world)
         return all(found[p] for p in pillar_names(self.world))
+
+    def dialogue_options(self, suspect_id: str, state: GameState) -> List[dict]:
+        person = self.world["suspects"].get(suspect_id, {})
+        if person.get("location") != state.current_location or state.ending_id or self.is_out_of_time(state):
+            return []
+        topics = {}
+        for node in _eligible_dialogue(person, state, self.world):
+            topic = node.get("topic")
+            if topic:
+                topics[topic] = {"topic": topic, "label": node.get("label") or node.get("name_th") or topic}
+        return list(topics.values())
+
+    def narrative_scene(self, scene_id: str, state: GameState, evidence_scope=None):
+        """Return authored pages supported by this knowledge scope, never their gates.
+
+        The interaction layer owns when a scene may be opened (introduction,
+        an approved dialogue, or a resolved case). A recap's evidence_scope is
+        the submitted case; supplying IDs cannot create knowledge the player lacks.
+        """
+        scene = self.world.get("narrative_scenes", {}).get(scene_id)
+        if scene is None:
+            return None
+        known = set(state.discovered_evidence)
+        if evidence_scope is not None:
+            known.intersection_update(evidence_scope)
+        scoped = state.model_copy(update={"discovered_evidence": [eid for eid in state.discovered_evidence if eid in known]})
+        pages = []
+        for page in scene.get("pages", []):
+            evidence = page.get("evidence_ids", [])
+            if not _requirements_met(page, scoped, self.world) or not set(evidence) <= known:
+                continue
+            pages.append({field: page[field] for field in ("id", "speaker", "time_label", "text", "art")})
+            pages[-1]["evidence"] = [{"id": eid, "name": self.world["objects"][eid]["name_th"]} for eid in evidence]
+        return {"id": scene_id, "title": scene["title"], "pages": pages} if pages else None
+
+    def dialogue_scene(self, cmd: ParsedCommand, before_state: GameState):
+        """Use the same pre-action node as the spoken text and its exact grants."""
+        if cmd.action != ActionType.INTERROGATE or not self.decide(cmd, before_state).allowed:
+            return None
+        node = _dialogue_node(cmd.target, cmd.topic, before_state, self.world)
+        if not node or not node.get("scene_id"):
+            return None
+        return self.narrative_scene(node["scene_id"], before_state)
+
+    def narrative_followups(self, state: GameState) -> List[dict]:
+        """Earned, unread scene topics, including people in another train car."""
+        if state.ending_id or self.is_out_of_time(state):
+            return []
+        followups = []
+        for sid, person in self.world["suspects"].items():
+            latest = {node["topic"]: node for node in _eligible_dialogue(person, state, self.world)}
+            for topic, node in latest.items():
+                if not node.get("scene_id") or f"{sid}:{node['id']}" in state.dialogue_history:
+                    continue
+                if self.narrative_scene(node["scene_id"], state) is None:
+                    continue
+                followups.append({"person_id": sid, "person_name": person.get("name_th", sid),
+                                  "location": person.get("location"), "topic": topic,
+                                  "label": node.get("label") or node.get("name_th") or topic})
+        return followups
+
+    def inference_questions(self, state: GameState) -> List[dict]:
+        if state.ending_id or self.is_out_of_time(state):
+            return []
+        return [{"id": q["id"], "prompt": q.get("prompt", q.get("question", "")),
+                 "choices": [{"id": c["id"], "label": c["label"], "target": c["target"]}
+                             for c in q.get("choices", [])]}
+                for q in _available_questions(state, self.world)]
 
     def deductions(self, state: GameState) -> set:
         """ข้อสรุปที่ผู้เล่นมีสิทธิ์สรุปได้ ณ ตอนนี้ ใช้กับ UI และการอธิบาย"""
@@ -649,6 +825,9 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
         "discovered_evidence_add": s.discovered_evidence,
         "unlocked_add": s.unlocked_objects,
         "interrogated_add": s.interrogated_suspects,
+        "dialogue_history_add": s.dialogue_history,
+        "examined_add": s.examined_objects,
+        "validated_claims_add": s.validated_claims,
     }
     for key, lst in mapping.items():
         v = changes.get(key)
@@ -666,6 +845,10 @@ def apply_changes(state: GameState, changes: dict) -> GameState:
             s.inventory.remove(burned)
     if changes.get("ending"):
         s.ending_id = changes["ending"]
+    if "failed_accusations" in changes:
+        s.failed_accusations = changes["failed_accusations"]
+    for cid, evidence in changes.get("claim_evidence", {}).items():
+        s.claim_evidence[cid] = list(evidence)
     dest = changes.get("move_to")
     if dest:
         s.current_location = dest

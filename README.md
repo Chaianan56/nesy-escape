@@ -1,168 +1,123 @@
-# 🕵️‍♂️ NeSy-Escape (Neuro-Symbolic Escape Room)
+# NeSy-Escape — Nocturne Express
 
-> **เกมสอบสวนบนขบวนรถไฟด้วยแนวคิด Neuro-Symbolic AI**  
-> ผู้เล่นสั่งการด้วยภาษาไทยแบบอิสระ โดยระบบแยกส่วน **"ตีความภาษา" (Neural)** ออกจาก **"ตัดสินตามกฎ" (Symbolic)** อย่างเด็ดขาด
+เกมสืบสวนภาษาไทยบนขบวนรถไฟ ผู้เล่นตรวจฉาก สอบถามพยาน เปรียบเทียบหลักฐาน และเสนอข้อสรุปก่อนกล่าวหา ใช้คดีที่มีเหตุผลหลายขั้นเพื่อศึกษาความถูกต้องของระบบดำเนินเกม และตรวจความเข้าใจเรื่องของผู้เล่นแยกจากการเก็บหลักฐานครบ
 
----
+รุ่นปัจจุบันใช้คดีเบลล์เวเธอร์ปี1923 ปมสองเวลาของเหตุรุนแรงกับไฟดับ และข่าวเลื่อนนัดที่ผู้เล่นต้องตรวจต้นทาง ไม่มีปมผู้โดยสารคนที่แปด รายละเอียดพร้อมเฉลยอยู่ใน [ระยะ B](docs/phase-b-design-2026-10-12.md) และ [รายงานนำเรื่องเข้าเกม](docs/implementation-report-2026-10-12.md)
 
-## 📌 ภาพรวมสถาปัตยกรรม (Architecture Overview)
+## รันเกม
 
-ระบบทำงานร่วมกันแบบ 2 ขั้นตอนเพื่อความถูกต้อง แม่นยำ และอธิบายเหตุผลได้ (Explainability):
+ตัวอย่างสำหรับ PowerShell จากโฟลเดอร์โครงการ:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env
+```
+
+หากมี `.env` อยู่แล้วให้ใช้ไฟล์เดิม ใส่ `GEMINI_API_KEY` และเลือก `GEMINI_MODEL` สำหรับคำสั่งภาษาธรรมชาติ จากนั้นรัน:
+
+```powershell
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+เปิด [หน้าเกม](http://127.0.0.1:8000/) และ [สัญญา API](http://127.0.0.1:8000/docs) จาก server เดียวกัน คำสั่งตรง เช่น `ดูรอบๆ`, `ไปตู้ 4`, `examine pocket_watch` และหัวข้อที่กดจากหน้าเว็บมีตัวแปลคำสั่งตรง ส่วนข้อความอิสระส่งให้ Neural ตีความ
+
+API เก็บสถานะที่ server และอ้าง session ด้วย cookie ไม่เชื่อสถานะที่ client ส่งมาเพื่อแก้ผลเกม การโหลดหน้าใหม่กลับเข้าเกมเดิม ใช้เริ่มเกมใหม่เพื่อรีเซ็ต ต้นแบบเก็บ session ในหน่วยความจำ process เดียว การรีสตาร์ต server ทำให้เกมที่เก็บอยู่หาย นาฬิกาเริ่มเมื่อเริ่มเล่น มีเวลา90นาทีและนับเวลาจริงรวมเวลาคิด อ่าน และรอระบบ
+
+## สิ่งที่เล่นได้
+
+- ผู้ต้องสงสัย3คน และพยาน2คนที่กล่าวหาไม่ได้
+- บทสนทนาเป็นหัวข้อที่เปิดตามหลักฐาน กลับไปถามข้อมูลใหม่ได้ และไม่มอบคำให้การที่ยังไม่ได้ฟัง
+- กระเป๋าสำนวนล็อกรหัส1923 ห้องแพทย์ใช้กุญแจลิโอรา ห้องระบบไฟใช้กุญแจพนักงาน การตรวจวัตถุไม่ปลดล็อกเอง
+- สมุดคดีแสดงสิ่งที่พบ แหล่งคำให้การ คำถาม และข้อสรุปที่ผู้เล่นเสนอ ไม่เฉลยข้ออนุมานอัตโนมัติทั้งหมดระหว่างเล่น
+- ข้อสรุปสองเวลาต้องเลือกและแนบหลักฐานเอง การเลือกข้อความถูกโดยไม่มีข้อมูลรองรับยังไม่ผ่าน
+- เลือกสายชา/กระดุม/ตรา2ใน3เพื่อยื่นคดีได้จริง แต่ต้องเชื่อมเวลา แรงจูงใจ การมาพบ และต้นทางข่าวร่วมกัน
+- ชุดยื่นขั้นต่ำของสามคู่เป็น19/20/20รายการ เพดาน20 อ่านเส้นทางเฉลยที่ [walkthrough](docs/walkthrough-new-story-2026-10-12.md)
+
+การกล่าวหาที่เข้าเงื่อนไขฉากจบจะปิดคดีทันที รวมฉากจบที่กล่าวหาผิด หากหลักฐานไม่พอจะได้คำบอกประเด็นที่ขาดและมีจำนวนครั้งจำกัด การละหลักฐานที่อยู่ซึ่งค้นพบแล้วออกจากชุดยื่นไม่ทำให้กล่าวหาคนที่ถูกหักล้างแล้วได้
+
+## สถาปัตยกรรมหน้าเว็บ NeSy
 
 ```mermaid
 flowchart LR
-    A[ผู้เล่นป้อนข้อความภาษาไทย] --> B[🧠 Neural Layer<br/>Gemini LLM]
-    B -->|สกัดความหมาย| C[📝 ParsedCommand<br/>JSON Schema]
-    C --> D[⚙️ Symbolic Layer<br/>Rule Engine]
-    D -->|ประมวลผลตามกฎ| E[🎯 Decision & New State]
-
-    subgraph Neural ["Neural Processing"]
-        B
-    end
-
-    subgraph Symbolic ["Symbolic Processing (No LLM)"]
-        D
-    end
+  A[ข้อความหรือคำสั่งจากหน้าเว็บ] --> B[ตัวแปลคำสั่งตรง / Neural แปลภาษา]
+  B --> C[ParsedCommand]
+  C --> D[Symbolic ตรวจโลก กฎ และสถานะ]
+  D --> E[Decision และการเปลี่ยนสถานะ]
+  E --> F[Server session / สมุดคดี / หน้าเว็บ]
 ```
 
-1. **Neural Layer (Gemini LLM)**: ทำหน้าที่แปลงข้อความภาษาไทยธรรมชาติของผู้เล่นให้เป็น `ParsedCommand` ตาม Schema ที่กำหนด (เช่น Intent, Target Object, Arguments)
-2. **Symbolic Layer (Rule Engine)**: นำ `ParsedCommand` มาตรวจสอบกับคลังกฎ (`data/rules.json`) และสถานะเกม (`GameState`) เพื่อตัดสินผลลัพธ์ (`Decision`) โดย**ไม่พึ่งพา LLM**
+Neural ในหน้าเว็บแปลภาษาเป็นคำสั่ง Symbolic ตัดสินสิทธิ์ การเปิดเผยข้อมูล บท หลักฐาน ข้อสรุป และฉากจบ `reasoning_chain` ของฝั่งนี้มาจากกฎที่ตรวจจริง ไม่สร้างย้อนหลังจากโมเดลและไม่ใช้ confidence เป็นตัวผ่านกฎ
 
----
+ข้อมูลเรื่องและเงื่อนไขอยู่ใน `data/story.json` กฎตรวจคำสั่งอยู่ใน `data/rules.json` การเปลี่ยนเรื่องต้องแก้เส้นทางหลักฐาน บท สมุด และฉากจบให้ตรงกันพร้อมตรวจเส้นทางทั้งสามคู่
 
-## ⚠️ หลักการสำคัญที่ห้ามละเมิด (Core Invariants)
+## โครงสร้างไฟล์สำคัญ
 
-> [!IMPORTANT]
-> 1. **Rule Engine ห้ามเรียก LLM เด็ดขาด**: `app/symbolic/engine.py` ต้องทำงานแบบ Deterministic 100%
-> 2. **Reasoning Chain ต้องโปร่งใส**: สายธารเหตุผล (`reasoning_chain`) ต้องเกิดจากการตรวจกฎจริง ห้ามให้ LLM เขียนย้อนหลังหรือสร้างเหตุผลปลอม
-> 3. **ห้ามใช้ Confidence ตัดสินใจ**: ค่าความมั่นใจจาก LLM ใช้เพื่อ Logging/Tracking เท่านั้น ห้ามนำมาบิดเบือนกฎใน Symbolic Layer
-> 4. **แยกภาษาไทยและภาษาอังกฤษชัดเจน**: 
->    * **ID & รหัสกฎ** (เช่น `service_pantry`, `R005_...`) ใช้ภาษาอังกฤษเป็นสัญญากลางระหว่างสองเลเยอร์
->    * **ข้อความโต้ตอบผู้เล่น** ใช้ภาษาไทยทั้งหมด
+| ไฟล์/โฟลเดอร์ | หน้าที่ |
+|---|---|
+|`app/main.py`, `app/sessions.py`|API เวลา session และข้อมูลผู้เล่น|
+|`app/schemas.py`, `app/game_setup.py`|สัญญาคำสั่ง/สถานะ และความทรงจำบทนำ|
+|`app/neural/typed_commands.py`, `app/neural/gemini_client.py`|คำสั่งตรงและการตีความภาษา|
+|`app/symbolic/engine.py`, `app/symbolic/validation.py`|การตัดสินและตรวจข้อมูลเกม|
+|`app/case_notes.py`|หลักฐาน คำให้การ และคำถาม|
+|`data/story.json`, `data/documents/`|เรื่อง วัตถุ บท ข้อสรุป ฉากจบ และเอกสาร|
+|`data/walkthrough.json`, `app/walkthrough.py`|เส้นทางแกนและชุดยื่นสามทาง|
+|`frontend/`|ฉาก แผนที่ สมุด หน้าต่างกล่าวหาและข้อสรุป|
+|`app/neural/game_master.py`|ตัวตัดสิน neural สำหรับทดลอง|
+|`scripts/evaluate_modes.py`, `data/research/`|CLI และคำตอบอ้างอิงชุดพัฒนา|
+|`tests/`|ทดสอบกฎ ข้อมูล API การสืบสวน และ baseline|
 
----
+## API ที่ใช้บ่อย
 
-## 📁 โครงสร้างโปรเจกต์ (Project Structure)
+| วิธี | เส้นทาง | หน้าที่ |
+|---|---|---|
+|GET|`/health`|สถานะการตั้งค่า; `?probe=true` จึงเรียกโมเดลจริง|
+|GET|`/scene`|บทนำและฉากตามสิทธิ์ session|
+|POST|`/start`, `/new-game`|เริ่มเวลา และเริ่มเกมใหม่|
+|POST|`/command`|รับข้อความ/หลักฐาน คืนคำสั่ง คำตัดสิน และสถานะใหม่|
+|POST|`/journal`, `/hint`|สมุดและคำใบ้|
+|POST|`/pillars`|ผลสี่เสาหลังคดีปิด|
+|POST|`/clock`|ปรับเวลาจริงและปิดคดีเมื่อหมดเวลา|
+|GET|`/study-export`|บันทึกข้อสรุปที่เสนอ ชุดยื่น ผลจบ และเวลา|
+|GET|`/reconstruction`|ฉากย้อนหลังหลังจบแท้ เล่าตามชุดหลักฐานที่ยื่น|
 
-```text
- Senior Project/
- ├── app/
- │   ├── main.py              # FastAPI Web Endpoints (/health, /scene, /command)
- │   ├── schemas.py           # Data Schemas สัญญากลางระหว่าง Neural & Symbolic
- │   ├── scenario.py          # โหลดและจัดการข้อมูล Game World
- │   ├── invariants.py        # ระบบตรวจสอบความถูกต้องของกฎและสถานะ
- │   ├── walkthrough.py       # เส้นทางเฉลยสำหรับใช้รัน Integration Test
- │   ├── neural/              # เลเยอร์ตีความภาษา (Gemini Integration)
- │   └── symbolic/            # เลเยอร์ตัดสินตามกฎ (Rule Engine & Checkers)
- ├── data/
- │   ├── story.json           # ข้อมูลฉาก สิ่งของ และข้อความในเกม
- │   ├── rules.json           # คลังกฎทั้งหมดของเกม (แก้กฎที่นี่)
- │   └── walkthrough.json     # ลำดับคำสั่งเฉลย 14 ตา
- ├── frontend/
- │   ├── index.html           # หน้าจอเกมแบบ Web Chat
- │   ├── style.css            # ตกแต่ง UI
- │   └── chat.js              # จัดการ GameState และสื่อสารกับ API
- ├── scripts/                 # สคริปต์ Helper และ Tooling
- │   ├── start_app.py         # สคริปต์เปิด Web Server พร้อมเปิดเบราว์เซอร์อัตโนมัติ
- │   └── run_app.bat          # Batch script สำหรับสั่งรันเซิร์ฟเวอร์บน Windows
- ├── docs/                    # เอกสารระบบและไฟล์สรุปเชิงทฤษฎี
- ├── tests/                   # ชุดทดสอบด้วย pytest
- └── play.py                  # สคริปต์รันเล่นผ่าน CLI
+## การทดสอบ
+
+```powershell
+.venv\Scripts\python.exe -m pytest -m "not llm" -q
+node --test frontend/chat.test.mjs frontend/art.test.mjs frontend/novel.test.mjs
+.venv\Scripts\python.exe scripts/evaluate_modes.py --mode symbolic --output logs/research/symbolic-smoke.json
 ```
 
----
+การทดสอบ offline ตรวจพฤติกรรมตามกติกาและ API ไม่ใช้แทนผลโมเดลจริงหรือผู้เล่น ชุดที่เรียกบริการภายนอกต้องตรวจเงื่อนไขและการตั้งค่าของชุดนั้นก่อนรัน ดูผลตรวจส่งมอบล่าสุดใน [รายงาน](docs/implementation-report-2026-10-12.md)
 
-## 🚀 การติดตั้งและการใช้งาน (Getting Started)
+ตรวจหน้าเว็บด้วย `node scripts/check_story_browser.cjs` หลังเปิดเซิร์ฟเวอร์ โดยต้องมี Playwright ติดตั้งอยู่แล้ว ตั้ง `GAME_URL` ให้ตรงกับเซิร์ฟเวอร์ (ค่าเริ่มต้น `http://127.0.0.1:8012`) และ `BROWSER_CHANNEL=msedge` เมื่อต้องการใช้ Edge ที่ติดตั้งใน Windows ผลกับภาพตรวจอยู่ใน `tmp/browser-story-check/` ชุดนี้ใช้คำสั่งตรงที่แปลในเครื่อง จึงไม่เรียกโมเดล
 
-### 1. การเตรียมสภาพแวดล้อม (Environment Setup)
+## การเปรียบเทียบกับ neural-only
 
-สร้างและเปิดใช้งาน Virtual Environment แล้วลง Dependencies:
+เครื่องมือรอบนี้เทียบที่ขอบเขต **สถานะ + คำสั่งที่ตีความแล้ว → คำตัดสิน + สถานะใหม่ + ข้อมูลที่แสดง** หน้าเว็บยังเป็น NeSy โหมด `symbolic` ของ CLI ใช้ตัวตัดสินเดียวกับหน้าเว็บ ส่วน `neural` ให้โมเดลตัดสินทั้งหมดในขอบเขตนี้ โดยไม่มี symbolic ตรวจหรือซ่อมผล
 
-```bash
-# ติดตั้ง Packages หลัก
-pip install -r requirements.txt
+```powershell
+# เรียกโมเดลจริงและอาจมีค่าใช้จ่าย เลือกรุ่นที่จะทดลองอย่างชัดเจน
+.venv\Scripts\python.exe scripts/evaluate_modes.py --mode neural --model YOUR_MODEL_ID --suite one-step --output logs/research/neural-one-step.json
+.venv\Scripts\python.exe scripts/evaluate_modes.py --mode neural --model YOUR_MODEL_ID --suite rollout --output logs/research/neural-rollout.json
 
-# (ตัวเลือก) ติดตั้ง Packages สำหรับ Dev/Test
-pip install -r requirements-dev.txt
+# เล่นด้วยคำสั่ง JSON ไม่ผ่าน parser หรือตัวกรอง symbolic
+.venv\Scripts\python.exe scripts/evaluate_modes.py --mode neural --model YOUR_MODEL_ID --play --output logs/research/neural-play.jsonl
 ```
 
-### 2. ตั้งค่า API Key
+CLI แยกการเริ่มจากสถานะอ้างอิงทีละคำสั่งกับ rollout ที่ใช้สถานะจากคำตอบตัวเอง แยกความผิดของบริการ/รูปแบบจากความผิดเชิงตรรกะ และบันทึกรุ่นกับ hash คำอธิบาย neural เป็นคำกล่าวอ้างของโมเดล ไม่ใช่ trace ว่าตรวจกฎจริง
 
-คัดลอกไฟล์ `.env.example` เป็น `.env` แล้วใส่ `GEMINI_API_KEY`:
+ชุด `data/research/adjudication-corpus-v1.json` ใช้ตรวจระหว่างพัฒนา จึงไม่ใช่ held-out benchmark การผ่านชุดนี้ไม่ยืนยันว่า NeSy เหนือกว่า neural-only หรือผู้เล่นเข้าใจมากกว่า ยังต้องเก็บผลโมเดลจริง ตรวจข้อความที่เปิดเผย และทดลองผู้เล่นตาม [protocol](docs/research-protocol-2026-10-12.md)
 
-```bash
-cp .env.example .env
-```
-แก้ไขไฟล์ `.env`:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-```
+## เอกสารออกแบบ
 
-### 3. รัน Web Server & Frontend
-
-เริ่มรัน API Server ได้ด้วยวิธีใดวิธีหนึ่ง:
-
-```bash
-# วิธีที่ 1: รันด้วย Uvicorn โดยตรง
-uvicorn app.main:app --reload
-
-# วิธีที่ 2: รันผ่าน Helper Script (เปิด Browser ให้อัตโนมัติ)
-python scripts/start_app.py
-
-# หรือดับเบิลคลิก scripts/run_app.bat (สำหรับ Windows)
-```
-
-* **API Documentation (Swagger UI)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-* **Frontend**: เปิดไฟล์ `frontend/index.html` บน Browser หรือรันผ่าน Live Server
-
----
-
-## 🔌 API Endpoints Summary
-
-> [!NOTE]
-> เซิร์ฟเวอร์ได้รับการออกแบบให้เป็น **Stateless Server** โดยฝั่ง Client (`chat.js`) จะเป็นผู้ถือ `GameState` แล้วส่งกลับมาพร้อมกับคำสั่งในทุก Request
-
-| Method | Endpoint | Description | Payload / Response |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | ตรวจสอบสถานะของเซิร์ฟเวอร์ | `{ "status": "ok" }` |
-| `GET` | `/scene` | ดึงข้อมูล Registry ID, Briefing และ `initial_state` | ข้อมูล Game World ทั้งหมด |
-| `POST` | `/command` | ส่งคำสั่งภาษาไทยเพื่อประมวลผล | Request: `{ text, state }`<br/>Response: `{ parsed, decision, new_state }` |
-
----
-
-## 🧪 การทดสอบและการรันการทดลอง (Testing & Experiments)
-
-เวลาในเกมนับตามเวลาเล่นจริงตั้งแต่โหลดคดี รวมเวลาอ่าน คิด และรอคำตอบ ไม่หักเวลาตามจำนวนคำสั่ง หน้าเว็บนับถอยหลังทุกวินาทีและเรียก `POST /clock` เพื่อปิดคดีเมื่อหมดเวลาโดยไม่ต้องพิมพ์เพิ่ม เวลาเริ่มต้นอยู่ใน `GameState.started_at` และฝั่ง API คำนวณเวลาที่ผ่านไปก่อนตรวจกฎ การรีเฟรชหน้าเว็บเริ่มคดีใหม่ตามเดิม
-
-การกล่าวหาต้องมีหลักฐานและข้อสรุปเข้าเงื่อนไขฉากจบที่ระบุผู้ต้องสงสัยคนนั้นก่อน กฎ R012 ตรวจเงื่อนไขจากข้อมูลฉากจบโดยตรง หากไม่ครบจะปฏิเสธและเล่นต่อได้ ส่วนกฎสี่เสาใช้จำแนกความสมบูรณ์ของคดี การกล่าวหา Vincent ต้องพบสายทองแดงที่ถูกตัด (`cut_copper_wire`), คีมตัดสายไฟ (`wire_cutters`) และรอยเลือด (`vincent_blood`) ครบทั้งสาม และยังไม่หักล้างเส้นเวลาตามเงื่อนไขฉากจบเดิม
-
-สำหรับ Liora ต้องพบเอกสารเชื่อมโยงกับ Project Nocturne (`secret_file`) และท่าทีลังเลเรื่องเวลาตาย (`liora_time_hesitation` จากการสอบปากคำ) พร้อมกับยังไม่พิสูจน์ว่า Vincent ตัดไฟ (`D13_VINCENT_CUT_THE_POWER`) และยังไม่มีคำรับสารภาพ (`vincent_blackout_confession`) สำหรับ Gideon ต้องเชื่อมโยงแฟ้ม C ได้ก่อน (`C01_DOCUMENT_LINK`) จึงกล่าวหาได้: ถ้ามีเท่านี้หรือเงื่อนไขยังไม่ครบจะได้ Ending C (`cold_justice`) ส่วน True Ending ต้องพิสูจน์เวลาตาย 20:20–20:25 น., ไม่มีพยานช่วง 20:00–20:40 น. และเชื่อมโยงเขม่าสีแดง แหวน และกระดุมครบทั้งสามทาง ไม่ต้องล้างข้อสงสัยอีกสองคนก่อน โดยเลือก True Ending ก่อน Ending C เสมอเมื่อครบเงื่อนไข
-
-### รัน Automated Unit Tests
-```bash
-python -m pytest -v
-```
-*(หมายเหตุ: ชุดทดสอบที่ต้องใช้ LLM จะ Skip ให้อัตโนมัติหากไม่มี API Key)*
-
-### เล่นผ่าน CLI
-```bash
-python play.py
-```
-
----
-
-## 🛠️ วิธีการเพิ่มกฎใหม่ในเกม (Adding New Rules)
-
-1. แก้ไขและเพิ่มกฎใน `data/rules.json` (กำหนด Rule ID เช่น `R006_...`)
-2. เขียนฟังก์ชัน Checker ใหม่ใน `app/symbolic/engine.py`
-3. ลงทะเบียน Checker ใหม่ในดิคชันนารี `CHECKERS` ของ `engine.py`
-4. รัน `python -m pytest` เพื่อยืนยันว่ากฎใหม่ไม่ทำให้เกมเดินไม่จบ
-
-### หน้าเกม Pixel UI (ต้นแบบ)
-
-หน้าเว็บใช้ฉาก 2D pixel ที่วาดด้วย Canvas ใน `frontend/pixel.js` เป็นภาพชั่วคราวสำหรับทดสอบเลย์เอาต์ มีฉากต่างกันตามตู้รถ แผนผังเดินทาง สมุดหลักฐาน แท็บบุคคล/ข้อสรุป และกระดานความคืบหน้าสี่เสา รองรับหน้าจอเดสก์ท็อปและจอแคบ
-
-- กดสิ่งของหรือชื่อบุคคลเพื่อเติมคำสั่ง แล้วกดส่งเพื่อดำเนินการ
-- กดตู้รถในแผนผังเพื่อส่งคำสั่งเดินทางผ่านระบบตีความเดิม
-- `POST /journal` คืนเฉพาะหลักฐานที่ค้นพบ ข้อสรุปที่ได้จริง และสิ่งของที่มองเห็นในตู้ปัจจุบัน
-- การเปลี่ยนภาพจริงภายหลังทำที่ `drawScene()` ใน `frontend/pixel.js`; ภาพชั่วคราวไม่มีการเดินตัวละครหรือ animation
+- [ข้อเท็จจริง A2](docs/phase-a-fact-sheet-v2-2026-10-09.md)
+- [สามฉากเสริม: ขึ้นรถ เผชิญหน้า และทบทวนคดี](docs/new-scenes-2026-10-13.md)
+- [ความซับซ้อนและเป้าหมายการประเมิน](docs/design-goals-and-evaluation-2026-10-09.md)
+- [ระยะ B และแผนผังหลักฐาน](docs/phase-b-design-2026-10-12.md)
+- [วิธีตรวจเส้นทางคดี](docs/walkthrough-new-story-2026-10-12.md)
+- [แผนดำเนินงานและสถานะ](docs/implementation-plan-2026-10-09.md)
+- [รายงานนำเข้าเกม](docs/implementation-report-2026-10-12.md)
+- [กลไกกลาง](docs/research-mechanics-v1.md) และ [protocol](docs/research-protocol-2026-10-12.md)

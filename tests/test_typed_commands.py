@@ -30,6 +30,29 @@ def test_negation_compound_and_ambiguous_input_are_not_shortcuts():
         assert parse_typed_command(text, GameState(), main.engine.world) is None
 
 
+def test_visible_dialogue_labels_locks_and_inference_parse_without_model(monkeypatch):
+    def unavailable(*args):
+        raise AssertionError('Exact investigation commands must work without a model')
+    monkeypatch.setattr(gemini_client, 'interpret', unavailable)
+    samples = [
+        ('ถามพนักงานตรวจตู้ เรื่องเสียงกระแทกและนาฬิกาแตก',
+         'interrogate', 'car_attendant', {'topic': 'impact'}),
+        ('ถามดร. ลิโอรา เวนน์ (Dr. Liora Venn) เรื่องคำให้การของเอเลียส',
+         'interrogate', 'dr_liora_venn', {'topic': 'father'}),
+        ('ปลดล็อกกระเป๋าสำนวนล็อกรหัส รหัส 1923',
+         'unlock', 'dossier_bag', {'code': '1923'}),
+        ('ใช้กุญแจห้องแพทย์กับประตูห้องแพทย์',
+         'use', 'medical_room_door', {'instrument': 'medical_key'}),
+        ('unlock electrical_room_door staff_key',
+         'unlock', 'electrical_room_door', {'instrument': 'staff_key'}),
+        ('infer claim_two_times', 'infer', 'claim_two_times', {'evidence': []}),
+    ]
+    for text, action, target, fields in samples:
+        parsed = interpret_game(text, GameState())
+        assert (parsed.action.value, parsed.target) == (action, target), text
+        assert all(getattr(parsed, field) == value for field, value in fields.items()), text
+
+
 def test_fast_input_still_obeys_location_rules(monkeypatch):
     monkeypatch.setattr(main, 'interpret', interpret_game)
     with TestClient(main.app) as client:

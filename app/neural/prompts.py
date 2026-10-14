@@ -107,6 +107,12 @@ def _pick(d: Dict[str, Any], *preds) -> List[str]:
 
 def build_interpret_system_prompt(world_data: Dict[str, Any], state: Optional[GameState] = None,
     user_text: Optional[str] = None, prune: bool = True) -> str:
+    topics_text = "\n".join(
+        f"  - person: {sid} | topic: {node.get('topic', '')} | ประเด็น: {node.get('label', node.get('topic', ''))}"
+        for sid, person in world_data.get('suspects', {}).items()
+        for node in person.get('dialogue_nodes', []))
+    claims_text = "\n".join(f"  - {cid}: {claim.get('name_th', cid)}"
+                            for cid, claim in world_data.get('claims', {}).items())
     if prune and (state is not None or user_text is not None):
         objects, suspects, locations = prune_entities(world_data, state, user_text)
     else:
@@ -293,8 +299,24 @@ def build_interpret_system_prompt(world_data: Dict[str, Any], state: Optional[Ga
         [วัตถุและหลักฐาน (Objects / Evidence)]
         {objects_text}
 
-        [ผู้ต้องสงสัย (Suspects)]
+        [บุคคล: ผู้ต้องสงสัยและพยาน (People)]
         {suspects_text}
+
+        [ประเด็นสนทนา]
+        {topics_text}
+        เมื่อผู้เล่นถามประเด็นเจาะจง ใช้ interrogate target=person และ topic ตามตาราง
+        ถ้าไม่ได้ระบุเรื่องให้ topic=null ไม่เลือกประเด็นถัดไปหรือแจกเฉลยเอง
+
+        [ข้อเสนอเพื่อทบทวนคดี]
+        {claims_text}
+        infer ใช้เมื่อผู้เล่นเสนอข้อสรุปที่ตรงกับตาราง target=claim ID
+        ห้ามตัดสินว่าข้อสรุปถูกหรือไม่ และห้ามเลือกหลักฐานแทนผู้เล่น
+        ระบบจะให้ผู้เล่นแนบหลักฐานที่ค้นพบเอง
+
+        หากผู้เล่นปลดล็อกด้วยตัวเลข ให้ใช้ unlock target=object และ code=ตัวเลขในรูปสตริง
+        หากใช้กุญแจ ให้ use หรือ unlock target=ประตู/ภาชนะ และ instrument=ID กุญแจ
+        ประตูห้องแพทย์และประตูห้องไฟเป็นวัตถุภายในตู้ ใช้ unlock ไม่ใช่ move
+        code ไม่ใช่ instrument; ห้ามเติมรหัสที่ผู้เล่นไม่ได้พูด
 
         กฎเหล็กสำหรับการสกัด ID:
         - ฟิลด์ 'target' และ 'instrument' ต้องเป็น ID ภาษาอังกฤษจากตารางด้านบนเท่านั้น
