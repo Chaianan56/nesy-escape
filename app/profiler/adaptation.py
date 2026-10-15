@@ -20,6 +20,7 @@ class DynamicAdaptationEngine:
         profile: PlayerProfile,
         is_looping: bool = False,
         recent_violation_count: int = 0,
+        consecutive_looping_count: Optional[int] = None,
     ) -> Tuple[Decision, Optional[str]]:
         """
         ปรับปรุงข้อความใน Decision ให้มีน้ำเสียงและปฏิกิริยาของตัวละครที่เหมาะสม
@@ -41,7 +42,9 @@ class DynamicAdaptationEngine:
         # ----------------------------------------------------------------------
         # 2. Adaptive Scaffolding (ระบบให้คำแนะนำเมื่อติดหล่ม หรือทำผิดกฎซ้ำๆ)
         # ----------------------------------------------------------------------
-        scaffold = self._get_scaffolding_nudge(decision, parsed, state, profile, is_looping, recent_violation_count)
+        scaffold = self._get_scaffolding_nudge(
+            decision, parsed, state, profile, is_looping, recent_violation_count, consecutive_looping_count
+        )
         if scaffold:
             adapted_message = f"{adapted_message}\n\n{scaffold}"
             adaptive_note = (adaptive_note + " | " if adaptive_note else "") + "Scaffolding nudge triggered"
@@ -142,6 +145,7 @@ class DynamicAdaptationEngine:
         profile: PlayerProfile,
         is_looping: bool,
         recent_violation_count: int,
+        consecutive_looping_count: Optional[int] = None,
     ) -> Optional[str]:
         """ให้คำแนะนำเชิงบริบท (Contextual Scaffolding Nudge) เมื่อระบบตรวจพบว่าผู้เล่นเริ่มติดขัด"""
 
@@ -160,8 +164,13 @@ class DynamicAdaptationEngine:
                 "การ 'ตรวจดู' รายละเอียด หรือสอบถามพยานที่เกี่ยวข้อง จะให้ข้อมูลที่เป็นประโยชน์มากกว่า"
             )
 
-        # 3. ผู้เล่นเดินวนซ้ำในตู้เดิมๆ หรือตรวจสิ่งเดิมซ้ำโดยไม่ได้หลักฐานเพิ่ม (Looping)
-        if is_looping and profile.looping_count >= 2:
+        # 3. ผู้เล่นเดินวนซ้ำในตู้เดิมๆ หรือตรวจสิ่งเดิมซ้ำติดต่อกัน (Consecutive Looping)
+        consec_loops = (
+            consecutive_looping_count
+            if consecutive_looping_count is not None
+            else getattr(profile, "consecutive_looping_count", 0)
+        )
+        if is_looping and consec_loops >= 2:
             return (
                 "💡 *[ข้อสังเกตของผู้สืบสวน]*: คุณตรวจสอบบริเวณนี้อย่างถี่ถ้วนแล้ว "
                 "ลองสำรวจตู้โดยสารอื่นๆ ที่ยังไม่เคยไป เช่น ตู้สัมภาระ ตู้เสบียง หรือตู้พักพนักงานเพื่อหาเบาะแสใหม่"

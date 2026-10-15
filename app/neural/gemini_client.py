@@ -48,9 +48,7 @@ logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
 
-SYSTEM_INTERPRET_PROMPT = build_interpret_system_prompt(STORY_DATA)
-
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 
 _clients_cache: Optional[list] = None
 

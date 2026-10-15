@@ -99,6 +99,7 @@ class PlayerProfile(BaseModel):
     rule_violation_rate: float = 0.0
     clue_efficiency: float = 0.0
     looping_count: int = 0
+    consecutive_looping_count: int = 0
     scaffolding_trigger_count: int = 0
     pillars_fulfilled: Dict[str, bool] = Field(default_factory=dict)
     ending_id: Optional[str] = None

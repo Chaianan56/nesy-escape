@@ -258,3 +258,65 @@ def test_r012_scaffolding_nudge_triggered():
     assert "การชี้ตัวคนร้ายต้องการเสาหลักฐาน" in adapted.message
     assert note is not None
 
+
+def test_move_loop_pattern_detection():
+    """การเดินสำรวจตู้ 1 -> 2 -> 3 -> 2 ไม่ถือเป็นลูป แต่ 1 -> 2 -> 1 -> 2 ถือเป็นลูป"""
+    tracker = BehaviorTracker(session_id="test_move_loop")
+    state = GameState(current_location="lounge_car")
+    dec = Decision(allowed=True, message="เดินสำเร็จ")
+
+    # 1 -> 2 -> 3 -> 2 (เดินตู้ใหม่เรื่อยๆ แล้วย้อน 1 ก้าว)
+    tracker.record_turn("เดินตู้ 1", ParsedCommand(action=ActionType.MOVE, target="car_1", raw_text="..."), dec, state)
+    tracker.record_turn("เดินตู้ 2", ParsedCommand(action=ActionType.MOVE, target="car_2", raw_text="..."), dec, state)
+    tracker.record_turn("เดินตู้ 3", ParsedCommand(action=ActionType.MOVE, target="car_3", raw_text="..."), dec, state)
+    p_return = tracker.record_turn("เดินตู้ 2", ParsedCommand(action=ActionType.MOVE, target="car_2", raw_text="..."), dec, state)
+
+    # ต้องไม่ถูกตัดสินว่าติดลูป เพราะเป็นการเดินย้อนทางธรรมดา ไม่ใช่ A -> B -> A -> B
+    assert tracker.turns[-1].is_looping is False
+    assert p_return.looping_count == 0
+
+    # ตอนนี้ทดสอบ A -> B -> A -> B จริงๆ
+    tracker_ab = BehaviorTracker(session_id="test_ab_loop")
+    tracker_ab.record_turn("เดินตู้ A", ParsedCommand(action=ActionType.MOVE, target="car_a", raw_text="..."), dec, state)
+    tracker_ab.record_turn("เดินตู้ B", ParsedCommand(action=ActionType.MOVE, target="car_b", raw_text="..."), dec, state)
+    tracker_ab.record_turn("เดินตู้ A", ParsedCommand(action=ActionType.MOVE, target="car_a", raw_text="..."), dec, state)
+    p_ab = tracker_ab.record_turn("เดินตู้ B", ParsedCommand(action=ActionType.MOVE, target="car_b", raw_text="..."), dec, state)
+
+    # 4 ตาเดินสลับ A -> B -> A -> B ต้องตรวจพบลูป
+    assert tracker_ab.turns[-1].is_looping is True
+    assert p_ab.looping_count == 1
+    assert p_ab.consecutive_looping_count == 1
+
+
+def test_consecutive_looping_scaffolding():
+    """Scaffolding สำหรับ Looping ต้องเด้งเฉพาะเมื่อติดลูปติดต่อกัน 2 ครั้ง ไม่เด้งเมื่อลูปครั้งเดียวหลังผ่านไปนาน"""
+    adaptation = DynamicAdaptationEngine()
+    state = GameState(current_location="lounge_car")
+    dec = Decision(allowed=True, message="ok")
+    tracker = BehaviorTracker(session_id="test_consec_scaffold")
+
+    # เทิร์นที่ 1: ตรวจของ
+    tracker.record_turn("ตรวจ", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    # เทิร์นที่ 2: ตรวจของซ้ำ (ลูปครั้งที่ 1, consec=1)
+    p2 = tracker.record_turn("ตรวจซ้ำ", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    assert p2.looping_count == 1
+    assert p2.consecutive_looping_count == 1
+
+    cmd_loop = ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="ตรวจซ้ำ")
+    adapted, note = adaptation.adapt(dec, cmd_loop, state, p2, is_looping=True)
+    # ลูปแค่ 1 ครั้งติด ยังไม่ควรเด้งเตือน
+    assert note is None
+    assert "คุณตรวจสอบบริเวณนี้อย่างถี่ถ้วนแล้ว" not in adapted.message
+
+    # เทิร์นที่ 3: ตรวจของซ้ำอีก (ลูปครั้งที่ 2 ติดต่อกัน, consec=2)
+    p3 = tracker.record_turn("ตรวจซ้ำอีก", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    assert p3.looping_count == 2
+    assert p3.consecutive_looping_count == 2
+
+    adapted_consec, note_consec = adaptation.adapt(dec, cmd_loop, state, p3, is_looping=True)
+    # ลูปติดต่อกัน 2 ครั้ง ต้องเด้งเตือนทันที
+    assert note_consec is not None
+    assert "Scaffolding nudge triggered" in note_consec
+    assert "คุณตรวจสอบบริเวณนี้อย่างถี่ถ้วนแล้ว" in adapted_consec.message
+
+

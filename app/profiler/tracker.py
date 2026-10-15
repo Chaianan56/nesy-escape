@@ -119,6 +119,13 @@ class BehaviorTracker:
         examine_count = self.action_counts.get(ActionType.EXAMINE.value, 0)
         clue_eff = (len(state.discovered_evidence) / examine_count) if examine_count > 0 else 0.0
 
+        consec_looping = 0
+        for t in reversed(self.turns):
+            if t.is_looping:
+                consec_looping += 1
+            else:
+                break
+
         return PlayerProfile(
             session_id=self.session_id,
             primary_archetype=primary,
@@ -133,6 +140,7 @@ class BehaviorTracker:
             rule_violation_rate=round(violation_rate, 4),
             clue_efficiency=round(clue_eff, 4),
             looping_count=sum(1 for t in self.turns if t.is_looping),
+            consecutive_looping_count=consec_looping,
             scaffolding_trigger_count=self.scaffolding_triggers,
             pillars_fulfilled=pillars_fulfilled_map,
             ending_id=state.ending_id,
@@ -140,7 +148,7 @@ class BehaviorTracker:
 
     def _check_is_looping(self, current: Dict[str, Any]) -> bool:
         """ตรวจหาพฤติกรรมวนซ้ำ เช่น สั่งเดิมติดต่อกัน 2 ครั้งขึ้นไป หรือสลับที่เดิม"""
-        if len(self.recent_actions) < 2:
+        if not self.recent_actions:
             return False
 
         # ซ้ำคำสั่งเดิมเป๊ะ (action, target, topic, code ตรงกัน)
@@ -153,14 +161,18 @@ class BehaviorTracker:
         ):
             return True
 
-        # วนสลับสถานที่แบบ A -> B -> A
+        # วนสลับสถานที่แบบไปกลับ A -> B -> A -> B (เดินสลับตู้ซ้ำๆ 4 ตาติดต่อกันโดยไม่ทำอะไร)
         if len(self.recent_actions) >= 3 and current["action"] == ActionType.MOVE.value:
             r1 = self.recent_actions[-1]
             r2 = self.recent_actions[-2]
+            r3 = self.recent_actions[-3]
             if (
                 r1.get("action") == ActionType.MOVE.value
                 and r2.get("action") == ActionType.MOVE.value
+                and r3.get("action") == ActionType.MOVE.value
+                and r3.get("target") == r1.get("target")
                 and r2.get("target") == current.get("target")
+                and r1.get("target") != current.get("target")
             ):
                 return True
 

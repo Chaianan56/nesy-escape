@@ -258,6 +258,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
         profile=profile,
         is_looping=is_looping,
         recent_violation_count=recent_violation_count,
+        consecutive_looping_count=profile.consecutive_looping_count,
     )
     if adaptive_note and tracker.turns:
         tracker.turns[-1].adaptive_note = adaptive_note
