@@ -72,6 +72,59 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Monogram Click -> Restart Game with Confirmation
+  const monogram = document.querySelector('.monogram');
+  const restartDialog = document.getElementById('restartConfirmDialog');
+  const cancelRestartBtn = document.getElementById('cancelRestartBtn');
+  const confirmRestartBtn = document.getElementById('confirmRestartBtn');
+
+  if (monogram) {
+    monogram.addEventListener('click', (e) => {
+      e.preventDefault();
+      const intro = document.getElementById('introScreen');
+      if (intro && !intro.hidden) return; // Already on intro screen
+
+      if (restartDialog && typeof restartDialog.showModal === 'function') {
+        restartDialog.showModal();
+      } else {
+        if (window.confirm('คุณต้องการกลับไปหน้าแรกและเริ่มสืบสวนใหม่ใช่หรือไม่? (ความคืบหน้าทั้งหมดจะถูกรีเซ็ต)')) {
+          if (typeof restartGame === 'function') restartGame();
+        }
+      }
+    });
+  }
+
+  if (restartDialog) {
+    if (cancelRestartBtn) {
+      cancelRestartBtn.addEventListener('click', () => restartDialog.close());
+    }
+    if (confirmRestartBtn) {
+      confirmRestartBtn.addEventListener('click', async () => {
+        confirmRestartBtn.disabled = true;
+        confirmRestartBtn.textContent = 'กำลังเริ่มใหม่...';
+        try {
+          if (typeof restartGame === 'function') {
+            await restartGame();
+          } else {
+            window.location.reload();
+          }
+        } catch {
+          confirmRestartBtn.disabled = false;
+          confirmRestartBtn.textContent = 'ยืนยันเริ่มใหม่';
+        }
+      });
+    }
+    restartDialog.addEventListener('click', (e) => {
+      if (e.target === restartDialog) restartDialog.close();
+    });
+    restartDialog.addEventListener('close', () => {
+      if (confirmRestartBtn) {
+        confirmRestartBtn.disabled = false;
+        confirmRestartBtn.textContent = 'ยืนยันเริ่มใหม่';
+      }
+    });
+  }
+
   const feed = document.getElementById('chatFeed');
   if (feed) {
     new MutationObserver(() => {
