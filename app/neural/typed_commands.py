@@ -88,11 +88,11 @@ def parse_typed_command(text, state, world):
     return None
 
 
-def interpret_game(text, state):
+def interpret_game(text, state, **kwargs):
     from app.neural.gemini_client import STORY_DATA, interpret
     from app.neural.repair import repair_parsed_command
     parsed = parse_typed_command(text, state, STORY_DATA)
     if parsed:
         repaired, _ = repair_parsed_command(parsed, STORY_DATA, state=state, raw_text=text)
         return repaired
-    return interpret(text, state)
+    return interpret(text, state, **kwargs)

@@ -278,3 +278,91 @@ def test_telemetry_token_and_latency_tracking():
     assert summary.avg_neural_latency_ms == 120.5
 
 
+def test_tfidf_ngram_weighting_penalizes_common_verbs():
+    """ทดสอบว่า Character N-gram TF-IDF ให้ค่าน้ำหนักคำนามหลักฐานสูงกว่าคำกริยาทั่วไปอย่างมีนัยสำคัญ"""
+    retriever = KNNExampleRetriever()
+    assert len(retriever.idf_weights) > 0
+
+    # คำกริยาทั่วไปที่พบบ่อยในคลัง (เช่น 'ตร', 'ตรวจ') ต้องมี IDF ต่ำกว่าคำเฉพาะ (เช่น 'ลิโ', 'โอร')
+    idf_verb = retriever.idf_weights.get("ตร", 1.0)
+    idf_rare = retriever.idf_weights.get("ลิโ", 1.0)
+    assert idf_rare > idf_verb
+
+    # ข้อความที่ตรงกันเฉพาะคำนาม (นาฬิกาพก) ต้องได้คะแนน TF-IDF สูงกว่าข้อความที่ตรงเฉพาะคำกริยา (ตรวจดู)
+    sim_noun = calculate_ngram_similarity("ขอส่องนาฬิกาพกหน่อย", "ตรวจดูนาฬิกาพก", idf_weights=retriever.idf_weights)
+    sim_verb = calculate_ngram_similarity("ตรวจดูตู้เสบียงอาหาร", "ตรวจดูนาฬิกาพก", idf_weights=retriever.idf_weights)
+    assert sim_noun > sim_verb
+
+
+def test_active_learning_co_learning_loop():
+    """ทดสอบวงจร Active Learning: เมื่อมีการซ่อมแซมคำสั่ง ข้อมูลที่ซ่อมจะถูกเพิ่มเข้า Memory Bank ทันที"""
+    retriever = KNNExampleRetriever()
+    initial_count = len(retriever.examples)
+
+    # จำลองการส่งตัวอย่างจากการซ่อมแซมเชิงสัญลักษณ์ (Active Learning from Repair / Reflexion)
+    active_example = {
+        "query": "ส่องนาฬิกาของคนตาย",
+        "action": "examine",
+        "target": "pocket_watch",
+        "confidence": 0.95,
+        "source": "active_learning_test",
+    }
+    retriever.add_example(active_example, persist=False)
+
+    assert len(retriever.examples) == initial_count + 1
+
+    # เมื่อค้นหาด้วยข้อความเดิมหรือใกล้เคียง ตัวอย่างใหม่ต้องถูกดึงขึ้นมาเป็น Top-1
+    results = retriever.retrieve("ส่องนาฬิกาคนตาย", k=3)
+    assert results[0]["target"] == "pocket_watch"
+    assert results[0]["source"] == "active_learning_test"
+
+
+def test_vector_centroid_classifier_archetype_probability():
+    """ทดสอบ Vector Space Centroid Classifier และ Softmax Probability Distribution"""
+    from app.profiler.schemas import PlaystyleDimensions, PlayerArchetype
+    from app.profiler.tracker import BehaviorTracker
+
+    tracker = BehaviorTracker(session_id="test_centroid_classifier")
+
+    # 1. ทดสอบ Forensic Analyst (Methodical สูง, Caution สูง)
+    d_forensic = PlaystyleDimensions(
+        methodical_score=0.95,
+        social_score=0.10,
+        caution_score=0.95,
+        curiosity_score=0.60,
+        decisiveness_score=0.40,
+    )
+    scores, arch = tracker._classify_archetype(d_forensic, GameState())
+    assert arch == PlayerArchetype.FORENSIC_ANALYST
+    assert scores.forensic > scores.interrogator
+    assert scores.forensic > scores.maverick
+    # ตรวจสอบว่าผลรวมความน่าจะเป็น Softmax รวมกันได้ใกล้เคียง 1.0 (+- 0.02 จากการปัดเศษ)
+    total_prob = scores.forensic + scores.interrogator + scores.maverick + scores.rusher + scores.balanced
+    assert 0.98 <= total_prob <= 1.02
+
+    # 2. ทดสอบ Psychological Interrogator (Social สูง)
+    d_social = PlaystyleDimensions(
+        methodical_score=0.20,
+        social_score=0.95,
+        caution_score=0.70,
+        curiosity_score=0.65,
+        decisiveness_score=0.35,
+    )
+    scores_soc, arch_soc = tracker._classify_archetype(d_social, GameState())
+    assert arch_soc == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR
+    assert scores_soc.interrogator > scores_soc.forensic
+
+    # 3. ทดสอบ Maverick Trailblazer (Caution ต่ำมาก หรือเผาของ)
+    d_maverick = PlaystyleDimensions(
+        methodical_score=0.20,
+        social_score=0.20,
+        caution_score=0.10,
+        curiosity_score=0.80,
+        decisiveness_score=0.60,
+    )
+    scores_mav, arch_mav = tracker._classify_archetype(d_maverick, GameState(burned_objects=["memo"]))
+    assert arch_mav == PlayerArchetype.MAVERICK_TRAILBLAZER
+    assert scores_mav.maverick > scores_mav.forensic
+
+
+

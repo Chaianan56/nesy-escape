@@ -8,6 +8,7 @@ app/neural/retriever.py — Dynamic kNN Few-Shot Retriever & N-gram Semantic Can
 """
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -37,18 +38,35 @@ def get_char_ngrams(text: str, n_range: Tuple[int, int] = (2, 3)) -> Set[str]:
     return ngrams
 
 
-def calculate_ngram_similarity(text_a: str, text_b: str, n_range: Tuple[int, int] = (2, 3)) -> float:
-    """คำนวณ Dice Coefficient ระหว่างสองข้อความโดยใช้ Character N-grams
+def calculate_ngram_similarity(
+    text_a: str,
+    text_b: str,
+    n_range: Tuple[int, int] = (2, 3),
+    idf_weights: Optional[Dict[str, float]] = None,
+) -> float:
+    """คำนวณความคล้ายคลึงระหว่างสองข้อความโดยใช้ Character N-grams พร้อมระบบถ่วงน้ำหนัก TF-IDF
 
-    Dice = 2 * |A ∩ B| / (|A| + |B|)
+    - หากส่ง idf_weights: คำนวณ TF-IDF Soft Dice เพื่อลดน้ำหนักคำกริยาซ้ำซาก และเพิ่มน้ำหนักคำนามเฉพาะ
+    - หากไม่ส่ง idf_weights: คำนวณ Dice Coefficient แบบดั้งเดิม (2 * |A ∩ B| / (|A| + |B|))
     ค่าคืนเป็น 0.0 (ไม่เกี่ยวข้องกัน) ถึง 1.0 (ตรงกันเป๊ะ)
     """
     grams_a = get_char_ngrams(text_a, n_range)
     grams_b = get_char_ngrams(text_b, n_range)
     if not grams_a or not grams_b:
         return 0.0
-    intersection = len(grams_a.intersection(grams_b))
-    return (2.0 * intersection) / (len(grams_a) + len(grams_b))
+    shared = grams_a.intersection(grams_b)
+    if not shared:
+        return 0.0
+
+    if idf_weights is not None:
+        default_w = 1.0
+        w_shared = sum(idf_weights.get(g, default_w) for g in shared)
+        w_a = sum(idf_weights.get(g, default_w) for g in grams_a)
+        w_b = sum(idf_weights.get(g, default_w) for g in grams_b)
+        denom = w_a + w_b
+        return (2.0 * w_shared) / denom if denom > 0 else 0.0
+
+    return (2.0 * len(shared)) / (len(grams_a) + len(grams_b))
 
 
 class KNNExampleRetriever:
@@ -63,7 +81,33 @@ class KNNExampleRetriever:
     def __init__(self, bank_file: Optional[Path] = None):
         self.bank_file = bank_file or BANK_PATH
         self.examples: List[Dict[str, Any]] = []
+        self.idf_weights: Dict[str, float] = {}
         self._load_bank()
+
+    def _compute_idf(self):
+        """คำนวณ Inverse Document Frequency (IDF) สำหรับ Character N-grams ทั้งหมดจาก Memory Bank
+
+        สูตร Smooth IDF:
+        IDF(g) = ln(1.0 + N / (1.0 + DF(g))) + 1.0
+        ช่วยลดน้ำหนักคำกริยาทั่วไปที่พบแทบทุกประโยค (เช่น 'ตรวจ', 'ดู', 'ไป')
+        และเพิ่มน้ำหนักคำนามเฉพาะ (Entity Clues เช่น 'นาฬิกา', 'ลิโอรา', 'แผงไฟ')
+        """
+        n_docs = len(self.examples)
+        if n_docs == 0:
+            self.idf_weights = {}
+            return
+
+        df: Dict[str, int] = {}
+        for ex in self.examples:
+            q = ex.get("query", "")
+            grams = get_char_ngrams(q)
+            for g in grams:
+                df[g] = df.get(g, 0) + 1
+
+        self.idf_weights = {
+            g: math.log(1.0 + (n_docs / (1.0 + count))) + 1.0
+            for g, count in df.items()
+        }
 
     def _load_bank(self):
         if self.bank_file.exists():
@@ -75,10 +119,12 @@ class KNNExampleRetriever:
                 self.examples = []
         if not self.examples:
             self.examples = self._default_fallback_bank()
+        self._compute_idf()
 
     def add_example(self, example: Dict[str, Any], persist: bool = False):
         """เพิ่มตัวอย่างใหม่เข้า Memory Bank สำหรับ Active Learning"""
         self.examples.append(example)
+        self._compute_idf()
         if persist:
             try:
                 self.bank_file.write_text(
@@ -89,7 +135,7 @@ class KNNExampleRetriever:
                 pass
 
     def retrieve(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """ค้นหาตัวอย่างที่มีความคล้ายคลึงทางภาษากับ query สูงสุด Top-K"""
+        """ค้นหาตัวอย่างที่มีความคล้ายคลึงทางภาษากับ query สูงสุด Top-K ด้วย TF-IDF N-gram Similarity"""
         if not query or not self.examples:
             return self.examples[:k]
 
@@ -101,7 +147,7 @@ class KNNExampleRetriever:
 
         for ex in self.examples:
             target_text = ex.get("query", "")
-            base_score = calculate_ngram_similarity(q_lower, target_text)
+            base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
 
             # ให้ Priority Boost หากประเภทคำสั่งสอดคล้องกับโครงสร้างประโยค
             boost = 1.0
@@ -139,7 +185,7 @@ class KNNExampleRetriever:
         candidate_scores: List[Tuple[float, Dict[str, Any]]] = []
         for ex in self.examples:
             target_text = ex.get("query", "")
-            base_score = calculate_ngram_similarity(q_lower, target_text)
+            base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
 
             boost = 1.0
             if has_sequence_hint and ex.get("action") == "sequence":
@@ -175,7 +221,7 @@ class KNNExampleRetriever:
                 cand_query = cand.get("query", "")
 
                 for sel in selected:
-                    sim_text = calculate_ngram_similarity(cand_query, sel.get("query", ""))
+                    sim_text = calculate_ngram_similarity(cand_query, sel.get("query", ""), idf_weights=self.idf_weights)
                     if cand_action and cand_action == sel.get("action"):
                         sim_text = max(sim_text, 0.45)
                     if sim_text > max_sim_to_selected:
