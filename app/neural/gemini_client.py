@@ -154,6 +154,7 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
         if remaining_ms <= 500:
             break
         try:
+            t_call_start = time.perf_counter()
             # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
             response = client.models.generate_content(
                 model=DEFAULT_MODEL,
@@ -170,10 +171,17 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                     temperature=0.0,
                 ),
             )
+            t_elapsed_ms = round((time.perf_counter() - t_call_start) * 1000, 2)
             if not response.text:
                 raise RuntimeError("Gemini API คืนคำตอบว่าง")
             parsed_result = ParsedCommand.model_validate_json(response.text)
             parsed_result.raw_text = text
+            parsed_result.latency_ms = t_elapsed_ms
+            parsed_result.parser_mode = "gemini_knn"
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                parsed_result.prompt_tokens = getattr(response.usage_metadata, "prompt_token_count", None)
+                parsed_result.completion_tokens = getattr(response.usage_metadata, "candidates_token_count", None)
+
             repaired_result, repair_note = repair_parsed_command(parsed_result, STORY_DATA, state=state, raw_text=text)
             if repair_note:
                 logger.info("Symbolic Repair applied: %s", repair_note)

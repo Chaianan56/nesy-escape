@@ -59,6 +59,9 @@ def append_to_research_csv(summary: SessionSummary) -> Path:
         "maverick_score",
         "rusher_score",
         "scaffolding_count",
+        "total_prompt_tokens",
+        "total_completion_tokens",
+        "avg_neural_latency_ms",
         "final_ending_id",
         "case_solved_successfully",
     ]
@@ -83,6 +86,9 @@ def append_to_research_csv(summary: SessionSummary) -> Path:
         "maverick_score": summary.archetype_scores.get("maverick", 0.0),
         "rusher_score": summary.archetype_scores.get("rusher", 0.0),
         "scaffolding_count": summary.scaffolding_count,
+        "total_prompt_tokens": summary.total_prompt_tokens,
+        "total_completion_tokens": summary.total_completion_tokens,
+        "avg_neural_latency_ms": summary.avg_neural_latency_ms,
         "final_ending_id": summary.final_ending_id or "",
         "case_solved_successfully": 1 if summary.case_solved_successfully else 0,
     }
