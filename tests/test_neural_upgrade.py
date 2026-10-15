@@ -155,3 +155,19 @@ def test_symbolic_repair_move_to_object_container():
     assert repaired.action == ActionType.MOVE
     assert repaired.target == "first_class_car"
     assert note is not None
+
+
+def test_symbolic_repair_recover_target_with_margin():
+    """ซ่อมคำสั่ง: target เป็น None แต่ระบุชื่อวัตถุในห้องปัจจุบันอย่างชัดเจน -> กู้คืน target ได้สำเร็จ"""
+    state = GameState(current_location="first_class_car")
+    raw_cmd = ParsedCommand(
+        action=ActionType.EXAMINE,
+        target=None,
+        raw_text="ส่องดูนาฬิกาพกกลไกหน่อย",
+        confidence=0.6,
+    )
+    repaired, note = repair_parsed_command(raw_cmd, STORY_DATA, state=state, raw_text="ส่องดูนาฬิกาพกกลไกหน่อย")
+    assert repaired.target == "pocket_watch"
+    assert note is not None
+    assert "Recovered missing target as 'pocket_watch'" in note
+

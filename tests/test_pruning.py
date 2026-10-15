@@ -19,7 +19,7 @@ load_dotenv()
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "story.json"
 STORY_DATA: Dict[str, Any] = json.loads(DATA_PATH.read_text(encoding="utf-8"))
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 client = None  # The manual benchmark creates its client only when invoked.
 
 

@@ -93,10 +93,12 @@ def repair_parsed_command(
                 score = score_entity_candidate(raw, oid, o_data)
                 if score >= 0.55:
                     candidates.append((score, oid))
-        if len(candidates) == 1:
-            best_oid = candidates[0][1]
-            updates["target"] = best_oid
-            repair_notes.append(f"Recovered missing target as '{best_oid}' from current room via N-gram matching")
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            if len(candidates) == 1 or candidates[0][0] >= 0.85 or (candidates[0][0] - candidates[1][0] >= 0.25):
+                best_oid = candidates[0][1]
+                updates["target"] = best_oid
+                repair_notes.append(f"Recovered missing target as '{best_oid}' from current room via N-gram matching")
 
     if not updates:
         return parsed, None
