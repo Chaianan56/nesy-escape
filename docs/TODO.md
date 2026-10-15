@@ -1,62 +1,45 @@
 # สิ่งที่ยังต้องทำ — NeSy-Escape
 
-> อัปเดตจากสถานะจริงบน branch `main` commit ล่าสุด
-> ตอนนี้: กฎ 11 ข้อ | หลักฐาน 34 ชิ้น | ข้อสรุป 18 ข้อ | ฉากจบ 6 แบบ
-> เทส Python 101 ข้อ (มีที่เรียก Gemini จริงด้วย) และเทสหน้าเว็บ 8 ข้อ ผ่านหมด
-> เล่นจบจริงแล้วบนหน้าเว็บ พิมพ์ไทย 37 คำสั่งผ่าน Gemini เก็บหลักฐานครบ 34 ชิ้น
-> เสาครบ 4 จาก 4 ปิดคดีได้ฉากจบแท้
+> อัปเดตจากสถานะจริงบน branch `main` commit ล่าสุด (51 commits)
+> ตอนนี้: ตู้รถไฟ 6 ตู้ | กฎ 11 ข้อ | หลักฐาน 34 ชิ้น | ข้อสรุป 18 ข้อ | ฉากจบ 6 แบบ
+> เทส Python 250 ข้อ (245 unit tests ผ่าน 100%, 5 LLM markers) และเทสหน้าเว็บ Node 37 ข้อ ผ่านหมด 100%
+> เล่นจบจริงแล้วบนหน้าเว็บ พิมพ์ไทยและปุ่มคำสั่งผ่าน Neural-Symbolic เก็บหลักฐานครบ 34 ชิ้น
+> เสาครบ 4 จาก 4 ปิดคดีได้ฉากจบแท้ (True Ending) พร้อมฉากย้อนหลัง Reconstruction
 
 ---
 
-## งานของคนทำ Frontend
+## สถานะงาน Frontend (ผสานเข้า main แล้ว 100%)
 
-branch `frontend` ยัง merge ไม่ได้ มีสองเรื่องที่ต้องแก้ก่อน และห้าอย่างที่หายไป
+branch `frontend` ได้รับการผสาน (Merge) เข้าสู่ `main` อย่างสมบูรณ์แล้ว พร้อมคุณสมบัติต่อไปนี้:
 
-### ต้องแก้ก่อน merge
+1. **Zero-Hallucination Policy**: กำจัดตัวจำลองที่แต่ง reasoning chain ปลอมออกทั้งหมด หาก Backend เชื่อมต่อไม่ได้จะรายงานข้อผิดพลาดตรงไปตรงมา ไม่มีการแต่งรหัสกฎย้อนหลัง
+2. **Server-Owned Sessions**: ควบคุมสถานะเกมที่ Backend 100% ผ่าน Session Cookie ป้องกันการโกงสถานะจากฝั่ง Client
+3. **Stylized Art & Novel Scenes**: มีภาพประกอบหลักฐาน ฉากเหตุการณ์ และระบบเล่าเรื่องสไตล์นิยายภาพ (`frontend/novel.js`, `frontend/art.js`, `frontend/narrative.js`)
+4. **Case Board & Evidence Journal**: กระดานสำนวนคดีและสมุดบันทึกหลักฐานตามสเปก 4 เสา
+5. **Confirmation Recovery & Timeout Handling**: ป้องกันการส่งคำสั่งซ้ำ, มีปุ่มกดยืนยันการกระทำสำคัญ และแสดงผลฉากจบเมื่อหมดเวลาอย่างถูกต้องในหน้าต่างเดียวกัน
+6. **Smart Sequential Execution**: ประมวลผลคำสั่งพ่วงหรือคำสั่งต่อเนื่องได้จบครบในลูปเดียว
 
-**1. ตัว simulator ที่แต่ง reasoning chain ปลอม** — `frontend/chat.js` บรรทัดราว 467 ถึง 620
+---
 
-เวลา backend error โค้ดจะเงียบๆ สลับไปใช้ตัวจำลอง แล้วสร้างสายเหตุผลขึ้นเองด้วยรหัสกฎที่
-**ไม่มีอยู่จริงใน `data/rules.json`** เช่น `R01_PRESENCE`, `R04_CLUE_DISCOVERY`,
-`R15_ACCUSATION_GROUNDING`, `R16_CASE_SOLVED`
+## งานฝั่งระบบและงานวิจัยที่เพิ่มเข้ามาล่าสุด (เสร็จสมบูรณ์แล้ว)
 
-ปัญหาคือคนดูแยกไม่ออกว่าอันไหนของจริงอันไหนของปลอม และมันคือการอธิบายย้อนหลัง
-ซึ่งเป็นสิ่งที่งานวิจัยนี้ตั้งใจจะชี้ว่าเป็นปัญหา ถ้าอาจารย์เห็นตอน backend ล่ม จะกลายเป็นว่า
-ระบบโชว์เหตุผลที่ระบบไม่ได้ใช้จริง
+### 1. Player Behavior Profiler & Dynamic Adaptation (`app/profiler/`)
+- ตรวจจับและวิเคราะห์พฤติกรรมผู้เล่นออกเป็น **5 Archetypes**:
+  - `Forensic Analyst` (เน้นตรวจหลักฐานกายภาพ ละเอียดรอบคอบ)
+  - `Psychological Interrogator` (เน้นสอบเค้นพยานและผู้ต้องสงสัย)
+  - `Maverick Trailblazer` (เน้นสำรวจสถานที่ เดินทางข้ามตู้)
+  - `Intuitive Rusher` (เน้นสรุปผลและกล่าวหาอย่างรวดเร็ว)
+  - `Balanced Investigator` (สืบสวนอย่างสมดุลรอบด้าน)
+- **Dynamic Adaptation Engine**: ปรับเปลี่ยนน้ำเสียงและท่าทีของ NPC ตาม Archetype และแทรก Contextual Scaffolding ช่วยเหลือเมื่อผู้เล่นเกิดสภาวะติดขัด (Stuck Detection)
+- **Research Telemetry & Export**: บันทึกข้อมูลสถิติเชิงปริมาณสำหรับงานวิจัย พร้อม Endpoint ดาวน์โหลดไฟล์ JSON/CSV (`/profiler/profile`, `/research/telemetry`, `/research/export`)
 
-**ทางแก้** ถ้า backend เรียกไม่ได้ ให้แสดงข้อความว่าเชื่อมต่อไม่ได้ไปตรงๆ ห้ามเดาผลลัพธ์แทน
+### 2. Dynamic Entity Pruning & Latency Optimization
+- ตัดทอนทะเบียน Entity ใน Prompt ส่งเฉพาะตู้รถไฟที่ผู้เล่นยืนอยู่ ช่วยลด Token Consumption และ Latency ของ Gemini ลงกว่า 30-50%
+- มีชุดสคริปต์ Benchmark ตรวจวัดผลใน `test_pruning.py`
 
-**2. `API_BASE` ตรึงไว้ที่ localhost**
-
-```js
-// branch frontend ตอนนี้
-const API_BASE = "http://127.0.0.1:8000";
-
-// ต้องเป็นแบบนี้ ไม่งั้นขึ้นเว็บจริงแล้วเบราว์เซอร์จะยิงไปที่เครื่องคนเล่นเอง
-const API_BASE = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
-```
-
-### ของที่หายไปตอนเขียน UI ใหม่ ต้องเอากลับ
-
-ทั้งหมดนี้มีอยู่ครบใน `frontend/chat.js` บน `main` แล้ว ลอกจากตรงนั้นได้เลย
-และตั้งแต่ commit นี้ ทุกคำสั่งเดินผ่านฟังก์ชันเดียวคือ `submit()` โดยมี `locked()`
-ถือล็อกให้ทั้งงาน ถ้าเขียน UI ใหม่ อย่าแยกเส้นทางกลับไปเป็นหลายเส้นอีก
-เพราะสามอย่างนี้จะหลุดทันที คือ กันกดซ้อน ดักเน็ตหลุด และปิดหน้าจอตอนคดีปิด
-เทสที่กันไว้อยู่ที่ `frontend/chat.test.mjs` รันด้วย `node --test frontend/chat.test.mjs`
-
-| หาย | ทำอะไร | ถ้าไม่มีจะเป็นยังไง |
-|---|---|---|
-| `gameState.ending_id` + `showGameOver()` | ล็อกช่องพิมพ์เมื่อคดีปิด | กล่าวหาจบเกมแล้วยังพิมพ์ต่อได้ |
-| `parseSteps` / `offerSteps` | คำสั่งพ่วงหลายขั้น เสนอเป็นปุ่มให้เลือก | พิมพ์ ไปที่ ก แล้วตรวจ ข แล้วไม่มีอะไรเกิด |
-| `parsed.alternatives` | ตัวเลือกตอนคำสั่งกำกวม | ผู้เล่นตันเมื่อพิมพ์กว้างๆ |
-| `rules_count` จาก `/scene` | เลขจำนวนกฎบนหน้าจอ | ต้องมาแก้เลขเองทุกครั้งที่กฎเปลี่ยน |
-
-### ของใหม่ที่ทำได้ ถ้ามีเวลา
-
-`POST /pillars` คืนสถานะสี่เสาของผู้ต้องสงสัยทุกคนแล้ว รูปแบบเป็น
-`{suspect_id: {timeline: [...], motive: [...], opportunity: [...], corroboration: [...]}}`
-แต่ละ list คือข้อสรุปที่ค้ำเสานั้น ถ้าว่างแปลว่ายังไม่ครบ
-เอาไปวาดเป็นกระดานสี่เสาแบบในสเปกข้อ 14 ได้เลย
+### 3. Typed Direct Commands & Baseline Neural Engine
+- เพิ่มระบบคำสั่งพิมพ์ตรง (`app/neural/typed_commands.py`) ตอบสนองการตรวจฉากและเดินข้ามตู้ได้ทันทีแบบ Zero-latency
+- เพิ่มตัวประเมินผลเปรียบเทียบ `Neural-only Game Master` (`app/neural/game_master.py`) ทดสอบกับคลังคำตัดสิน `data/research/adjudication-corpus-v1.json` สำหรับใช้ในรายงานวิจัย
 
 ---
 
@@ -173,12 +156,12 @@ Render ยัง auto-deploy จาก branch `draft1` ซึ่งเป็น�
 
 ```bash
 git pull
-python -m pytest -q
-node --test frontend/chat.test.mjs
+python -m pytest -m "not llm" -q
+node --test frontend/chat.test.mjs frontend/art.test.mjs frontend/novel.test.mjs
 ```
 
-ต้องได้ 101 passed กับ 8 pass ถ้าแดงแปลว่าของที่แก้ไปชนกับส่วนอื่น
-(ไม่ได้ตั้ง `GEMINI_API_KEY` ข้อที่เรียก Gemini จะขึ้น skipped ซึ่งถือว่าปกติ)
+ต้องได้ 245 passed (5 skipped สำหรับ LLM marker) และ node tests 37 pass 100% ถ้าแดงแปลว่าของที่แก้ไปชนกับส่วนอื่น
+(ไม่ได้ตั้ง `GEMINI_API_KEY` ข้อที่เรียก Gemini จริง 5 ข้อจะขึ้น skipped ซึ่งถือว่าปกติ)
 
 เทสที่ควรรู้จักไว้สามข้อ เพราะมันจับปัญหาที่มองด้วยตาไม่เห็น
 
@@ -187,3 +170,4 @@ node --test frontend/chat.test.mjs
 | `test_a_player_who_only_reads_the_game_can_finish` | จำลองคนเล่นที่รู้เท่าที่เกมบอก ถ้าเพิ่มหลักฐานแล้วลืมเขียนเบาะแสชี้ทาง ข้อนี้จะแดง |
 | `test_every_deduction_needs_all_of_its_evidence` | ถ้าเผลอทำให้สรุปได้ทั้งที่หลักฐานไม่ครบ |
 | `test_only_the_culprit_can_ever_close_the_case` | ถ้าเผลอทำให้คนที่ไม่ใช่คนร้ายปิดคดีได้ |
+

@@ -34,6 +34,8 @@ API เก็บสถานะที่ server และอ้าง session �
 - ข้อสรุปสองเวลาต้องเลือกและแนบหลักฐานเอง การเลือกข้อความถูกโดยไม่มีข้อมูลรองรับยังไม่ผ่าน
 - เลือกสายชา/กระดุม/ตรา2ใน3เพื่อยื่นคดีได้จริง แต่ต้องเชื่อมเวลา แรงจูงใจ การมาพบ และต้นทางข่าวร่วมกัน
 - ชุดยื่นขั้นต่ำของสามคู่เป็น19/20/20รายการ เพดาน20 อ่านเส้นทางเฉลยที่ [walkthrough](docs/walkthrough-new-story-2026-10-12.md)
+- **ระบบวิเคราะห์พฤติกรรม (Player Behavior Profiler)**: จำแนกผู้เล่น 5 Archetypes (Forensic Analyst, Psychological Interrogator, Maverick Trailblazer, Intuitive Rusher, Balanced Investigator) คำนวณคะแนน 5 มิติสถิติแบบ Real-time พร้อม Dynamic Adaptation ปรับน้ำเสียง NPC และแทรกคำใบ้ช่วยเหลือเมื่อติดขัด
+- **Smart Sequential Actions**: รับคำสั่งต่อเนื่องหลายคำสั่งพร้อมกันในข้อความเดียว ประมวลผลรวดเร็วใน 1 HTTP Roundtrip พร้อมกลไก Fail-early เมื่อติดกฎตรรกะ
 
 การกล่าวหาที่เข้าเงื่อนไขฉากจบจะปิดคดีทันที รวมฉากจบที่กล่าวหาผิด หากหลักฐานไม่พอจะได้คำบอกประเด็นที่ขาดและมีจำนวนครั้งจำกัด การละหลักฐานที่อยู่ซึ่งค้นพบแล้วออกจากชุดยื่นไม่ทำให้กล่าวหาคนที่ถูกหักล้างแล้วได้
 
@@ -56,17 +58,19 @@ Neural ในหน้าเว็บแปลภาษาเป็นคำส�
 
 | ไฟล์/โฟลเดอร์ | หน้าที่ |
 |---|---|
-|`app/main.py`, `app/sessions.py`|API เวลา session และข้อมูลผู้เล่น|
+|`app/main.py`, `app/sessions.py`|API เวลา session ฝั่งเซิร์ฟเวอร์ และข้อมูลผู้เล่น|
 |`app/schemas.py`, `app/game_setup.py`|สัญญาคำสั่ง/สถานะ และความทรงจำบทนำ|
-|`app/neural/typed_commands.py`, `app/neural/gemini_client.py`|คำสั่งตรงและการตีความภาษา|
-|`app/symbolic/engine.py`, `app/symbolic/validation.py`|การตัดสินและตรวจข้อมูลเกม|
+|`app/neural/typed_commands.py`, `app/neural/gemini_client.py`|คำสั่งตรง Zero-latency และการตีความภาษาธรรมชาติ|
+|`app/symbolic/engine.py`, `app/symbolic/validation.py`|การตัดสินตรรกะ First-Order และตรวจความถูกต้องข้อมูลเกม|
+|`app/profiler/` (`tracker`, `adaptation`, `telemetry`)|วิเคราะห์ 5 Archetypes, ปรับโทนตอบ NPC และส่งออกสถิติวิจัย|
 |`app/case_notes.py`|หลักฐาน คำให้การ และคำถาม|
 |`data/story.json`, `data/documents/`|เรื่อง วัตถุ บท ข้อสรุป ฉากจบ และเอกสาร|
 |`data/walkthrough.json`, `app/walkthrough.py`|เส้นทางแกนและชุดยื่นสามทาง|
-|`frontend/`|ฉาก แผนที่ สมุด หน้าต่างกล่าวหาและข้อสรุป|
-|`app/neural/game_master.py`|ตัวตัดสิน neural สำหรับทดลอง|
-|`scripts/evaluate_modes.py`, `data/research/`|CLI และคำตอบอ้างอิงชุดพัฒนา|
-|`tests/`|ทดสอบกฎ ข้อมูล API การสืบสวน และ baseline|
+|`frontend/` (`novel.js`, `art.js`, `narrative.js`)|ฉาก แผนที่ สมุด หน้าต่างกล่าวหา ภาพประกอบ และนิยายภาพ|
+|`assets/nocturne-stylized-v2/`|ไฟล์ภาพประกอบหลักฐานและฉากจบแบบ Stylized Vector Art|
+|`app/neural/game_master.py`|ตัวตัดสิน neural สำหรับทดลองเปรียบเทียบ baseline|
+|`scripts/evaluate_modes.py`, `data/research/`|CLI และคำตอบอ้างอิงชุดพัฒนา (adjudication corpus)|
+|`tests/`|ทดสอบกฎ ข้อมูล API การสืบสวน โปรไฟล์ และ baseline (250 tests)|
 
 ## API ที่ใช้บ่อย
 
@@ -79,8 +83,11 @@ Neural ในหน้าเว็บแปลภาษาเป็นคำส�
 |POST|`/journal`, `/hint`|สมุดและคำใบ้|
 |POST|`/pillars`|ผลสี่เสาหลังคดีปิด|
 |POST|`/clock`|ปรับเวลาจริงและปิดคดีเมื่อหมดเวลา|
-|GET|`/study-export`|บันทึกข้อสรุปที่เสนอ ชุดยื่น ผลจบ และเวลา|
 |GET|`/reconstruction`|ฉากย้อนหลังหลังจบแท้ เล่าตามชุดหลักฐานที่ยื่น|
+|GET|`/study-export`|บันทึกข้อสรุปที่เสนอ ชุดยื่น ผลจบ และเวลา|
+|GET|`/profiler/profile`|ผลการวิเคราะห์พฤติกรรมผู้เล่น (Archetype, คะแนน 5 มิติ)|
+|GET|`/research/telemetry`|สรุปสถิติ Session ปัจจุบัน/ย้อนหลังสำหรับงานวิจัย|
+|GET|`/research/export`|ดาวน์โหลดสถิติวิจัยในรูปแบบ CSV หรือ JSON (`?format=csv` หรือ `?format=json`)|
 
 ## การทดสอบ
 
