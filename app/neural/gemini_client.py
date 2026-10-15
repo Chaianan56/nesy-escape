@@ -154,12 +154,13 @@ def interpret(
 
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
     last_error: Optional[Exception] = None
-    deadline = time.monotonic() + 8
+    # Allow one bounded retry for transient timeouts without retrying indefinitely.
+    deadline = time.monotonic() + 20
     queue = list(clients)
     retried = False
     while queue:
         client = queue[0]
-        remaining_ms = min(int((deadline - time.monotonic()) * 1000), 3000)
+        remaining_ms = min(int((deadline - time.monotonic()) * 1000), 8000)
         if remaining_ms <= 500:
             break
         try:
@@ -171,7 +172,7 @@ def interpret(
                 config=types.GenerateContentConfig(
                     http_options=types.HttpOptions(
                         timeout=remaining_ms,
-                        headers={"X-Server-Timeout": "10"},
+                        headers={"X-Server-Timeout": "15"},
                         retry_options=types.HttpRetryOptions(attempts=1),
                     ),
                     system_instruction=build_interpret_system_prompt(

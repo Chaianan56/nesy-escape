@@ -1,4 +1,4 @@
-"""Exact typed shortcuts only; free-form or ambiguous text still goes to Neural."""
+"""Conservative offline commands; other free-form or ambiguous text goes to Neural."""
 import re
 from app.schemas import ActionType, ParsedCommand
 
@@ -49,6 +49,18 @@ def parse_typed_command(text, state, world):
     if match:
         locations = list(world['locations'])
         return command(ActionType.MOVE, locations[int(match[1])-1])
+    # คำสั่งไปหาบุคคลที่รู้จักแปลเป็นการเดินทางไปยังตู้ที่บุคคลนั้นอยู่
+    # คำว่า "หมอ" เป็นชื่อเรียกของดร. ลิโอราในเรื่อง จึงไม่ต้องเรียก Gemini
+    match = re.fullmatch(r'(?:ไปหา|ไปพบ)\s*(.+)', value)
+    if match:
+        person_label = match[1].strip()
+        person = resolve(person_label, ['suspects'])
+        if person is None and person_label in {'หมอ', 'แพทย์', 'คุณหมอ'}:
+            person = 'dr_liora_venn' if 'dr_liora_venn' in world['suspects'] else None
+        if person:
+            destination = world['suspects'][person].get('location')
+            if destination in world.get('locations', {}):
+                return command(ActionType.MOVE, destination)
     match = re.fullmatch(r'(?:ถาม|สอบปากคำ|คุยกับ)\s*(.+?)\s+เรื่อง\s*(.+)', value)
     if match:
         person = resolve(match[1], ['suspects'])

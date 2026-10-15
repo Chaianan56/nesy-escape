@@ -34,19 +34,10 @@ window.addEventListener('DOMContentLoaded', () => {
     journal.addEventListener('close', () => journalButton.focus());
   }
 
-  const route = document.querySelector('.train-map');
-  const dockLabel = document.querySelector('.dock-label');
-  if (route && dockLabel) {
-    dockLabel.replaceWith(route);
-    const routeLabel = document.querySelector('.route-label');
-    if (routeLabel) routeLabel.textContent = 'ตำแหน่งบนขบวน · พิมพ์เพื่อเดินทาง';
-  }
-
+  // Keep the latest response panel layered over the scene artwork, as in the main UI.
   const art = document.querySelector('.scene-art');
   const dialoguePanel = document.querySelector('.dialogue-panel');
-  if (art && dialoguePanel) {
-    art.append(dialoguePanel);
-  }
+  if (art && dialoguePanel) art.append(dialoguePanel);
 
   const quickActions = document.querySelector('.quick-actions');
   if (quickActions) {

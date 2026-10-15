@@ -24,6 +24,11 @@ const NovelUI = (() => {
     document.getElementById('dialogueProgress').textContent=`${position+1} / ${pages.length} · Enter หรือคลิก${position===pages.length-1?'เพื่อปิด':'เพื่ออ่านต่อ'} · พิมพ์คำสั่งต่อได้เลย`;
     box.hidden=false;
   }
+  function paintIntro(){
+    document.getElementById('introBriefing').textContent=pages[position];
+    document.getElementById('introPageStatus').textContent=`หน้า ${position+1} / ${pages.length}`;
+    document.getElementById('startInvestigation').textContent=position===pages.length-1?'เริ่มสืบสวน':'อ่านต่อ';
+  }
   function close(){
     pages=[];position=0;if(box)box.hidden=true;
     const feed=document.getElementById('chatFeed');if(feed)feed.scrollTop=0;
@@ -31,7 +36,10 @@ const NovelUI = (() => {
   }
   function next(){
     if(introResolve){
+      if(position<pages.length-1){position++;paintIntro();return;}
       document.getElementById('introScreen').hidden=true;
+      pages=[];position=0;
+      document.getElementById('startInvestigation').textContent='เริ่มสืบสวน';
       const resolve=introResolve;introResolve=null;resolve();return;
     }
     if(!pages.length)return;
@@ -49,7 +57,7 @@ const NovelUI = (() => {
     setBusy(busy);
   }
   function intro(briefing){
-    elements();document.getElementById('introBriefing').textContent=briefing;
+    elements();pages=split(briefing);if(!pages.length)pages=[String(briefing)];position=0;paintIntro();
     document.getElementById('introScreen').hidden=false;
     document.getElementById('chatInput').disabled=true;
     document.getElementById('sendBtn').disabled=true;

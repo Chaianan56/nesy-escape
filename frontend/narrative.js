@@ -109,7 +109,7 @@ const StoryScenes = (() => {
       if (!response.ok) throw Error();
       const result = await response.json();
       if (result.scene) await play(result.scene, {mode:'reconstruction'});
-      else renderError('คดีนี้ยังไม่มีฉากประกอบเหตุการณ์จากหลักฐานที่ยื่น');
+      else renderError('คดีนี้ยังไม่มีฉากประกอบเหตุการณ์จากหลักฐานที่ค้นพบ');
     } catch { renderError('เปิดฉากย้อนหลังไม่สำเร็จ ลองอีกครั้งได้'); }
     finally {loading=false; if(button)button.disabled=false;}
   }

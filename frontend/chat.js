@@ -14,11 +14,10 @@
 const API_BASE = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
 
 let gameState = null;
-let timeLimitSeconds = 3600;
+let timeLimitSeconds = 5400;
 let locationsMap = {};
 let suspectsMap = {};
 let accusableSuspects = null;
-let maxSubmittedEvidence = 15;
 let suspectLocations = {};
 let restrictedLocations = [];
 let objectsMap = {};
@@ -26,6 +25,9 @@ let rulesCount = null;
 let gameOver = false;   // ปิดคดีแล้วหรือหมดเวลาแล้ว ห้ามรับคำสั่งอีก
 let busy = false;       // มีคำสั่งค้างอยู่ในสาย ห้ามส่งซ้อน
 let clockTimer = null;
+let sessionMonitorTimer = null;
+let sessionCheckPending = false;
+let serverSessionId = null;
 let clockPending = false;
 let deadlineReached = false;
 let clockFailures = 0;
@@ -103,6 +105,27 @@ async function tickClock() {
   }
 }
 
+// The backend keeps games in memory. If it restarts while this tab is open,
+// /scene creates a fresh session for the stale cookie; reload into that case.
+async function checkServerSession() {
+  if (!serverSessionId || sessionCheckPending) return;
+  sessionCheckPending = true;
+  try {
+    const response = await fetch(`${API_BASE}/scene`, { signal: AbortSignal.timeout(4000) });
+    if (!response.ok) return;
+    const scene = await response.json();
+    const nextSessionId = scene.initial_state?.session_id;
+    if (nextSessionId && nextSessionId !== serverSessionId) {
+      serverSessionId = nextSessionId;
+      window.location.reload();
+    }
+  } catch {
+    // The server may be temporarily offline. Check again on the next interval.
+  } finally {
+    sessionCheckPending = false;
+  }
+}
+
 
 function setEndingStatus(message, retry = false) {
   const status = document.getElementById('endingStatus');
@@ -140,6 +163,10 @@ async function initGame() {
 
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
+    serverSessionId = gameState.session_id || null;
+    timeLimitSeconds = sceneData.time_limit_seconds || 5400;
+    if (sessionMonitorTimer !== null) clearInterval(sessionMonitorTimer);
+    sessionMonitorTimer = setInterval(checkServerSession, 5000);
     if (gameState.started_at == null && !gameState.ending_id) {
       if (sceneData.opening_scene && typeof StoryScenes !== 'undefined') {
         await StoryScenes.play(sceneData.opening_scene, {mode:'opening'});
@@ -154,11 +181,9 @@ async function initGame() {
     deadlineReached = false;
     if (clockTimer !== null) clearInterval(clockTimer);
     clockTimer = setInterval(tickClock, 1000);
-    timeLimitSeconds = sceneData.time_limit_seconds || 3600;
     locationsMap = sceneData.locations || {};
     suspectsMap = sceneData.suspects || {};
     accusableSuspects = sceneData.accusable_suspects || Object.keys(suspectsMap);
-    maxSubmittedEvidence = sceneData.max_submitted_evidence || 15;
     suspectLocations = sceneData.suspect_locations || {};
     restrictedLocations = sceneData.restricted_locations || [];
     objectsMap = sceneData.objects || {};
@@ -197,7 +222,7 @@ function renderBriefing(briefingText) {
   card.innerHTML = `
     <div class="card-header-bar">
       <span class="badge info">📋 บรีฟคดี (Case Briefing)</span>
-      <span class="mode-tag">นอกเทิร์นเอกซ์เพรส 1938</span>
+      <span class="mode-tag">คดีบนรถด่วน Nocturne Express · 1938</span>
     </div>
     <div class="story-text">${escapeHtml(briefingText)}</div>
     
@@ -205,9 +230,9 @@ function renderBriefing(briefingText) {
       <div class="hints-title">💡 ตัวอย่างคำสั่งที่พิมพ์ได้ในเกม:</div>
       <div class="hints-list">
         <div>• <code>ดูรอบๆ</code> — สำรวจตู้รถที่ยืนอยู่และดูสิ่งที่มองเห็นได้</div>
-        <div>• <code>ไปที่จุดเกิดเหตุ</code> — เดินทางไปยังห้องเก็บของบริการ</div>
-        <div>• <code>ตรวจดูสมุดบันทึกของผู้ตาย</code> — ตรวจสอบวัตถุหรือหลักฐานในห้อง</div>
-        <div>• <code>ขอสอบปากคำพนักงานควบคุมรถหน่อย</code> — พูดคุยกับพยานหรือผู้ต้องสงสัย</div>
+        <div>• <code>ไปตู้ 4</code> — ไปยังห้องพักของแคสเซียน ซึ่งเป็นที่เกิดเหตุ</div>
+        <div>• <code>ตรวจนาฬิกาพกกลไก</code> — ตรวจหลักฐานที่มองเห็นในตู้</div>
+        <div>• <code>สอบปากคำกิเดียน</code> — คุยกับพยานหรือผู้ต้องสงสัยที่อยู่ในตู้เดียวกัน</div>
         <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — ต้องมีหลักฐานเข้าเงื่อนไขฉากจบของบุคคลนั้นก่อน หากยังไม่ครบให้สืบสวนต่อ</div>
       </div>
     </div>
@@ -235,13 +260,20 @@ function updateLocationHUD() {
 // ชี้ขั้นต่อไปจากสิ่งที่ผู้เล่นทำไปแล้วเท่านั้น ไม่ดูหลักฐานหรือข้อสรุป จึงไม่เฉลยตัวคนร้าย
 function nextObjective(state) {
   const car = id => (locationsMap[id] || id).split(":")[0];
-  const short = id => (suspectsMap[id] || id).split(" (")[0];
   const visited = state.visited_locations || [];
   const talked = state.interrogated_suspects || [];
   if (!visited.includes("first_class_car")) return "ไปดูที่เกิดเหตุ · พิมพ์ ไปตู้ 4";
   const left = Object.keys(suspectsMap).filter(id => !talked.includes(id));
   left.sort((a, b) => (suspectLocations[b] === state.current_location) - (suspectLocations[a] === state.current_location));
-  if (left.length) return `ยังไม่ได้คุยกับ${short(left[0])} (${car(suspectLocations[left[0]])})`;
+  if (left.length) {
+    const id = left[0];
+    const place = car(suspectLocations[id]);
+    if (id === "gideon_hart") return `ยังไม่ได้คุยกับกิเดียน ฮาร์ต (${place})`;
+    if (id === "dr_liora_venn") return `ยังไม่ได้คุยกับแพทย์ประจำขบวน (${place})`;
+    if (id === "car_attendant") return `ยังไม่ได้คุยกับพนักงานตู้เสบียง (${place})`;
+    if (id === "patient_witness") return `ยังไม่ได้คุยกับผู้ป่วย (${place})`;
+    return `ยังไม่ได้คุยกับผู้โดยสาร (${place})`;
+  }
   const unseen = Object.keys(locationsMap).filter(id => !visited.includes(id) && !restrictedLocations.includes(id));
   if (unseen.length) return `ยังไม่ได้สำรวจ ${unseen.map(car).join(", ")}`;
   return "ตรวจของที่เหลือ แล้วเทียบในสมุดคดี · พร้อมแล้วพิมพ์ กล่าวหา ตามด้วยชื่อ";
@@ -346,24 +378,11 @@ async function submit(text, opts = {}) {
       gameState = (await sRes.json()).initial_state;
     }
 
-    // Typed evidence numbers refer to the numbered entries in the journal.
-    const marker = text.indexOf('หลักฐาน:');
-    if (marker >= 0) {
-      const numbers = text.slice(marker + 'หลักฐาน:'.length).trim().split(/[\s,]+/);
-      const response = await fetch(`${API_BASE}/journal`, {method:'POST'});
-      if (!response.ok) throw Error(`HTTP ${response.status}`);
-      const journal = await response.json();
-      if (!numbers.length || numbers.some(n => !/^[1-9]\d*$/.test(n) || !journal.evidence[Number(n)-1])) {
-        removeLoading(); renderError('ระบุเลขหลักฐานจากสมุดคดี เช่น กล่าวหากิเดียน หลักฐาน: 1, 2, 3'); return null;
-      }
-      opts = {...opts, submittedEvidence: numbers.map(n => journal.evidence[Number(n)-1].id)};
-      text = text.slice(0, marker).trim();
-    }
     const res = await fetch(`${API_BASE}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text, ...(opts.submittedEvidence ? {submitted_evidence: opts.submittedEvidence} : {}) }),
-      signal: AbortSignal.timeout(12000), // longer than the server's 8s Gemini budget
+      signal: AbortSignal.timeout(25000), // longer than the server's 20s Gemini budget
     });
     if (gameOver) return null;
     if (!res.ok) {
@@ -382,9 +401,6 @@ async function submit(text, opts = {}) {
     updateClock();
     removeLoading();
     if (gameState?.ending_id) { showGameOver(data.decision); return data; }
-    // กล่าวหาโดยยังไม่ยื่นหลักฐาน: เปิดหน้าต่างเลือกหลักฐานแทนการให้พิมพ์เลข
-    const askEvidence = data.parsed?.action === 'accuse' && data.decision.violated_rule_id === 'R_SUBMITTED_EVIDENCE' && !opts.submittedEvidence
-      && data.parsed?.target && typeof AccusationUI !== 'undefined';
     let askInference = false;
     if (data.parsed?.action === 'infer' && !opts.submittedEvidence && !data.decision.allowed
         && typeof InferenceUI !== 'undefined') {
@@ -394,9 +410,8 @@ async function submit(text, opts = {}) {
       const question = (journal.inference_questions || []).find(q => q.choices.some(c => c.target === data.parsed.target));
       if (question && !gameOver) { InferenceUI.open(question, journal.evidence); askInference = true; }
     }
-    if (askEvidence) AccusationUI.open(data.parsed.target);
     // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
-    else if (!askInference && !(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
+    if (!askInference && !(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
     renderConversationSummary(data.conversation_summaries || []);
     if (typeof GameArt !== 'undefined') GameArt.onResult(data);
     if (typeof PixelUI !== 'undefined') PixelUI.refresh();
@@ -549,7 +564,7 @@ function offerSteps(steps, confirm = false) {
   const box = document.createElement("div");
   box.className = "msg-system";
   box.innerHTML = confirm
-    ? (steps[0]?.action === 'infer'
+      ? (steps[0]?.action === 'infer'
       ? `<div class="story-text"><strong>ขั้นต่อไปต้องให้คุณเสนอข้อสรุปเอง</strong><br>เลือกทำต่อเพื่อเลือกข้อสรุปและแนบหลักฐาน</div>`
       : `<div class="story-text"><strong>ขั้นต่อไปย้อนกลับไม่ได้</strong><br>กดยืนยันถ้าต้องการทำต่อ</div>`)
     : `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>เลือกสิ่งที่ต้องการ</div>`;

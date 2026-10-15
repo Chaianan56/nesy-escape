@@ -19,27 +19,29 @@ import vm from "node:vm";
 
 const SRC = readFileSync(new URL("./chat.js", import.meta.url), "utf-8");
 
-test("เลขหลักฐานที่พิมพ์อ้างอิงรายการในสมุดคดี", async () => {
+test("กล่าวหาไม่ต้องเปิดสมุดหรือแปลงเลขหลักฐาน", async () => {
   let body;
+  let journalRequests = 0;
   const c = loadChat(async (url, options) => {
-    if (url.endsWith('/journal')) return {ok:true,json:async()=>({evidence:[{id:'pocket_watch'},{id:'wall_clock'}]})};
+    if (url.endsWith('/journal')) journalRequests++;
     body=JSON.parse(options.body); return reply();
   });
   await c.sandbox.submit('กล่าวหากิเดียน หลักฐาน: 2, 1');
-  assert.deepEqual(body,{text:'กล่าวหากิเดียน',submitted_evidence:['wall_clock','pocket_watch']});
+  assert.deepEqual(body,{text:'กล่าวหากิเดียน หลักฐาน: 2, 1'});
+  assert.equal(journalRequests,0);
 });
 
-test("เลขหลักฐานที่ไม่มีอยู่ไม่ถูกส่งเป็นคำกล่าวหา", async () => {
+test("การกล่าวหาไม่ต้องเลือกเลขหลักฐาน", async () => {
   let commands=0;
-  const c = loadChat(async url => {
-    if (url.endsWith('/journal')) return {ok:true,json:async()=>({evidence:[]})};
-    commands++; return reply();
+  const c = loadChat(async (url, options) => {
+    if (url.endsWith('/command')) { commands++; assert.deepEqual(JSON.parse(options.body), {text:'กล่าวหากิเดียน หลักฐาน: 99'}); }
+    return reply();
   });
   await c.sandbox.submit('กล่าวหากิเดียน หลักฐาน: 99');
-  assert.equal(commands,0);
+  assert.equal(commands,1);
 });
 
-test("ยื่นเฉพาะหลักฐานที่เลือกโดยไม่ส่งสถานะเกม", async () => {
+test("ส่งหลักฐานที่เลือกได้เฉพาะตอนเสนอข้อสรุป", async () => {
   let body;
   const c = loadChat(async (url, options) => {
     body = JSON.parse(options.body);
@@ -108,7 +110,7 @@ test("เป้าหมายพาไปที่เกิดเหตุ แ�
     suspectLocations = {gideon_hart:'lounge_car', vincent_gray:'second_class_car'}; restrictedLocations = ['locomotive'];`);
   const goal = (s) => c.read(`nextObjective(${JSON.stringify(s)})`);
   assert.match(goal({current_location:'lounge_car', visited_locations:['lounge_car']}), /ตู้ 4/);
-  assert.equal(goal({current_location:'second_class_car', visited_locations:['first_class_car'], interrogated_suspects:[]}), 'ยังไม่ได้คุยกับวินเซนต์ เกรย์ (ตู้ 6)');
+  assert.equal(goal({current_location:'second_class_car', visited_locations:['first_class_car'], interrogated_suspects:[]}), 'ยังไม่ได้คุยกับผู้โดยสาร (ตู้ 6)');
   assert.equal(goal({visited_locations:['first_class_car'], interrogated_suspects:['gideon_hart','vincent_gray']}), 'ยังไม่ได้สำรวจ ตู้ 5, ตู้ 6');
   assert.match(goal({visited_locations:['first_class_car','lounge_car','second_class_car'], interrogated_suspects:['gideon_hart','vincent_gray']}), /กล่าวหา/);
 });

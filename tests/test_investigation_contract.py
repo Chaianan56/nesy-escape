@@ -126,7 +126,7 @@ def test_claim_pillar_requires_player_inference_and_its_submitted_support(engine
     assert not engine.pillar_status('gideon_hart', state)['timeline']
 
 
-def test_accusation_retains_necessary_inference_support_without_irrelevant_extras(engine):
+def test_accusation_uses_all_discovered_evidence_and_ignores_submitted_subset(engine):
     walkthrough = json.loads((Path(__file__).resolve().parents[1] / 'data/walkthrough.json').read_text(encoding='utf-8'))
     support = walkthrough['inference_evidence']
     submitted = walkthrough['winning_cases']['button_wax']
@@ -136,12 +136,10 @@ def test_accusation_retains_necessary_inference_support_without_irrelevant_extra
     assert 'letter_opener' in state.claim_evidence['claim_two_times']
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, submitted)
     assert decision.allowed and decision.state_changes['ending'] == 'true_ending'
-    # The accepted inference may lose irrelevant attachments, never its actual support.
-    incomplete = [eid for eid in submitted if eid != 'wall_clock']
-    decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, incomplete)
-    assert decision.state_changes.get('ending') != 'true_ending'
-    offered = state.model_copy(update={'discovered_evidence': incomplete})
-    assert not engine.pillar_status('gideon_hart', offered)['timeline']
+    # A subset supplied by an old caller cannot hide evidence already found in the case.
+    decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, ['pocket_watch'])
+    assert decision.allowed and decision.state_changes['ending'] == 'true_ending'
+    assert engine.pillar_status('gideon_hart', state)['timeline']
 
 
 def test_known_exculpatory_evidence_cannot_be_hidden_from_accusation(engine):
@@ -153,13 +151,11 @@ def test_known_exculpatory_evidence_cannot_be_hidden_from_accusation(engine):
     assert not decision.state_changes
 
 
-def test_submission_cap_is_authored_and_failed_accusations_persist(engine):
+def test_accusation_does_not_apply_a_submission_cap_and_failed_accusations_persist(engine):
     engine.world['max_submitted_evidence'] = 1
     state = GameState(discovered_evidence=['wall_clock', 'pocket_watch'])
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, state.discovered_evidence)
-    assert decision.violated_rule_id == 'R_SUBMITTED_EVIDENCE'
-    assert '1' in decision.message
-    decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, ['pocket_watch'])
+    assert decision.violated_rule_id == 'R012_ACCUSE_ENDING_REQUIREMENTS'
     assert apply_changes(state, decision.state_changes).failed_accusations == 1
 
 
