@@ -4,9 +4,19 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .monogram{border-radius:0;transform:rotate(45deg);font-size:18px;width:35px;height:35px}
 .wordmark{position:absolute;left:50%;transform:translateX(-50%);align-items:center;white-space:nowrap}
 .wordmark>span{color:var(--gold);font-size:25px;letter-spacing:5px}.wordmark small{color:#b9ab91;letter-spacing:3px}
-.header-right{gap:12px}.utility-button,.header-right .history-open{border:1px solid #776446;background:transparent;color:var(--gold);padding:11px 16px;font-size:13px}
-.game-layout{display:block;max-width:1500px;margin:18px auto 0;padding:0 28px}.center-column{position:relative}
-.scene-frame{border-color:#796344;box-shadow:0 18px 70px #0006;background:#080d13}
+.game-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 380px;
+  gap: 20px;
+  max-width: 1680px;
+  margin: 18px auto 0;
+  padding: 0 24px;
+  align-items: stretch;
+}
+.center-column {
+  position: relative;
+  min-width: 0;
+}
 .scene-art{aspect-ratio:auto;height:clamp(320px,calc(100dvh - 350px),850px);background:#080d13}
 .scene-art>img{width:100%;height:100%;object-fit:contain}
 .scene-topline{position:static;background:#101923;padding:11px 18px;font-size:12px}
@@ -44,3 +54,457 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .ending-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.ending-controls [hidden]{display:none}.ending-controls button{white-space:normal}.ending-controls:has(:not([hidden])){padding-bottom:10px}
 
 .evidence-source{display:block;color:var(--gold);margin:10px 0;line-height:1.7}.case-question{padding:16px;margin:12px 0;border:1px solid var(--line);background:#15212d}.case-question small{color:var(--gold)}.journal-tabs{flex-wrap:wrap}.conversation-summary li{margin:12px 0}.conversation-summary>p{color:var(--muted)}
+
+/* ============================================================
+   RIGHT PANEL: DETECTIVE'S ARCHIVE (3 TABS)
+   ============================================================ */
+.journal-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  height: clamp(600px, calc(100vh - 180px), 940px);
+  box-sizing: border-box;
+}
+
+.panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-header-row .eyebrow {
+  font: 11px monospace;
+  letter-spacing: 2.5px;
+  color: var(--gold);
+}
+.panel-subtitle {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.journal-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 14px 0 12px;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 2px;
+}
+.journal-tabs button {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  padding: 8px 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.journal-tabs button:hover {
+  color: var(--cream);
+}
+.journal-tabs button[aria-selected="true"] {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  font-weight: bold;
+}
+.tab-icon {
+  font-size: 14px;
+}
+
+.journal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #554832 #0d1520;
+}
+
+/* Tab 1: Chat History Log */
+.archive-tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+.archive-headline strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+.archive-headline small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.scroll-latest-btn {
+  font-size: 11.5px;
+  padding: 5px 10px;
+  background: #141f2c;
+  border: 1px solid #3c4c5e;
+  border-radius: 4px;
+  color: var(--gold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.scroll-latest-btn:hover {
+  background: #1e2e42;
+  border-color: var(--gold);
+}
+.archive-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.archive-chat-item {
+  background: #111a24;
+  border: 1px solid #283748;
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #e4e9f0;
+}
+.archive-chat-item.msg-user {
+  background: #132018;
+  border-left: 3px solid var(--gold);
+}
+.archive-chat-item.msg-error {
+  background: #2b1a1a;
+  border-color: #c84d4d;
+}
+.archive-chat-item .card-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.archive-chat-item .badge {
+  color: var(--gold);
+  font-weight: 500;
+}
+.archive-chat-item .mode-tag {
+  font-family: monospace;
+  color: var(--muted);
+  font-size: 10px;
+}
+.archive-chat-item .story-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+.archive-msg-meta {
+  font-size: 10.5px;
+  color: var(--gold);
+  margin-bottom: 6px;
+  font-family: monospace;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Tab 2: Items & Documents */
+.archive-section {
+  margin-bottom: 20px;
+}
+.archive-section-title {
+  font-size: 13px;
+  color: var(--gold);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+  margin: 0 0 10px;
+}
+.inventory-grid {
+  display: grid;
+  gap: 8px;
+}
+.inventory-item-card {
+  background: #141f2c;
+  border: 1px solid #2e3e50;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.inventory-item-card strong {
+  display: block;
+  color: var(--cream);
+  font-size: 12.5px;
+}
+.inventory-item-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.doc-card {
+  background: #141f2c;
+  border: 1px solid #4a402a;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.doc-card-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.doc-card-badge {
+  background: rgba(217, 183, 117, 0.15);
+  border: 1px solid #947b4a;
+  color: var(--gold);
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.doc-card-date {
+  color: var(--muted);
+  font-size: 10px;
+}
+.doc-card-title {
+  display: block;
+  font-size: 13px;
+  color: var(--cream);
+  margin-bottom: 4px;
+}
+.doc-card-summary {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+.doc-read-btn {
+  background: linear-gradient(180deg, #2b394a, #1a2533);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  padding: 6px 12px;
+  font-size: 11.5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.doc-read-btn:hover {
+  background: linear-gradient(180deg, #3d4f66, #243447);
+  color: #f5d48e;
+  border-color: #f5d48e;
+}
+
+/* Tab 3: People */
+.person-card {
+  background: #141f2c;
+  border: 1px solid #283748;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.person-card.person-here {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, #182534, #121d28);
+}
+.person-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.person-name {
+  font-size: 13.5px;
+  color: var(--cream);
+}
+.person-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.badge-here {
+  background: rgba(104, 186, 130, 0.2);
+  color: #68ba82;
+  border: 1px solid #68ba82;
+}
+.badge-away {
+  background: rgba(154, 165, 177, 0.15);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.person-status {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.person-actions button {
+  padding: 5px 10px;
+  font-size: 11px;
+  background: #182534;
+  border: 1px solid #36485c;
+  color: var(--cream);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.person-actions button:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.person-testimonies {
+  margin-top: 10px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+.testimony-label {
+  display: block;
+  color: var(--gold);
+  font-size: 10.5px;
+  margin-bottom: 4px;
+}
+.testimony-quote {
+  margin: 6px 0;
+  padding: 6px 10px;
+  background: #0d1520;
+  border-left: 2px solid #947b4a;
+  font-size: 11.5px;
+  color: #dbe2ea;
+  font-style: italic;
+  line-height: 1.5;
+}
+.testimony-quote span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  font-style: normal;
+  margin-top: 2px;
+}
+
+.journal-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Document Dialog */
+.document-dialog {
+  width: min(720px, 92vw);
+  max-height: 85vh;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 0;
+  background: #0e1620;
+  color: var(--cream);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.85);
+}
+.document-dialog::backdrop {
+  background: rgba(4, 8, 12, 0.85);
+  backdrop-filter: blur(4px);
+}
+.doc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  background: #121c28;
+}
+.doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.doc-badge {
+  background: rgba(200, 77, 77, 0.2);
+  color: #c84d4d;
+  border: 1px solid #c84d4d;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.doc-date {
+  color: var(--muted);
+  font-size: 11px;
+}
+.doc-title {
+  margin: 0 16px;
+  font: 18px Georgia, serif;
+  color: #f5d48e;
+  flex: 1;
+}
+.doc-close-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.doc-close-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.doc-paper {
+  background: #f4ecdc;
+  color: #1a1610;
+  padding: 32px 36px;
+  font-family: Georgia, 'Courier New', serif;
+  font-size: 14.5px;
+  line-height: 1.8;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.08);
+  max-height: calc(85vh - 140px);
+  overflow-y: auto;
+}
+.doc-text-body {
+  white-space: pre-wrap;
+}
+.doc-footer {
+  padding: 10px 24px;
+  background: #0a1118;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+@media(max-width: 1200px) {
+  .game-layout {
+    grid-template-columns: 200px minmax(0, 1fr) 320px;
+    gap: 14px;
+    padding: 0 16px;
+  }
+}
+@media(max-width: 960px) {
+  .game-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  .case-panel {
+    display: none;
+  }
+}
+@media(max-width: 720px) {
+  .game-layout {
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px;
+  }
+  .journal-panel {
+    height: 480px;
+  }
+}
+
