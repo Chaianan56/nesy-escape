@@ -69,7 +69,7 @@ class DynamicAdaptationEngine:
             # หากผู้เล่นถือหลักฐานมัดตัว (เช่น กระดุม หรือ เศษแฟ้ม C) กิเดียนจะระแวงขึ้นทันที
             has_incriminating = any(
                 c in state.discovered_evidence
-                for c in ["clue_obsidian_cufflink", "clue_burnt_folder_c", "clue_wax_seal_imprint"]
+                for c in ["obsidian_cufflink", "burnt_folder_c", "wax_seal_imprint"]
             )
             if has_incriminating or archetype == PlayerArchetype.FORENSIC_ANALYST:
                 return (
@@ -168,7 +168,7 @@ class DynamicAdaptationEngine:
             )
 
         # 4. ผู้เล่นพยายามกล่าวหา (accuse) แต่หลักฐานยังห่างไกล
-        if not decision.allowed and decision.violated_rule_id == "R012_ACCUSATION_EVIDENCE":
+        if not decision.allowed and decision.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS":
             return (
                 "💡 *[ข้อสังเกตของผู้สืบสวน]*: การชี้ตัวคนร้ายต้องการเสาหลักฐาน (4 เสา: เวลาตาย, แรงจูงใจ, โอกาส, หลักฐานมัดตัว) "
                 "ตรวจสอบกระดานคดีทางด้านซ้ายเพื่อดูว่ายังมีเงื่อนงำข้อใดที่ยังไม่คลี่คลาย"

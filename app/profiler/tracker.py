@@ -53,6 +53,8 @@ class BehaviorTracker:
         current_sig = {
             "action": action_name,
             "target": parsed.target,
+            "topic": getattr(parsed, "topic", None),
+            "code": getattr(parsed, "code", None),
             "location": state.current_location,
             "allowed": decision.allowed,
         }
@@ -137,20 +139,29 @@ class BehaviorTracker:
         )
 
     def _check_is_looping(self, current: Dict[str, Any]) -> bool:
-        """ตรวจหาพฤติกรรมวนซ้ำ เช่น สั่งเดิมติดต่อกัน 3 ครั้ง หรือสลับที่เดิม"""
+        """ตรวจหาพฤติกรรมวนซ้ำ เช่น สั่งเดิมติดต่อกัน 2 ครั้งขึ้นไป หรือสลับที่เดิม"""
         if len(self.recent_actions) < 2:
             return False
 
-        # ซ้ำคำสั่งเดิมเป๊ะ 2 ครั้งขึ้นไปแล้วไม่ได้ข้อมูล
+        # ซ้ำคำสั่งเดิมเป๊ะ (action, target, topic, code ตรงกัน)
         prev = self.recent_actions[-1]
-        if prev["action"] == current["action"] and prev["target"] == current["target"]:
+        if (
+            prev["action"] == current["action"]
+            and prev["target"] == current["target"]
+            and prev.get("topic") == current.get("topic")
+            and prev.get("code") == current.get("code")
+        ):
             return True
 
-        # วนสลับสถานที่แบบ A -> B -> A -> B
+        # วนสลับสถานที่แบบ A -> B -> A
         if len(self.recent_actions) >= 3 and current["action"] == ActionType.MOVE.value:
             r1 = self.recent_actions[-1]
             r2 = self.recent_actions[-2]
-            if r2.get("target") == current.get("target"):
+            if (
+                r1.get("action") == ActionType.MOVE.value
+                and r2.get("action") == ActionType.MOVE.value
+                and r2.get("target") == current.get("target")
+            ):
                 return True
 
         return False
@@ -256,7 +267,7 @@ class BehaviorTracker:
         examine_c = self.action_counts.get(ActionType.EXAMINE.value, 0)
         clue_eff = (len(state.discovered_evidence) / examine_c) if examine_c > 0 else 0.0
 
-        is_solved = (state.ending_id == "ending_true_justice")
+        is_solved = (state.ending_id in ("true_ending", "ending_true_justice"))
 
         return SessionSummary(
             session_id=self.session_id,

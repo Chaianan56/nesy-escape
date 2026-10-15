@@ -190,3 +190,71 @@ def test_api_profiler_and_research_endpoints():
     data_exp = res_exp.json()
     assert "count" in data_exp
     assert "sessions" in data_exp
+
+
+def test_true_ending_marks_case_solved():
+    """ตรวจว่า true_ending บันทึก is_solved เป็น True เสมอ"""
+    tracker = BehaviorTracker(session_id="test_true_ending")
+    state = GameState(ending_id="true_ending")
+    summary = tracker.get_summary(state)
+    assert summary.case_solved_successfully is True
+
+
+def test_interrogate_different_topics_not_looping():
+    """สอบถามคนเดิมคนละหัวข้อต้องไม่ถือว่าวนลูป แต่ซ้ำหัวข้อเดิมถือว่าลูป"""
+    tracker = BehaviorTracker(session_id="test_topics")
+    state = GameState(current_location="lounge_car")
+
+    # ถามเรื่อง account ครั้งที่ 1
+    p1 = tracker.record_turn(
+        "ถามกิเดียนเรื่องบัญชี",
+        ParsedCommand(action=ActionType.INTERROGATE, target="gideon_hart", topic="account", raw_text="..."),
+        Decision(allowed=True, message="..."),
+        state,
+    )
+    assert p1.looping_count == 0
+
+    # ถามเรื่อง message ครั้งที่ 2 (คนเดิม แต่คนละหัวข้อ -> ไม่ใช่ลูป)
+    p2 = tracker.record_turn(
+        "ถามกิเดียนเรื่องข้อความ",
+        ParsedCommand(action=ActionType.INTERROGATE, target="gideon_hart", topic="message", raw_text="..."),
+        Decision(allowed=True, message="..."),
+        state,
+    )
+    assert p2.looping_count == 0
+    assert tracker.turns[-1].is_looping is False
+
+    # ถามเรื่อง message ครั้งที่ 3 ซ้ำเดิม -> เป็นลูป
+    p3 = tracker.record_turn(
+        "ถามกิเดียนเรื่องข้อความซ้ำ",
+        ParsedCommand(action=ActionType.INTERROGATE, target="gideon_hart", topic="message", raw_text="..."),
+        Decision(allowed=True, message="..."),
+        state,
+    )
+    assert p3.looping_count == 1
+    assert tracker.turns[-1].is_looping is True
+
+
+def test_r012_scaffolding_nudge_triggered():
+    """ตรวจว่าเมื่อผิดกฎ R012_ACCUSE_ENDING_REQUIREMENTS จะได้รับคำแนะนำกระดานคดี 4 เสา"""
+    adaptation = DynamicAdaptationEngine()
+    state = GameState(current_location="lounge_car")
+    tracker = BehaviorTracker(session_id="test_r012")
+    profile = tracker.record_turn(
+        "เริ่ม",
+        ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."),
+        Decision(allowed=True, message="ok"),
+        state,
+    )
+
+    denied = Decision(
+        allowed=False,
+        message="ยังไม่พร้อมกล่าวหา",
+        violated_rule_id="R012_ACCUSE_ENDING_REQUIREMENTS",
+    )
+    cmd = ParsedCommand(action=ActionType.ACCUSE, target="gideon_hart", raw_text="กล่าวหากิเดียน")
+    adapted, note = adaptation.adapt(denied, cmd, state, profile)
+
+    assert "การชี้ตัวคนร้ายต้องการเสาหลักฐาน" in adapted.message
+    assert note is not None
+

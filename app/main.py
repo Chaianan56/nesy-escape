@@ -59,7 +59,7 @@ def get_tracker(session_id: str | None = None) -> BehaviorTracker:
         trackers[sid] = BehaviorTracker(
             session_id=sid,
             total_locations=len(engine.world.get("locations", {})),
-            total_evidence=len(engine.world.get("objects", {})),
+            total_evidence=sum(1 for v in engine.world.get("objects", {}).values() if v.get("type") == "evidence"),
         )
     return trackers[sid]
 

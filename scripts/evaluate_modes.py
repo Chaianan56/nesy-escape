@@ -38,6 +38,8 @@ class SymbolicAdjudicator:
                 and not self.engine.is_out_of_time(state)):
             decision = accusation_submission(self.engine, command, state, submitted_evidence)
         else:
+            if command.action == ActionType.INFER and submitted_evidence is not None and not command.evidence:
+                command = command.model_copy(update={"evidence": list(submitted_evidence)})
             decision = self.engine.decide(command, state)
         if decision.allowed:
             new_state = apply_changes(state, decision.state_changes)
