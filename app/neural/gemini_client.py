@@ -29,6 +29,7 @@ except ImportError:
 from app.schemas import ParsedCommand, GameState
 # นำเข้า Prompt Builder จาก prompts.py
 from app.neural.prompts import build_interpret_system_prompt
+from app.neural.repair import repair_parsed_command
 
 # โหลดตัวแปรสภาพแวดล้อมจาก .env
 load_dotenv()
@@ -175,7 +176,10 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                 raise RuntimeError("Gemini API คืนคำตอบว่าง")
             parsed_result = ParsedCommand.model_validate_json(response.text)
             parsed_result.raw_text = text
-            return parsed_result
+            repaired_result, repair_note = repair_parsed_command(parsed_result, STORY_DATA, state=state, raw_text=text)
+            if repair_note:
+                logger.info("Symbolic Repair applied: %s", repair_note)
+            return repaired_result
         except Exception as e:
             last_error = e
             if _is_quota_error(e):

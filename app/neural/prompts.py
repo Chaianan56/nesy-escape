@@ -11,14 +11,24 @@ from typing import Any, Dict, List, Optional, Tuple
 import json
 import re
 from app.schemas import GameState
+from app.neural.retriever import get_retriever, score_entity_candidate
 
 # ==============================================================================
 # คัดกรอง Dynamic Entity เพื่อประหยัด Token และลด Latency
+# อัปเกรดเป็น Semantic Candidate Scorer ด้วย Character N-grams
+# ==============================================================================
 
-#ตัดทอนรายการ Entity (objects, suspects, locations) ให้เหลือเฉพาะที่เกี่ยวข้องในตาปัจจุบัน เพื่อลด Token Consumption และลด Latency ของ LLM
-def prune_entities(world_data: Dict[str, Any], state: Optional[GameState] = None,
-    user_text: Optional[str] = None) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+def prune_entities(
+    world_data: Dict[str, Any],
+    state: Optional[GameState] = None,
+    user_text: Optional[str] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    """ตัดทอนรายการ Entity (objects, suspects, locations) ให้เหลือเฉพาะที่เกี่ยวข้องในตาปัจจุบัน
 
+    กลไก:
+    1. Guaranteed Co-presence: รวม Entity ในตู้ปัจจุบัน และของในกระเป๋า/ที่พบแล้ว 100%
+    2. N-gram Semantic Candidate Scoring: คำนวณความคล้ายคลึงระหว่างข้อความผู้เล่นกับชื่อไทย/คำพ้อง/ID
+    """
     raw_objects = world_data.get("objects", {})
     raw_suspects = world_data.get("suspects", {})
     raw_locations = world_data.get("locations", {})
@@ -30,44 +40,50 @@ def prune_entities(world_data: Dict[str, Any], state: Optional[GameState] = None
 
     # 1. คัดกรอง Objects
     relevant_objects = {}
-    for obj_id, obj in raw_objects.items():
-        is_relevant = False
+    other_scored_objects = []
 
-        # วัตถุอยู่ในตู้รถปัจจุบัน
+    for obj_id, obj in raw_objects.items():
+        # วัตถุอยู่ในตู้รถปัจจุบัน (Guaranteed Co-presence)
         if state and obj.get("location") == state.current_location:
-            is_relevant = True
+            relevant_objects[obj_id] = obj
         # วัตถุอยู่ในกระเป๋า หรือค้นพบแล้ว
         elif state and (obj_id in state.inventory or obj_id in state.discovered_evidence):
-            is_relevant = True
-        # วัตถุถูกเอ่ยถึงในข้อความผู้เล่น
-        elif clean_text:
-            name_th = obj.get("name_th", "").lower()
-            clean_name = re.sub(r"[\(\)]", " ", name_th)
-            keywords = [kw.strip() for kw in clean_name.split() if len(kw.strip()) > 1]
-            if obj_id.lower() in clean_text or any(kw in clean_text for kw in keywords):
-                is_relevant = True
-
-        if is_relevant:
             relevant_objects[obj_id] = obj
+        # วัตถุอื่นๆ นอกห้อง: คำนวณ N-gram similarity
+        elif clean_text:
+            score = score_entity_candidate(clean_text, obj_id, obj)
+            if score >= 0.22:
+                relevant_objects[obj_id] = obj
+            elif score > 0.08:
+                other_scored_objects.append((score, obj_id, obj))
+
+    # หากยังไม่มีวัตถุที่เอ่ยถึง ดึง Top-3 Candidates ที่มีคะแนนสูงสุด
+    if len(relevant_objects) < 3 and other_scored_objects:
+        other_scored_objects.sort(key=lambda x: x[0], reverse=True)
+        for _, oid, odata in other_scored_objects[:3]:
+            relevant_objects[oid] = odata
 
     if not relevant_objects:
         relevant_objects = raw_objects
 
     # 2. คัดกรอง Suspects
     relevant_suspects = {}
-    for sus_id, sus in raw_suspects.items():
-        is_relevant = False
-        if state and sus.get("location") == state.current_location:
-            is_relevant = True
-        elif clean_text:
-            name_th = sus.get("name_th", "").lower()
-            role = sus.get("role", "").lower()
-            keywords = [kw.strip() for kw in name_th.split() if len(kw.strip()) > 1]
-            if sus_id.lower() in clean_text or any(kw in clean_text for kw in keywords) or (role and role in clean_text):
-                is_relevant = True
+    other_scored_suspects = []
 
-        if is_relevant:
+    for sus_id, sus in raw_suspects.items():
+        if state and sus.get("location") == state.current_location:
             relevant_suspects[sus_id] = sus
+        elif clean_text:
+            score = score_entity_candidate(clean_text, sus_id, sus)
+            if score >= 0.22:
+                relevant_suspects[sus_id] = sus
+            elif score > 0.08:
+                other_scored_suspects.append((score, sus_id, sus))
+
+    if len(relevant_suspects) < 2 and other_scored_suspects:
+        other_scored_suspects.sort(key=lambda x: x[0], reverse=True)
+        for _, sid, sdata in other_scored_suspects[:2]:
+            relevant_suspects[sid] = sdata
 
     if not relevant_suspects:
         relevant_suspects = raw_suspects
@@ -102,11 +118,39 @@ def _pick(d: Dict[str, Any], *preds) -> List[str]:
     first = next(iter(d), None)
     return [next((k for k, v in d.items() if pred(k, v)), first) for pred in preds]
 
+def _format_example_entry(ex: Dict[str, Any], default_loc: str = "first_class_car") -> str:
+    raw_query = ex.get("query", ex.get("raw", ""))
+    target = ex.get("target")
+    if target is None and ex.get("category") == "overview":
+        target = default_loc
+    body = {
+        "action": ex.get("action", "unknown"),
+        "target": target,
+        "instrument": ex.get("instrument"),
+        "raw_text": raw_query,
+        "confidence": ex.get("confidence", 0.95),
+        "alternatives": ex.get("alternatives", []),
+    }
+    if ex.get("code") is not None:
+        body["code"] = ex["code"]
+    if ex.get("topic") is not None:
+        body["topic"] = ex["topic"]
+    return f'ผู้เล่น: "{raw_query}"\nตอบ: ' + json.dumps(body, ensure_ascii=False, indent=2)
+
 # ==============================================================================
 # สร้าง System Prompt สำหรับ interpret()
+# รองรับ: Zero-Shot, Static Few-Shot, และ Dynamic kNN Few-Shot
+# ==============================================================================
 
-def build_interpret_system_prompt(world_data: Dict[str, Any], state: Optional[GameState] = None,
-    user_text: Optional[str] = None, prune: bool = True) -> str:
+def build_interpret_system_prompt(
+    world_data: Dict[str, Any],
+    state: Optional[GameState] = None,
+    user_text: Optional[str] = None,
+    prune: bool = True,
+    use_knn: bool = True,
+    k_examples: int = 5,
+    zero_shot: bool = False,
+) -> str:
     topics_text = "\n".join(
         f"  - person: {sid} | topic: {node.get('topic', '')} | ประเด็น: {node.get('label', node.get('topic', ''))}"
         for sid, person in world_data.get('suspects', {}).items()
@@ -155,8 +199,25 @@ def build_interpret_system_prompt(world_data: Dict[str, Any], state: Optional[Ga
     fixture_name = objects.get(fixture_id, {}).get("name_th", fixture_id)
     loc_open_name = locations.get(loc_open, {}).get("name_th", loc_open)
     sus_name = suspects.get(sus_id, {}).get("name_th", sus_id)
+    curr_loc = state.current_location if state else loc_open
 
-    examples = "\n\n".join([
+    # 1. โหมด Zero-Shot
+    if zero_shot:
+        examples = "(โหมด Zero-Shot: ไม่มีตัวอย่างประกอบ ให้สกัดตาม Schema และ Entity Grounding Table)"
+
+    # 2. โหมด Dynamic kNN Few-Shot (Memory Bank Retrieval)
+    elif use_knn and user_text:
+        retriever = get_retriever()
+        retrieved_items = retriever.retrieve(user_text, k=k_examples)
+        formatted_items = [_format_example_entry(item, default_loc=curr_loc) for item in retrieved_items]
+        examples = (
+            "[Dynamic Few-Shot Examples (คัดสรรจาก Memory Bank ตามความคล้ายคลึงของข้อความปัจจุบัน)]\n\n"
+            + "\n\n".join(formatted_items)
+        )
+
+    # 3. โหมด Static Few-Shot ดั้งเดิม
+    else:
+        examples = "\n\n".join([
         "[กลุ่ม A: คำสั่งปกติที่ถูกกฎ]",
         "(ตัวอย่างนี้สมมติว่าผู้เล่นอยู่ที่ตู้ '" + str(loc_open) + "')",
         _prompt("examine", "ดูรอบๆ ห้องนี้มีอะไรบ้าง", target=loc_open),
