@@ -8,7 +8,6 @@ app/neural/retriever.py — Dynamic kNN Few-Shot Retriever & N-gram Semantic Can
 """
 
 import json
-import math
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple

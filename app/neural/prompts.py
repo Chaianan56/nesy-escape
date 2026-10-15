@@ -9,7 +9,6 @@ prompts.py — คลังเก็บ System Prompts และ Dynamic Entity 
 
 from typing import Any, Dict, List, Optional, Tuple
 import json
-import re
 from app.schemas import GameState
 from app.neural.retriever import get_retriever, score_entity_candidate
 

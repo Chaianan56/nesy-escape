@@ -1,18 +1,17 @@
 """
-test_pruning.py — Benchmark Script เปรียบเทียบ Latency และ Token Savings
-ระหว่าง Full Original Prompt ( Unpruned ) กับ Dynamic Pruning
+scripts/benchmark_pruning.py — Benchmark Script เปรียบเทียบ Latency และ Token Savings
+ระหว่าง Full Original Prompt (Unpruned) กับ Dynamic Semantic Pruning
 
 วิธีรัน:
-    python test_pruning.py
+    python scripts/benchmark_pruning.py
 """
 
-import os
 import sys
 import time
 from pathlib import Path
 from typing import List, Tuple
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -24,7 +23,7 @@ from app.neural.gemini_client import (
     STORY_DATA,
     DEFAULT_MODEL,
     llm_online,
-    _clients
+    _clients,
 )
 
 try:
@@ -36,27 +35,27 @@ except ImportError:
 TEST_CASES: List[Tuple[str, GameState]] = [
     (
         "ดูรอบๆ",
-        GameState(current_location="lounge_car")
+        GameState(current_location="lounge_car"),
     ),
     (
         "เดินไปตู้โดยสารชั้นหนึ่ง",
-        GameState(current_location="lounge_car")
+        GameState(current_location="lounge_car"),
     ),
     (
         "ตรวจดูนาฬิกาพกกลไก",
-        GameState(current_location="first_class_car")
+        GameState(current_location="first_class_car"),
     ),
     (
         "ขอสอบปากคำกิเดียน ฮาร์ตหน่อย",
-        GameState(current_location="lounge_car")
+        GameState(current_location="lounge_car"),
     ),
     (
         "ตรวจดูเศษเอกสารไหม้ไฟ",
-        GameState(current_location="first_class_car")
+        GameState(current_location="first_class_car"),
     ),
     (
         "เดินไปที่ตู้โดยสารชั้นสอง",
-        GameState(current_location="dining_car_staff")
+        GameState(current_location="dining_car_staff"),
     ),
 ]
 
@@ -69,7 +68,6 @@ def measure_prompt_length():
 
     full_prompt = build_interpret_system_prompt(STORY_DATA, prune=False)
     full_len = len(full_prompt)
-    # ประมาณ Token เบื้องต้นสำหรับภาษาไทย/อังกฤษ mixed (~3.5 chars/token)
     full_tokens_est = int(full_len / 3.5)
 
     print(f"🔹 Full Prompt (Unpruned): {full_len:,} Chars (~{full_tokens_est:,} Tokens)")

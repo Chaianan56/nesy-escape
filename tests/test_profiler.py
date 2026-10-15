@@ -2,9 +2,6 @@
 tests/test_profiler.py — ทดสอบระบบ Behavior Profiler, Dynamic Adaptation, และ Research Telemetry
 """
 
-import os
-from pathlib import Path
-import pytest
 from fastapi.testclient import TestClient
 
 from app import main
@@ -12,7 +9,7 @@ from app.schemas import ActionType, Decision, GameState, ParsedCommand
 from app.profiler.schemas import PlayerArchetype
 from app.profiler.tracker import BehaviorTracker
 from app.profiler.adaptation import DynamicAdaptationEngine
-from app.profiler.telemetry import save_session_telemetry, ensure_telemetry_dir
+from app.profiler.telemetry import save_session_telemetry
 
 client = TestClient(main.app)
 

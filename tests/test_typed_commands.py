@@ -1,4 +1,3 @@
-import time
 from types import SimpleNamespace
 from threading import Thread
 from fastapi.testclient import TestClient
