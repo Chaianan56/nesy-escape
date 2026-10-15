@@ -36,25 +36,16 @@ MAX_FAILED_ACCUSATIONS = 3
 ACCUSATION_RULE = "R012_ACCUSE_ENDING_REQUIREMENTS"
 
 
-def accusation_submission(engine, cmd, state, submitted):
-    """Evaluate a player's submission without removing anything from their journal."""
-    rule = "R_SUBMITTED_EVIDENCE"
-    if submitted is None or not submitted:
-        message = "พิมพ์ชื่อผู้ถูกกล่าวหาพร้อมเลขหลักฐานจากสมุดคดี เช่น กล่าวหากิเดียน หลักฐาน: 1, 2, 3 การส่งคำกล่าวหาที่เข้าเงื่อนไขอาจจบคดี"
-    elif len(set(submitted)) != len(submitted) or not set(submitted) <= set(state.discovered_evidence):
-        message = "ใช้ได้เฉพาะหลักฐานที่ค้นพบแล้ว และเลือกแต่ละชิ้นได้ครั้งเดียว"
-    elif len(submitted) > engine.max_submitted_evidence:
-        message = f"ยื่นหลักฐานได้ไม่เกิน {engine.max_submitted_evidence} ชิ้น เลือกเฉพาะชิ้นที่รองรับคำกล่าวหานี้จริงๆ"
-    else:
-        # Check the complete known case first: omitting exculpatory facts must not bypass rules.
-        offered = state.model_copy(update={"discovered_evidence": list(submitted)})
-        full = engine.decide(cmd, state)
-        decision = engine.decide(cmd, offered) if full.allowed else full
-        if decision.violated_rule_id != ACCUSATION_RULE:
-            return decision
-        return failed_accusation(engine, cmd.target, offered, decision, state.failed_accusations + 1)
-    return Decision(allowed=False, message=message, violated_rule_id=rule,
-                    reasoning_chain=[ReasoningStep(rule_id=rule, description=message, passed=False)])
+def accusation_submission(engine, cmd, state, submitted=None):
+    """Judge an accusation against the complete evidence record the player found.
+
+    ``submitted`` remains accepted for older callers, but is deliberately ignored:
+    selecting a subset must not hide relevant or exculpatory evidence.
+    """
+    decision = engine.decide(cmd, state)
+    if decision.violated_rule_id != ACCUSATION_RULE:
+        return decision
+    return failed_accusation(engine, cmd.target, state, decision, state.failed_accusations + 1)
 
 
 def failed_accusation(engine, suspect_id, offered, decision, attempt):
@@ -69,11 +60,11 @@ def failed_accusation(engine, suspect_id, offered, decision, attempt):
         return Decision(allowed=False, message=message, violated_rule_id=ACCUSATION_RULE,
                         reasoning_chain=chain, state_changes={"ending": "unproven", "failed_accusations": attempt})
     left = MAX_FAILED_ACCUSATIONS - attempt
-    # "เหลือโอกาส" นับเฉพาะครั้งที่หลักฐานไม่พอ ถ้าหลักฐานที่ยื่นเข้าเงื่อนไขฉากจบใด
+    # "เหลือโอกาส" นับเฉพาะครั้งที่หลักฐานที่พบยังไม่เข้าเงื่อนไขฉากจบใด
     # แม้เป็นฉากจบผิด คดีปิดทันที ข้อความต้องบอกทั้งสองกรณี ไม่ให้ผู้เล่นคิดว่าลองได้ฟรี
-    message = "\n".join(["หลักฐานที่ยื่นยังไม่พอจะสรุปคดี", ""] + checklist + [
-        "", f"ยื่นใหม่ได้อีก {left} ครั้ง ถ้าครั้งสุดท้ายยังไม่พอ คดีจะปิดแบบพิสูจน์ไม่ได้",
-        "ถ้าหลักฐานที่ยื่นพอจะสรุปคดีได้ คดีจะปิดทันทีตามข้อสรุปนั้น แม้ข้อสรุปจะผิดและยังเหลือโอกาสอยู่"])
+    message = "\n".join(["หลักฐานที่พบยังไม่พอจะสรุปคดี", ""] + checklist + [
+        "", f"กล่าวหาใหม่ได้อีก {left} ครั้ง ถ้าครั้งสุดท้ายยังไม่พอ คดีจะปิดแบบพิสูจน์ไม่ได้",
+        "ถ้าหลักฐานที่พบพอจะสรุปคดีได้ คดีจะปิดทันทีตามข้อสรุปนั้น แม้ข้อสรุปจะผิดและยังเหลือโอกาสอยู่"])
     return Decision(allowed=False, message=message, violated_rule_id=ACCUSATION_RULE,
                     reasoning_chain=chain, state_changes={"failed_accusations": attempt})
 
@@ -197,7 +188,8 @@ def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, Li
     for pillar in pillar_names(world):
         condition = spec.get(pillar, {})
         need = condition.get("requires_deductions", [])
-        claims_ok = all(_claim_held(cid, state, world) for cid in condition.get("requires_claims", []))
+        claims_ok = all(_claim_held(cid, state, world) or _claim_supported(cid, state.discovered_evidence, state, world)
+                        for cid in condition.get("requires_claims", []))
         found[pillar] = list(need) if need and all(d in held for d in need) and claims_ok else []
     return found
 
@@ -220,7 +212,8 @@ def _ending_matches(ending, suspect_id, state, world):
         and not any(d in held for d in ending.get("denies_deductions", []))
         and all(e in state.discovered_evidence for e in ending.get("requires_evidence", []))
         and not any(e in state.discovered_evidence for e in ending.get("denies_evidence", []))
-        and all(_claim_held(cid, state, world) for cid in ending.get("requires_claims", []))
+        and all(_claim_held(cid, state, world) or _claim_supported(cid, state.discovered_evidence, state, world)
+                for cid in ending.get("requires_claims", []))
     )
 
 
@@ -805,7 +798,7 @@ class SymbolicEngine:
         labels = self.world.get("pillar_labels", {})
         rules = self.world.get("deductions", {})
         return [f"  ✓ {labels.get(p, p)} — {', '.join(rules.get(d, {}).get('name_th', d) for d in found[p])}"
-                if found[p] else f"  ✗ {labels.get(p, p)} — หลักฐานที่ยื่นยังพิสูจน์ด้านนี้ไม่ได้"
+                if found[p] else f"  ✗ {labels.get(p, p)} — หลักฐานที่พบยังพิสูจน์ด้านนี้ไม่ได้"
                 for p in pillar_names(self.world)]
 
     # ใช้สำหรับ UI และการวิเคราะห์ผล ไม่ใช่ส่วนของการตัดสิน

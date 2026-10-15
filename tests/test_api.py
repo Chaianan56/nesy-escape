@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.schemas import ActionType, GameState, ParsedCommand
+from app.neural.gemini_client import NeuralUnavailable
 
 client = TestClient(main.app)
 
@@ -186,27 +187,26 @@ def test_missing_vincent_clue_keeps_case_open_then_allows_accusation(fake_llm):
 
 
 @pytest.mark.parametrize('submission', [None, [], ['unknown'], ['wire_cutters', 'wire_cutters']])
-def test_accusation_rejects_missing_or_invalid_submission(fake_llm, submission):
+def test_accusation_uses_all_discovered_evidence_without_submission(fake_llm, submission):
     fake_llm(ActionType.ACCUSE, 'vincent_gray')
     state = GameState(discovered_evidence=['wire_cutters', 'vincent_blood', 'cut_copper_wire'])
     seed_state(state)
     result = client.post('/command', json={'text': 'กล่าวหาวินเซนต์', 'submitted_evidence': submission}).json()
-    assert result['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
-    assert result['new_state'] == state.model_dump()
+    assert result['decision']['allowed']
+    assert result['new_state']['ending_id'] == 'the_scapegoat'
 
 
-def test_submission_not_entire_inventory_decides_ending(fake_llm):
+def test_entire_discovered_inventory_decides_ending(fake_llm):
     fake_llm(ActionType.ACCUSE, 'gideon_hart')
     state = GameState(discovered_evidence=list(main.engine.world['objects']))
     seed_state(state)
-    selected = ['dossier_missing_file_c', 'burnt_folder_c', 'file_c_initials']
-    result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': selected}).json()
+    result = client.post('/command', json={'text': 'กล่าวหากิเดียน'}).json()
     assert result['decision']['allowed']
-    assert result['new_state']['ending_id'] == 'cold_justice'
+    assert result['new_state']['ending_id'] == 'true_ending'
     assert result['new_state']['discovered_evidence'] == state.discovered_evidence
     journal = client.post('/journal').json()
-    assert journal['submitted_evidence'] == selected
-    assert 'D01_TRUE_MURDER_WINDOW' not in {d['id'] for d in journal['deductions']}
+    assert journal['submitted_evidence'] == state.discovered_evidence
+    assert 'D01_TRUE_MURDER_WINDOW' in {d['id'] for d in journal['deductions']}
     client.post('/new-game')
     assert client.post('/journal').json()['submitted_evidence'] is None
 
@@ -240,23 +240,21 @@ def test_inference_uses_actual_submission_and_exports_attempts(monkeypatch):
     assert export['inference_attempts'][1]['evidence'] == INFERENCE_EVIDENCE
 
 
-def test_ticking_every_box_is_rejected_without_counting_a_failure(fake_llm):
+def test_direct_accusation_after_finding_everything_ends_the_case(fake_llm):
     fake_llm(ActionType.ACCUSE, 'gideon_hart')
     everything = [k for k, v in main.engine.world['objects'].items() if v['type'] == 'evidence']
     seed_state(GameState(discovered_evidence=everything, validated_claims=['claim_two_times'],
                         claim_evidence={'claim_two_times': INFERENCE_EVIDENCE}))
-    result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': everything}).json()
-    assert result['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
-    assert result['new_state']['failed_accusations'] == 0
-    result = client.post('/command', json={'text': 'กล่าวหากิเดียน', 'submitted_evidence': TRUE_ENDING_EVIDENCE}).json()
+    result = client.post('/command', json={'text': 'กล่าวหากิเดียน'}).json()
+    assert result['decision']['allowed']
     assert result['new_state']['ending_id'] == 'true_ending'
+    assert result['new_state']['failed_accusations'] == 0
 
 
 def test_two_weak_accusations_show_pillars_and_the_third_closes_the_case(fake_llm):
     fake_llm(ActionType.ACCUSE, 'gideon_hart')
-    seed_state(GameState(discovered_evidence=TRUE_ENDING_EVIDENCE, validated_claims=['claim_two_times'],
-                        claim_evidence={'claim_two_times': INFERENCE_EVIDENCE}))
-    weak = {'text': 'กล่าวหากิเดียน', 'submitted_evidence': INFERENCE_EVIDENCE}
+    seed_state(GameState(discovered_evidence=INFERENCE_EVIDENCE))
+    weak = {'text': 'กล่าวหากิเดียน'}
     for attempt, left in ((1, 2), (2, 1)):
         result = client.post('/command', json=weak).json()
         assert not result['decision']['allowed']
@@ -313,12 +311,16 @@ def test_a_refused_command_costs_no_time(fake_llm):
     assert body["new_state"] == before.model_dump()
 
 
-def test_the_api_says_which_layer_failed_when_gemini_is_down(fake_llm):
-    """ชั้น neural ล้มต้องตอบ 502 พร้อมบอกว่าล้มที่ชั้นไหน ไม่ใช่ 500 เปล่าๆ"""
-    fake_llm(ActionType.EXAMINE, raises=RuntimeError("โควตาหมด"))
-    r = post("ดูรอบๆ", GameState())
-    assert r.status_code == 502
-    assert "Neural" in r.json()["detail"]
+def test_the_api_keeps_game_playable_when_gemini_is_down(fake_llm):
+    """Neural ล้มต้องคืนคำตอบในเกมที่ไม่เปลี่ยนสถานะ แทน HTTP 502"""
+    fake_llm(ActionType.EXAMINE, raises=NeuralUnavailable("โควตาหมด"))
+    before = GameState()
+    r = post("ช่วยดูรอบๆ", before)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["parsed"]["action"] == "unknown"
+    assert not body["decision"]["allowed"]
+    assert body["new_state"] == before.model_dump()
 
 
 # ---------- หมดเวลา ----------
@@ -494,14 +496,15 @@ def test_sequence_pauses_before_inference_and_logs_only_the_explicit_submission(
     assert len(attempts) == 1 and attempts[0]['accepted'] is True
 
 
-def test_confirmed_sequence_accusation_still_requires_submitted_evidence(fake_llm):
+def test_confirmed_sequence_accusation_uses_discovered_evidence(fake_llm):
     fake_llm(ActionType.SEQUENCE, alternatives=['accuse gideon_hart'])
     body = post('กล่าวหา', GameState()).json()
     assert body['pending_steps'] == ['accuse gideon_hart']
     fake_llm(ActionType.ACCUSE, target='gideon_hart')
     body = client.post('/command', json={'text':'accuse gideon_hart'}).json()
-    assert body['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
+    assert body['decision']['violated_rule_id'] == 'R012_ACCUSE_ENDING_REQUIREMENTS'
     assert body['new_state']['ending_id'] is None
+    assert body['new_state']['failed_accusations'] == 1
 
 
 @pytest.mark.parametrize('steps', [[], ['move first_class_car', 'bogus x'],
@@ -608,9 +611,7 @@ def test_presentation_route_works_without_remote_ai(monkeypatch):
         if index == 0:
             assert body['conversation_summaries']
             assert client.post('/journal').json()['questions']
-    response = client.post('/command', json={'text':'กล่าวหาวินเซนต์'}).json()
-    assert response['decision']['violated_rule_id'] == 'R_SUBMITTED_EVIDENCE'
-    evidence = ['cut_copper_wire', 'wire_cutters', 'vincent_blood']
-    result = client.post('/command', json={'text':'กล่าวหาวินเซนต์','submitted_evidence':evidence}).json()
+    result = client.post('/command', json={'text':'กล่าวหาวินเซนต์'}).json()
     assert result['new_state']['ending_id'] == 'the_scapegoat'
+    assert client.post('/journal').json()['submitted_evidence'] == result['new_state']['discovered_evidence']
     assert client.post('/journal').json()['case_closed']

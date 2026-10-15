@@ -7,11 +7,9 @@
 .accusation-actions{display:flex;flex-wrap:wrap;gap:12px;position:sticky;bottom:-24px;padding:16px 0;background:#171c17}
 .accusation-actions button{padding:10px 14px;border:1px solid #c5ab72;background:#252d22;color:#e4dfcc}
 
-#accusationStatus{white-space:pre-line}
-#accusationLimits{color:#e1bb71;white-space:pre-line}
 #inferenceChoice{box-sizing:border-box;width:100%;margin:10px 0;padding:12px;background:#252d22;color:#e4dfcc;border:1px solid #c5ab72;font:inherit}
 #inferenceStatus{white-space:pre-line;color:#e1bb71}
-#inferenceEvidence,#accusationEvidence{max-height:43vh;overflow:auto;overscroll-behavior:contain;border-top:1px solid #393e2d;border-bottom:1px solid #393e2d}
+#inferenceEvidence{max-height:43vh;overflow:auto;overscroll-behavior:contain;border-top:1px solid #393e2d;border-bottom:1px solid #393e2d}
 .case-question>.object-button{display:block;margin-top:12px;padding:10px;white-space:normal;text-align:left}
 .person-card>.object-button{display:block;margin-top:8px;padding:8px;white-space:normal;text-align:left}
 .inventory-note{padding:12px;margin-bottom:14px;border:1px solid #53604d;color:#dfd3ae}

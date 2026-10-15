@@ -19,3 +19,4 @@
 .scene-replay{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.scene-replay .chip-btn{font-size:15px}
 @media(max-width:800px){.narrative-body{grid-template-columns:1fr}.narrative-body img{height:25dvh;min-height:120px;max-height:230px;flex:auto}.narrative-copy{max-height:none;padding:20px}.narrative-header{padding:16px 20px;align-items:flex-start}.narrative-header h2{font-size:22px}.narrative-header button{font-size:14px}.narrative-footer{position:sticky;bottom:0;align-items:flex-start;padding:14px 20px;flex-wrap:wrap;gap:8px}.narrative-actions{width:100%}.narrative-body figcaption{padding:8px 20px;font-size:15px}#narrativeClockNote{font-size:13px;max-width:none}.narrative-dialog{max-height:96dvh}.narrative-dialog button{padding:9px 12px}}
 @media(prefers-reduced-motion:reduce){.narrative-dialog *{scroll-behavior:auto}}
+.narrative-dialog,.narrative-dialog button,.accusation-dialog{font-family:"Leelawadee UI","Noto Sans Thai","Segoe UI",sans-serif}

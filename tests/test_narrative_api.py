@@ -148,27 +148,25 @@ def test_ordinary_dialogue_does_not_attach_an_earned_but_unrequested_scene(clien
     assert client.post("/journal").json()["scene_followups"][0]["topic"] == "confrontation"
 
 
-@pytest.mark.parametrize("route", ["button_wax", "tea_button", "tea_wax"])
-def test_true_ending_recap_follows_actual_submission_for_each_route(client, monkeypatch, route):
+def test_true_ending_recap_uses_all_discovered_evidence(client, monkeypatch):
     state = earned_state()
     state.discovered_evidence = [eid for eid, obj in main.engine.world["objects"].items()
                                  if obj.get("type") == "evidence"]
     session(client).state = state
-    selected = WALKTHROUGH["winning_cases"][route]
     parse_as(monkeypatch, ActionType.ACCUSE, "gideon_hart")
-    result = client.post("/command", json={"text": "accuse", "submitted_evidence": selected}).json()
+    result = client.post("/command", json={"text": "accuse"}).json()
     assert result["decision"]["allowed"]
     assert result["new_state"]["ending_id"] == "true_ending"
     assert result["narrative_scene"] is None  # Recap remains opt-in.
-    assert session(client).submitted_evidence == selected
+    assert session(client).submitted_evidence == state.discovered_evidence
     before = session(client).state.model_dump()
     recap = client.get("/reconstruction").json()["scene"]
     assert recap["id"] == "case_reconstruction"
-    assert len(recap["pages"]) == 6
+    assert len(recap["pages"]) == 8
     assert {page["id"] for page in recap["pages"] if page["id"].startswith("contact_")} == {
-        "contact_" + route
+        "contact_button_wax", "contact_tea_button", "contact_tea_wax"
     }
-    assert all(item["id"] in selected for page in recap["pages"] for item in page["evidence"])
+    assert all(item["id"] in state.discovered_evidence for page in recap["pages"] for item in page["evidence"])
     assert all(not any(key.startswith("requires_") for key in page) for page in recap["pages"])
     assert session(client).state.model_dump() == before
     assert client.post("/journal").json()["scene_followups"] == []

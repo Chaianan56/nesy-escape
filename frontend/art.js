@@ -10,7 +10,7 @@ const GameArt = (() => {
   const evidence = {};
   const groups = {
     'detail-electrical-controls':['power_panel','fuse_box','backup_switch'],
-    'detail-cut-wire':['cut_copper_wire','tool_marks'], 'detail-electrical-log':['maintenance_log','tunnel_schedule'],
+    'detail-cut-wire':['cut_copper_wire','tool_marks'], 'detail-electrical-log':['maintenance_log'],
     'detail-patient-log':['liora_patient_log'], 'detail-pocket-watch':['pocket_watch'],
     'detail-burnt-paper':['burnt_folder_c','file_c_initials'], 'detail-teacups':['second_teacup','tea_lozenge_trace'],
     'detail-wax':['wax_seal_imprint'], 'detail-cufflink-soot':['obsidian_cufflink','red_soot'],
@@ -41,6 +41,7 @@ const GameArt = (() => {
     else if(command.action==='examine'){
       const asset=evidence[command.target]||rooms[command.target];
       if(asset)selected={asset,label:evidence[command.target]?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
+      else selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
     }
   }
   function sync(state){
@@ -65,5 +66,11 @@ const GameArt = (() => {
     img.loading='lazy';img.decoding='async';img.src=source(evidence[id]);
     img.onerror=()=>{img.hidden=true;};return img;
   }
-  return {onResult,sync,journalImage};
+  function journalPersonImage(id,name){
+    if(!people[id])return null;
+    const img=document.createElement('img');img.className='archive-person-image';img.alt=`ภาพของ ${name}`;
+    img.loading='lazy';img.decoding='async';img.src=source(people[id]);
+    img.onerror=()=>{img.hidden=true;};return img;
+  }
+  return {onResult,sync,journalImage,journalPersonImage};
 })();

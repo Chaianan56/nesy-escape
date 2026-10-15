@@ -14,6 +14,7 @@ const PixelUI = (() => {
   const IN_GAME_DOCUMENTS = [
     {
       id: "burnt_folder_c",
+      imageEvidenceId: "burnt_folder_c",
       title: "เศษคำสั่งที่ถูกเผา (Burnt Memo BW-C/17)",
       date: "16 พฤศจิกายน 1923",
       classification: "ลับเฉพาะส่วนกลาง · สำเนาไฟไหม้บางส่วน",
@@ -22,6 +23,7 @@ const PixelUI = (() => {
     },
     {
       id: "autopsy_report",
+      imageEvidenceId: "liora_patient_log",
       title: "บันทึกตรวจร่างเบื้องต้น (Autopsy Report)",
       date: "14 พฤศจิกายน 1938 · 21:20 น.",
       classification: "รายงานชันสูตรเบื้องต้น · แพทย์ประจำขบวน",
@@ -30,6 +32,7 @@ const PixelUI = (() => {
     },
     {
       id: "secret_file",
+      imageEvidenceId: "secret_file",
       title: "แฟ้มรักษาและคำให้การเอเลียส เวนน์ (Project Nocturne)",
       date: "14 พฤศจิกายน 1923 – 1931",
       classification: "เวชระเบียนส่วนบุคคล · คำให้การที่ถูกตัดออก",
@@ -38,6 +41,7 @@ const PixelUI = (() => {
     },
     {
       id: "dossier_missing_file_c",
+      imageEvidenceId: "dossier_missing_file_c",
       title: "สำเนาโทรเลขเตือนจากเบลล์เวเธอร์ (Voss Telegram Draft)",
       date: "14 พฤศจิกายน 1923",
       classification: "ร่างโทรเลขสถานีรถไฟเบลล์เวเธอร์",
@@ -46,7 +50,7 @@ const PixelUI = (() => {
     }
   ];
 
-  let data = null, activeTab = 'chat', revision = 0;
+  let data = null, activeTab = 'evidence', revision = 0;
 
   function button(label, command, className = 'object-button') {
     const b = document.createElement('button');
@@ -55,6 +59,7 @@ const PixelUI = (() => {
     b.textContent = label;
     b.onclick = () => {
       document.getElementById('casebookDialog')?.close();
+      document.getElementById('archiveDetailDialog')?.close();
       fillInput(command);
     };
     return b;
@@ -74,6 +79,122 @@ const PixelUI = (() => {
     return box;
   }
 
+  function imageSlot(kind, id, label, interactive = true) {
+    const slot = document.createElement(interactive ? 'button' : 'div');
+    if (interactive) slot.type = 'button';
+    slot.className = `archive-image-slot archive-image-slot-${kind}`;
+    slot.dataset.imageSlot = `${kind}:${id}`;
+    if (!interactive) slot.setAttribute('role', 'img');
+    slot.setAttribute('aria-label', `ช่องภาพสำหรับ${label}`);
+    const artImage = kind === 'evidence' && typeof GameArt !== 'undefined' && GameArt.journalImage
+      ? GameArt.journalImage(id, label)
+      : kind === 'person' && typeof GameArt !== 'undefined' && GameArt.journalPersonImage
+        ? GameArt.journalPersonImage(id, label)
+        : null;
+    const mark = document.createElement('span');
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '▧';
+    const caption = document.createElement('small');
+    caption.textContent = 'พื้นที่ใส่ภาพ';
+    if (artImage) {
+      artImage.classList.add('archive-slot-image');
+      artImage.addEventListener('load', () => { mark.hidden = true; caption.hidden = true; }, {once:true});
+      slot.append(artImage);
+    }
+    slot.append(mark, caption);
+    return slot;
+  }
+
+  function makeCardClickable(card, onActivate, label) {
+    card.classList.add('archive-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', label);
+    card.addEventListener('click', event => {
+      if (event.target.closest('button, a, input, select, textarea')) return;
+      onActivate();
+    });
+    card.addEventListener('keydown', event => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      onActivate();
+    });
+  }
+
+  function showArchiveDetail({kind, id, title, subtitle, description, sections = [], actions = []}) {
+    let dialog = $('archiveDetailDialog');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'archiveDetailDialog';
+      dialog.className = 'archive-detail-dialog';
+      dialog.innerHTML = `<header class="archive-detail-header"><div><span class="eyebrow">DETECTIVE’S ARCHIVE</span><h2></h2><p></p></div><button type="button" class="history-close">✕ ปิด</button></header><div class="archive-detail-body"></div><footer class="archive-detail-actions"></footer>`;
+      document.body.append(dialog);
+      dialog.querySelector('.history-close').onclick = () => dialog.close();
+      dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+    }
+    dialog.querySelector('h2').textContent = title;
+    dialog.querySelector('.archive-detail-header p').textContent = subtitle || '';
+    const body = dialog.querySelector('.archive-detail-body');
+    body.replaceChildren();
+    body.append(imageSlot(kind, id, title, false));
+    if (description) {
+      const paragraph = document.createElement('p');
+      paragraph.className = 'archive-detail-description';
+      paragraph.textContent = description;
+      body.append(paragraph);
+    }
+    sections.forEach(section => {
+      const block = document.createElement('section');
+      block.className = 'archive-detail-section';
+      const heading = document.createElement('strong');
+      heading.textContent = section.title;
+      const text = document.createElement('p');
+      text.textContent = section.text;
+      block.append(heading, text);
+      body.append(block);
+    });
+    const footer = dialog.querySelector('.archive-detail-actions');
+    footer.replaceChildren();
+    actions.forEach(item => footer.append(button(item.label, item.command, 'chip-btn')));
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function openEvidenceDetail(evidence) {
+    showArchiveDetail({
+      kind: 'evidence', id: evidence.id, title: evidence.name,
+      subtitle: `${evidence.kind === 'testimony' ? 'คำให้การ' : 'วัตถุพยาน'} · ${evidence.source || ''}`,
+      description: evidence.description,
+      sections: evidence.source_note ? [{title: 'บันทึกแหล่งที่มา', text: evidence.source_note}] : [],
+    });
+  }
+
+  function openPersonDetail(person) {
+    const personName = person.name.split(' (')[0];
+    const testimonies = data.evidence.filter(item => item.kind === 'testimony' && (
+      item.source?.includes(personName) || item.source_note?.includes(personName) ||
+      (person.id && item.id?.includes(person.id.split('_')[0]))
+    ));
+    const role = person.accusable === false ? 'พยาน / บุคลากร' : 'ผู้ต้องสงสัย';
+    const location = locationsMap[person.location] || person.location || 'บนขบวน';
+    const actions = [];
+    if (person.here && !(typeof gameOver !== 'undefined' && gameOver)) {
+      actions.push({label: `สอบปากคำ ${personName}`, command: `สอบปากคำ ${personName}`});
+      (person.topics || []).forEach(topic => actions.push({
+        label: `ถามเรื่อง${topic.label}`, command: `ถาม${personName} เรื่อง${topic.label}`,
+      }));
+    } else if (person.location && !(typeof gameOver !== 'undefined' && gameOver)) {
+      actions.push({label: `ไปพบที่ ${location}`, command: `ไปที่ ${person.location}`});
+    }
+    const sections = [
+      {title: 'สถานะการสืบสวน', text: `${role} · ${person.interrogated ? 'เคยสนทนาแล้ว' : 'ยังไม่ได้สนทนา'}`},
+    ];
+    if (testimonies.length) sections.push({
+      title: `คำให้การที่บันทึกไว้ (${testimonies.length})`,
+      text: testimonies.map(item => `${item.description}\n— ${item.name}`).join('\n\n'),
+    });
+    showArchiveDetail({kind: 'person', id: person.id, title: person.name, subtitle: location, sections, actions});
+  }
+
   function drawScene(location) {
     if (typeof GameArt !== 'undefined' && GameArt.sync) {
       GameArt.sync(gameState || { current_location: location });
@@ -84,40 +205,102 @@ const PixelUI = (() => {
   function map() {
     const wrap = $('trainCars');
     if (!wrap) return;
-    wrap.replaceChildren();
+    const currentLocation = gameState?.current_location;
+    const currentRoom = rooms.find(([id]) => id === currentLocation);
+    const currentLabel = currentRoom?.[1] || currentRoom?.[2] || 'ไม่ทราบตำแหน่ง';
+    const currentLocationLabel = $('mapCurrentLocation');
+    if (currentLocationLabel) currentLocationLabel.textContent = currentLabel;
 
-    rooms.forEach(([id, label, fullDesc], i) => {
+    const passengerCar = (x, index) => {
+      const [id, label] = rooms[index];
+      const active = currentLocation === id;
+      const shell = active ? 'active-shell' : 'car-shell';
+      const roof = active ? 'active-roof' : 'car-roof';
+      const window = active ? 'train-window-active' : 'train-window';
+      const sideStroke = active ? '#e6bd70' : '#9e7844';
+      return `<g class="train-svg-car${active ? ' active' : ''}" data-room-index="${index}" transform="translate(${x} 0)">
+        <path class="${shell}" d="M6 48h183l12 9v21H0V57z"/><path class="${roof}" d="M12 48l12-10h147l14 10z"/>
+        <path d="M8 52v25m181-25v25" fill="none" stroke="${sideStroke}" stroke-width="2"/>
+        <use href="#${window}" x="21" y="52"/><use href="#${window}" x="52" y="52"/><use href="#${window}" x="83" y="52"/><use href="#${window}" x="114" y="52"/><use href="#${window}" x="145" y="52"/>
+        <use href="#train-wheel${active ? '-active' : ''}" x="38" y="83"/><use href="#train-wheel${active ? '-active' : ''}" x="164" y="83"/>
+        <rect class="train-hit" x="-3" y="27" width="208" height="70" aria-hidden="true"/>
+        ${active ? '<path class="train-position-pin" d="M103 5l-10 15h7v10h6V20h7z" aria-hidden="true"/>' : ''}
+      </g>`;
+    };
+
+    const svg = `<svg class="train-map-svg" viewBox="0 0 1320 106" role="group" aria-label="แผนผังตู้รถไฟ เลือกตู้เพื่อเดินทาง">
+      <defs>
+        <g id="train-wheel"><circle class="train-wheel" r="11"/><circle class="train-wheel-hub" r="3"/></g>
+        <g id="train-wheel-active"><circle class="train-wheel active-wheel" r="11"/><circle class="train-wheel-hub active-hub" r="3"/></g>
+        <g id="train-window"><rect class="train-window" width="25" height="21" rx="2"/><path class="train-window-glint" d="M5 4v14"/></g>
+        <g id="train-window-active"><rect class="train-window active-window" width="25" height="21" rx="2"/><path class="train-window-glint" d="M5 4v14"/></g>
+      </defs>
+      <path class="train-rail" d="M12 94H1308M12 101H1308"/>
+      <path class="train-sleepers" d="M28 91v13M72 91v13M116 91v13M160 91v13M204 91v13M248 91v13M292 91v13M336 91v13M380 91v13M424 91v13M468 91v13M512 91v13M556 91v13M600 91v13M644 91v13M688 91v13M732 91v13M776 91v13M820 91v13M864 91v13M908 91v13M952 91v13M996 91v13M1040 91v13M1084 91v13M1128 91v13M1172 91v13M1216 91v13M1260 91v13"/>
+      <path class="train-coupler" d="M194 77h29M419 77h27M642 77h27M865 77h27M1088 77h27"/>
+      <g class="train-svg-car${currentLocation === rooms[0][0] ? ' active' : ''}" data-room-index="0">
+        <path class="train-metal" d="M20 77h18l13-11h20V48h24V40h55v8h32v22l20 7v8H20z"/>
+        <path class="train-car-roof" d="M91 40V31h59v9"/><rect class="train-window${currentLocation === rooms[0][0] ? ' active-window' : ''}" x="102" y="43" width="34" height="21" rx="2"/>
+        <path class="train-metal" d="M42 52h56v23H42zM48 46h47v5H48zM58 41h31v5H58z"/><rect class="train-metal" x="61" y="23" width="11" height="24"/><path class="train-metal" d="M58 23h17l-3-6H61z"/>
+        <circle class="train-headlamp" cx="30" cy="63" r="4"/><path class="train-metal" d="M20 77h-7l11 9h22l-9-9"/>
+        <use href="#train-wheel${currentLocation === rooms[0][0] ? '-active' : ''}" x="61" y="83"/><use href="#train-wheel${currentLocation === rooms[0][0] ? '-active' : ''}" x="113" y="83"/><use href="#train-wheel${currentLocation === rooms[0][0] ? '-active' : ''}" x="169" y="83"/>
+        <path class="train-engine-rod" d="M61 83h108"/><rect class="train-hit" x="10" y="14" width="200" height="82" aria-hidden="true"/>
+        ${currentLocation === rooms[0][0] ? '<path class="train-position-pin" d="M104 5l-10 15h7v10h6V20h7z" aria-hidden="true"/>' : ''}
+      </g>
+      ${passengerCar(218, 1)}${passengerCar(441, 2)}${passengerCar(664, 3)}${passengerCar(887, 4)}${passengerCar(1110, 5)}
+    </svg>`;
+    wrap.replaceChildren();
+    wrap.classList.add('train-cars-rendered');
+    wrap.insertAdjacentHTML('beforeend', svg);
+
+    const activateRoom = index => {
+      if (typeof gameOver !== 'undefined' && gameOver) return;
+      const [id] = rooms[index];
+      fillInput(currentLocation === id ? 'ดูรอบๆ' : `ไปตู้ ${index + 1}`);
+    };
+    wrap.querySelectorAll('.train-svg-car').forEach(car => {
+      const index = Number(car.dataset.roomIndex);
+      const [id, label] = rooms[index];
+      const current = currentLocation === id;
+      car.setAttribute('role', 'button');
+      car.setAttribute('tabindex', typeof gameOver !== 'undefined' && gameOver ? '-1' : '0');
+      car.setAttribute('aria-label', `${index === 0 ? 'หัวรถจักร' : `ตู้ ${label}`} · ${rooms[index][2]}${current ? ' · ตำแหน่งปัจจุบัน' : ''}`);
+      if (current) car.setAttribute('aria-current', 'location');
+      if (typeof gameOver !== 'undefined' && gameOver) car.setAttribute('aria-disabled', 'true');
+      car.addEventListener('click', () => activateRoom(index));
+      car.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activateRoom(index);
+        }
+      });
+    });
+
+    const stops = document.createElement('div');
+    stops.className = 'train-map-stops';
+    rooms.forEach(([id, label], i) => {
       const isCurrent = gameState?.current_location === id;
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'car' + (isCurrent ? ' active' : '');
+      b.className = 'train-map-stop' + (isCurrent ? ' active' : '');
       b.title = isCurrent ? `คุณยืนอยู่ที่นี่: ${label}` : `คลิกเพื่อเดินทางไปที่ ${label}`;
       b.setAttribute('aria-label', i === 0 ? 'หัวรถจักร พื้นที่หวงห้าม' : `ตู้ ${label}`);
       if (isCurrent) b.setAttribute('aria-current', 'location');
-
-      b.innerHTML = `
-        <div class="car-body">
-          <div class="car-windows"><i></i><i></i><i></i><i></i></div>
-          ${isCurrent ? '<span class="car-pin">📍</span>' : ''}
-        </div>
-      `;
-
       const name = document.createElement('span');
-      name.className = 'car-name';
-      name.textContent = `${String(i + 1).padStart(2, '0')} · ${label}`;
+      name.className = 'train-map-stop-name';
+      name.textContent = label;
+      const subtitle = document.createElement('small');
+      subtitle.textContent = ['ห้องเครื่อง','สัมภาระ','ห้องครัว','ห้องเกิดเหตุ','เลานจ์บาร์','ตู้โดยสาร'][i];
+      name.append(subtitle);
       b.append(name);
-
       b.onclick = () => {
         if (typeof gameOver !== 'undefined' && gameOver) return;
-        if (isCurrent) {
-          fillInput('ดูรอบๆ');
-        } else {
-          fillInput(`ไปตู้ ${i + 1}`);
-        }
+        fillInput(isCurrent ? 'ดูรอบๆ' : `ไปตู้ ${i + 1}`);
       };
-
-      wrap.append(b);
+      b.disabled = typeof gameOver !== 'undefined' && gameOver;
+      stops.append(b);
     });
+    wrap.append(stops);
   }
 
   // Case Board
@@ -158,6 +341,8 @@ const PixelUI = (() => {
 
   // Open Document Modal Reader
   function openDocument(doc) {
+    const discoveredIds = new Set((data?.evidence || []).map(item => item.id));
+    if (!discoveredIds.has(doc.id) && !discoveredIds.has(doc.imageEvidenceId)) return;
     const dialog = $('documentDialog');
     if (!dialog) return;
     $('docTitle').textContent = doc.title;
@@ -232,7 +417,18 @@ const PixelUI = (() => {
       data.inventory.forEach(item => {
         const chip = document.createElement('div');
         chip.className = 'inventory-item-card';
-        chip.innerHTML = `<strong>${item.name}</strong><small>${item.description || ''}</small>`;
+        const image = item.id && typeof GameArt !== 'undefined' && GameArt.journalImage
+          ? GameArt.journalImage(item.id, item.name)
+          : null;
+        if (image) {
+          image.classList.add('inventory-item-image');
+          chip.append(image);
+        }
+        const name = document.createElement('strong');
+        name.textContent = item.name;
+        const description = document.createElement('small');
+        description.textContent = item.description || '';
+        chip.append(name, description);
         invList.append(chip);
       });
       invSection.append(invList);
@@ -245,25 +441,35 @@ const PixelUI = (() => {
     docSection.innerHTML = `<h3 class="archive-section-title">📜 เอกสารและแฟ้มลับที่พบ</h3>`;
 
     const discoveredIds = new Set(data.evidence.map(e => e.id));
-    let hasDocs = false;
+    let foundDocCount = 0;
 
     IN_GAME_DOCUMENTS.forEach(doc => {
-      const isFound = discoveredIds.has(doc.id) || (data.background && data.background.length > 0);
-      hasDocs = true;
+      // Match a document to the evidence that actually unlocks its image.
+      // Some display IDs (for example autopsy_report) differ from evidence IDs.
+      const isFound = discoveredIds.has(doc.id) || discoveredIds.has(doc.imageEvidenceId);
+      if (!isFound) return;
+      foundDocCount++;
       const card = document.createElement('div');
-      card.className = 'doc-card' + (isFound ? ' doc-found' : ' doc-locked');
+      card.className = 'doc-card doc-found';
       card.innerHTML = `
-        <div class="doc-card-top">
-          <span class="doc-card-badge">${doc.classification}</span>
-          <span class="doc-card-date">${doc.date}</span>
-        </div>
-        <strong class="doc-card-title">${doc.title}</strong>
-        <p class="doc-card-summary">${doc.summary}</p>
-        <div class="doc-card-actions">
-          <button type="button" class="chip-btn doc-read-btn">📖 เปิดอ่านฉบับเต็ม</button>
-        </div>
+        <div class="doc-card-top"><span class="doc-card-badge">พบแล้ว</span></div>
+        <strong class="doc-card-title"></strong>
+        <small class="doc-card-date"></small>
       `;
-      card.querySelector('.doc-read-btn').onclick = () => openDocument(doc);
+      card.querySelector('.doc-card-title').textContent = doc.title;
+      card.querySelector('.doc-card-date').textContent = doc.date;
+      makeCardClickable(card, () => openDocument(doc), `เปิดรายละเอียด${doc.title}`);
+      if (discoveredIds.has(doc.imageEvidenceId)) {
+        const image = imageSlot('evidence', doc.imageEvidenceId, doc.title, false);
+        image.classList.add('doc-card-image-slot');
+        image.setAttribute('aria-label', `เปิดรายละเอียด${doc.title}`);
+        card.querySelector('.doc-card-top').after(image);
+      } else {
+        const image = imageSlot('evidence', doc.id, doc.title, false);
+        image.classList.add('doc-card-image-slot');
+        image.setAttribute('aria-label', `เปิดรายละเอียด${doc.title}`);
+        card.querySelector('.doc-card-top').after(image);
+      }
       docSection.append(card);
     });
 
@@ -279,6 +485,10 @@ const PixelUI = (() => {
       docSection.append(bgCard);
     });
 
+    if (!foundDocCount && !data.background?.length) {
+      docSection.append(empty('ยังไม่พบเอกสารหรือแฟ้มลับ', 'ค้นหาวัตถุพยานหรือสอบถามบุคคลเพื่อปลดล็อกเอกสารในแฟ้ม'));
+    }
+
     wrap.append(docSection);
 
     // 3. Physical Evidence
@@ -289,33 +499,27 @@ const PixelUI = (() => {
     if (!data.evidence.length) {
       clueSection.append(empty('ยังไม่พบหลักฐาน', 'สำรวจห้อง ตรวจสิ่งของ และสอบถามพยานเพื่อบันทึกหลักฐาน'));
     } else {
+      const evidenceGrid = document.createElement('div');
+      evidenceGrid.className = 'evidence-grid';
       data.evidence.forEach((e, i) => {
-        const box = document.createElement('details');
-        box.className = 'evidence-card';
-        const title = document.createElement('summary');
+        const box = document.createElement('article');
+        box.className = 'evidence-card archive-evidence-card';
+        const image = imageSlot('evidence', e.id, e.name, false);
+        makeCardClickable(box, () => openEvidenceDetail(e), `เปิดรายละเอียดหลักฐาน: ${e.name}`);
+        const title = document.createElement('div');
+        title.className = 'archive-evidence-title-row';
         const icon = document.createElement('span');
         icon.className = 'clue-icon';
         icon.textContent = String(i + 1).padStart(2, '0');
-        title.append(icon, document.createTextNode(e.name));
+        const name = document.createElement('span');
+        name.className = 'archive-evidence-name';
+        name.textContent = e.name;
+        title.append(name, icon);
+        box.append(image, title);
 
-        const source = document.createElement('small');
-        source.className = 'evidence-source';
-        source.textContent = `${e.kind === 'testimony' ? '🗣️ คำให้การ' : '🔎 วัตถุพยาน'} · ${e.source || ''} ${e.source_note ? '— ' + e.source_note : ''}`;
-
-        const p = document.createElement('p');
-        p.textContent = e.description;
-
-        box.append(title, source, p);
-
-        box.addEventListener('toggle', () => {
-          if (box.open && !box.querySelector('img') && typeof GameArt !== 'undefined' && GameArt.journalImage) {
-            const image = GameArt.journalImage(e.id, e.name);
-            if (image) box.append(image);
-          }
-        });
-
-        clueSection.append(box);
+        evidenceGrid.append(box);
       });
+      clueSection.append(evidenceGrid);
     }
     wrap.append(clueSection);
 
@@ -385,9 +589,19 @@ const PixelUI = (() => {
     `;
     wrap.append(header);
 
+    const peopleGrid = document.createElement('div');
+    peopleGrid.className = 'people-grid';
     data.people.forEach(p => {
       const card = document.createElement('div');
       card.className = 'person-card' + (p.here ? ' person-here' : '');
+      const personName = p.name.split(' (')[0];
+      const testimonies = data.evidence.filter(e => e.kind === 'testimony' && (
+        e.source?.includes(personName) || e.source_note?.includes(personName) ||
+        (p.id && e.id?.includes(p.id.split('_')[0]))
+      ));
+      const image = imageSlot('person', p.id, p.name, false);
+      makeCardClickable(card, () => openPersonDetail(p), `เปิดข้อมูลบุคคล: ${p.name}`);
+      card.append(image);
 
       const top = document.createElement('div');
       top.className = 'person-top';
@@ -401,54 +615,14 @@ const PixelUI = (() => {
 
       top.append(name, badge);
       card.append(top);
+      const hint = document.createElement('small');
+      hint.className = 'person-card-hint';
+      hint.textContent = testimonies.length ? `มีข้อมูล/คำให้การ ${testimonies.length} รายการ · กดรูปเพื่อดู` : 'กดรูปเพื่อดูข้อมูล';
+      card.append(hint);
 
-      const status = document.createElement('small');
-      status.className = 'person-status';
-      const roleText = p.accusable === false ? 'พยาน / บุคลากร' : 'ผู้ต้องสงสัย';
-      const convoText = p.interrogated ? '✓ เคยสนทนาแล้ว' : 'ยังไม่ได้สนทนา';
-      status.textContent = `${roleText} · ${convoText}`;
-      card.append(status);
-
-      // Actions
-      const actions = document.createElement('div');
-      actions.className = 'person-actions';
-
-      if (p.here && (!typeof gameOver !== 'undefined' || !gameOver)) {
-        actions.append(button('💬 สอบปากคำ', `สอบปากคำ ${p.name.split(' (')[0]}`));
-        (p.topics || []).forEach(topic => {
-          actions.append(button(`ถาม: ${topic.label}`, `ถาม${p.name.split(' (')[0]} เรื่อง${topic.label}`));
-        });
-      } else if (!p.here && p.location && (!typeof gameOver !== 'undefined' || !gameOver)) {
-        const carLabel = locationsMap[p.location] || p.location;
-        actions.append(button(`🚶 ไปพบที่ ${carLabel}`, `ไปที่ ${p.location}`));
-      }
-
-      if (actions.children.length) card.append(actions);
-
-      // Unlocked Testimonies from this person
-      const testimonies = data.evidence.filter(e =>
-        e.kind === 'testimony' && (
-          e.source?.includes(p.name.split(' (')[0]) ||
-          e.source_note?.includes(p.name.split(' (')[0]) ||
-          (p.id && e.id?.includes(p.id.split('_')[0]))
-        )
-      );
-
-      if (testimonies.length) {
-        const testSection = document.createElement('div');
-        testSection.className = 'person-testimonies';
-        testSection.innerHTML = `<small class="testimony-label">คำให้การที่บันทึกไว้ (${testimonies.length}):</small>`;
-        testimonies.forEach(t => {
-          const q = document.createElement('blockquote');
-          q.className = 'testimony-quote';
-          q.innerHTML = `“${t.description}”<span>— ${t.name}</span>`;
-          testSection.append(q);
-        });
-        card.append(testSection);
-      }
-
-      wrap.append(card);
+      peopleGrid.append(card);
     });
+    wrap.append(peopleGrid);
   }
 
   // Journal Dispatcher

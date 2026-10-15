@@ -14,7 +14,7 @@ from pathlib import Path
 import logging
 import time
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -71,7 +71,12 @@ def get_tracker(session_id: str | None = None) -> BehaviorTracker:
 # ห้ามให้ชั้นนั้นตัดสินว่าอนุญาตหรือไม่ ParsedCommand จึงไม่มีฟิลด์นั้นโดยเจตนา
 # ============================================================
 
-from app.neural.gemini_client import _clients, interpret as interpret_remote, llm_online
+from app.neural.gemini_client import (
+    NeuralUnavailable,
+    _clients,
+    interpret as interpret_remote,
+    llm_online,
+)
 from app.neural.typed_commands import interpret_game as interpret
 
 
@@ -266,8 +271,8 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     result.profile = latest_profiles[session_id]
     if result.new_state.ending_id:
         save_session_telemetry(tracker.get_summary(result.new_state))
-    if result.parsed.action == ActionType.ACCUSE and result.decision.allowed:
-        session.submitted_evidence = list(req.submitted_evidence or [])
+    if result.parsed.action == ActionType.ACCUSE and (result.decision.allowed or result.new_state.ending_id):
+        session.submitted_evidence = list(result.new_state.discovered_evidence)
     if result.parsed.action == ActionType.INFER and req.submitted_evidence is not None:
         session.inference_attempts.append({"claim": result.parsed.target,
             "evidence": list(req.submitted_evidence or []), "accepted": result.decision.allowed,
@@ -338,9 +343,15 @@ def _handle_command(req: CommandRequest):
     # --- ขั้นที่ 1: ตีความ ---
     try:
         parsed = interpret(req.text, req.state)
-    except Exception as e:
+    except NeuralUnavailable as e:
         logging.getLogger(__name__).warning("interpret failed: %s", e)
-        raise HTTPException(status_code=502, detail="Neural: บริการแปลคำสั่งไม่ตอบกลับ กรุณาลองคำสั่งสั้น เช่น ไปตู้ 4 หรือตรวจตามชื่อในสมุดคดี") from e
+        # Keep the game playable during a Gemini outage: do not mutate state or
+        # fail the HTTP request; let the symbolic engine explain known commands.
+        parsed = ParsedCommand(
+            action=ActionType.UNKNOWN,
+            raw_text=req.text,
+            confidence=0.0,
+        )
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
     req.state = sync_clock(req.state)

@@ -32,11 +32,14 @@ test('entering, examining and reloading the victim room show the same location',
   const reloaded=setup();reloaded.art.sync(state);
   assert.equal(reloaded.nodes.sceneImage.src,entered);
 });
-test('every evidence item and ending has an existing image',()=>{
+test('evidence images are valid or intentionally omitted; every ending has an image',()=>{
   const story=JSON.parse(readFileSync(new URL('../data/story.json',import.meta.url),'utf8'));
   const {art,nodes}=setup();
+  const noDedicatedImage=new Set(['tunnel_schedule']);
   for(const id of Object.keys(story.objects)){
-    const img=art.journalImage(id,id);assert.ok(img,id);
+    const img=art.journalImage(id,id);
+    if(noDedicatedImage.has(id)){assert.equal(img,null,id);continue;}
+    assert.ok(img,id);
     assert.ok(existsSync(new URL('../assets/nocturne-stylized-v2/'+img.src.split('/').pop(),import.meta.url)),id);
   }
   const expected={true_ending:'true',cold_justice:'incomplete',the_scapegoat:'scapegoat',the_paranoia_trap:'paranoia',unproven:'unproven',cold_arrival:'arrival'};
