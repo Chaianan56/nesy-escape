@@ -134,6 +134,18 @@ def execute_reflexion_retry(
         candidate_parsed.latency_ms = (candidate_parsed.latency_ms or 0) + latency
         note = f"NeSy Reflexion Loop succeeded: corrected {decision.violated_rule_id} -> {candidate_parsed.action.value} {candidate_parsed.target}"
         logger.info(note)
+        # Closed-Loop NeSy Active Co-Learning: บันทึกเข้าคลังตัวอย่างทันที
+        try:
+            from app.neural.retriever import get_retriever
+            get_retriever().add_example({
+                "query": raw_text,
+                "action": candidate_parsed.action.value,
+                "target": candidate_parsed.target,
+                "confidence": round(candidate_parsed.confidence, 2),
+                "source": "active_learning_reflexion",
+            }, persist=False)
+        except Exception:
+            pass
         return candidate_parsed, new_dec, note
 
     # 2. หากมี remote LLM interpret fn ให้ลอง re-prompt ด้วย critique
@@ -149,6 +161,17 @@ def execute_reflexion_retry(
                 reprompted.latency_ms = (reprompted.latency_ms or 0) + latency
                 note = f"NeSy LLM Reflexion succeeded: {decision.violated_rule_id} corrected to {reprompted.action.value}"
                 logger.info(note)
+                try:
+                    from app.neural.retriever import get_retriever
+                    get_retriever().add_example({
+                        "query": raw_text,
+                        "action": reprompted.action.value,
+                        "target": reprompted.target,
+                        "confidence": round(reprompted.confidence, 2),
+                        "source": "active_learning_reflexion",
+                    }, persist=False)
+                except Exception:
+                    pass
                 return reprompted, reprompted_dec, note
         except Exception as e:
             logger.warning("NeSy LLM Reflexion call failed: %s", e)

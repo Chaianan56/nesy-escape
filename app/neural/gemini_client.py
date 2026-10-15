@@ -26,7 +26,7 @@ except ImportError:
     GENAI_AVAILABLE = False
 
 # นำเข้า Data Models จาก schemas.py
-from app.schemas import ParsedCommand, GameState
+from app.schemas import ActionType, GameState, ParsedCommand
 # นำเข้า Prompt Builder จาก prompts.py
 from app.neural.prompts import build_interpret_system_prompt
 from app.neural.repair import repair_parsed_command
@@ -117,12 +117,25 @@ def llm_online() -> bool:
 # PUBLIC API — main.py เรียกใช้แค่สองฟังก์ชันนี้
 # ============================================================
 
-def interpret(text: str, state: GameState) -> ParsedCommand:
+def interpret(
+    text: str,
+    state: GameState,
+    prune: bool = True,
+    use_knn: bool = True,
+    zero_shot: bool = False,
+    enable_repair: bool = True,
+    use_mmr: bool = True,
+) -> ParsedCommand:
     """แกะความหมายจากข้อความภาษาธรรมชาติของผู้เล่น ให้กลายเป็น ParsedCommand
 
     Args:
         text (str): ข้อความภาษาไทยดิบจากผู้เล่น (เช่น 'เดินไปตู้เสบียง', 'ตรวจดูบันทึก')
         state (GameState): สถานะเกมปัจจุบัน ใช้เป็นบริบทช่วยในการแกะคำกำกวม
+        prune (bool): เปิดใช้ Semantic Entity Pruning ตัดทอนขนาด Prompt
+        use_knn (bool): เปิดใช้ Dynamic kNN Retrieval จาก Memory Bank
+        zero_shot (bool): โหมดทดลอง Zero-Shot Baseline
+        enable_repair (bool): เปิดใช้วงจรซ่อมแซมเชิงสัญลักษณ์ (Symbolic Repair Loop)
+        use_mmr (bool): เปิดใช้ Maximal Marginal Relevance (MMR) เพื่อความหลากหลายของตัวอย่าง
 
     Returns:
         ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, instrument, confidence)
@@ -140,10 +153,6 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
     )
 
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
-    # ค้าง/ล่มชั่วคราวลองคีย์เดิมซ้ำได้ครั้งเดียว ครั้งละไม่เกิน 3 วิ (ปกติตอบใน ~2 วิ) ในงบรวม 8 วิ
-    # จำกัดจำนวนครั้งไว้ เพราะตอน Google ล่ม 503 กลับมาใน ~1 วิ ถ้าวนตามงบเวลาจะยิง 9 ครั้งต่อคำสั่ง
-    # กินโควตารายนาทีจนโดน 429 ต่อแม้ Google จะกลับมาแล้ว
-    # ข้อผิดพลาดชนิดอื่นไม่ลองซ้ำ เพราะเปลี่ยนคีย์ก็ไม่ช่วย และจะกลบสาเหตุจริงไปเปล่าๆ
     last_error: Optional[Exception] = None
     deadline = time.monotonic() + 8
     queue = list(clients)
@@ -160,12 +169,20 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
                 model=DEFAULT_MODEL,
                 contents=prompt_content,
                 config=types.GenerateContentConfig(
-                    # SDK ส่ง timeout เป็น deadline ฝั่งเซิร์ฟเวอร์ซึ่งต้อง >=10 วิ จึงกำหนด header เอง
-                    # แล้วใช้ timeout แค่ตัดฝั่งเรา
-                    http_options=types.HttpOptions(timeout=remaining_ms,
+                    http_options=types.HttpOptions(
+                        timeout=remaining_ms,
                         headers={"X-Server-Timeout": "10"},
-                        retry_options=types.HttpRetryOptions(attempts=1)),
-                    system_instruction=build_interpret_system_prompt(STORY_DATA, state=state, user_text=text),
+                        retry_options=types.HttpRetryOptions(attempts=1),
+                    ),
+                    system_instruction=build_interpret_system_prompt(
+                        STORY_DATA,
+                        state=state,
+                        user_text=text,
+                        prune=prune,
+                        use_knn=use_knn,
+                        zero_shot=zero_shot,
+                        use_mmr=use_mmr,
+                    ),
                     response_mime_type="application/json",
                     response_schema=ParsedCommand,
                     temperature=0.0,
@@ -177,15 +194,36 @@ def interpret(text: str, state: GameState) -> ParsedCommand:
             parsed_result = ParsedCommand.model_validate_json(response.text)
             parsed_result.raw_text = text
             parsed_result.latency_ms = t_elapsed_ms
-            parsed_result.parser_mode = "gemini_knn"
+            parsed_result.parser_mode = "gemini_knn" if use_knn else "gemini_static"
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 parsed_result.prompt_tokens = getattr(response.usage_metadata, "prompt_token_count", None)
                 parsed_result.completion_tokens = getattr(response.usage_metadata, "candidates_token_count", None)
 
-            repaired_result, repair_note = repair_parsed_command(parsed_result, STORY_DATA, state=state, raw_text=text)
-            if repair_note:
-                logger.info("Symbolic Repair applied: %s", repair_note)
-            return repaired_result
+            # Symbolic-Guided Self-Correction (Repair Loop)
+            if enable_repair:
+                repaired_result, repair_note = repair_parsed_command(parsed_result, STORY_DATA, state=state, raw_text=text)
+                if repair_note:
+                    logger.info("Symbolic Repair applied: %s", repair_note)
+                    # Closed-Loop NeSy Active Co-Learning: บันทึกตัวอย่างที่ซ่อมแล้วเข้าสู่ Memory Bank
+                    if repaired_result.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS):
+                        from app.neural.retriever import get_retriever
+                        retriever = get_retriever()
+                        new_exemplar = {
+                            "query": text,
+                            "action": repaired_result.action.value,
+                            "target": repaired_result.target,
+                            "confidence": round(repaired_result.confidence, 2),
+                            "source": "active_learning_repair",
+                        }
+                        if repaired_result.instrument:
+                            new_exemplar["instrument"] = repaired_result.instrument
+                        if repaired_result.code:
+                            new_exemplar["code"] = repaired_result.code
+                        retriever.add_example(new_exemplar, persist=False)
+                        logger.info("Active Learning: Added repaired exemplar to memory bank [%s -> %s %s]", text, repaired_result.action.value, repaired_result.target)
+                return repaired_result
+
+            return parsed_result
         except Exception as e:
             last_error = e
             if _is_quota_error(e):

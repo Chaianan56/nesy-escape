@@ -3,6 +3,7 @@ app.profiler.tracker — คำนวณและประมวลผลพฤ�
 รวบรวม Telemetry รายเทิร์น และจัดหมวดหมู่ Archetype แบบ Real-time
 """
 
+import math
 import time
 import uuid
 from typing import Dict, List, Optional, Any
@@ -229,47 +230,70 @@ class BehaviorTracker:
     def _classify_archetype(
         self, d: PlaystyleDimensions, state: GameState
     ) -> tuple[ArchetypeScores, PlayerArchetype]:
-        """ประเมินและจัดกลุ่มผู้เล่นเข้าสู่ Archetype ที่เด่นชัดที่สุด"""
-        # คะแนน Forensic: เน้นความรอบคอบ ละเอียด และสุขุม
-        forensic_score = (d.methodical_score * 0.45) + (d.caution_score * 0.35) + (d.curiosity_score * 0.20)
+        """ประเมินและจัดกลุ่มผู้เล่นเข้าสู่ Archetype ด้วยสถาปัตยกรรม Vector Space Centroid Classifier & Softmax Probability
 
-        # คะแนน Interrogator: เน้นการพูดคุย ซักถาม และสังคม
-        interrogator_score = (d.social_score * 0.65) + (d.curiosity_score * 0.20) + (d.methodical_score * 0.15)
+        หลักการ Machine Learning:
+        1. แมปค่ามิติพฤติกรรม 5 มิติลงในพื้นที่เวกเตอร์ x = [m, s, c, u, d] in R^5
+        2. คำนวณ Cosine Similarity เทียบกับพิกัดอุดมคติของแต่ละ Archetype (Ideal Archetype Centroids)
+        3. ปรับปรุงคะแนนด้วย Dynamic Behavioral Priors (เช่น การเผาทำลายหลักฐาน, การด่วนกล่าวหา)
+        4. แปลงเวกเตอร์ความคล้ายคลึงให้อยู่ในรูปการกระจายความน่าจะเป็น (Probability Distribution) ด้วย Softmax Temperature Scaling
+        """
+        # พิกัด Ideal Centroids ใน 5 มิติ [Methodical, Social, Caution, Curiosity, Decisiveness]
+        centroids: Dict[PlayerArchetype, List[float]] = {
+            PlayerArchetype.FORENSIC_ANALYST:          [0.85, 0.15, 0.90, 0.50, 0.50],
+            PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:[0.20, 0.90, 0.70, 0.60, 0.35],
+            PlayerArchetype.MAVERICK_TRAILBLAZER:      [0.25, 0.25, 0.10, 0.70, 0.50],
+            PlayerArchetype.INTUITIVE_RUSHER:          [0.10, 0.15, 0.30, 0.20, 0.95],
+            PlayerArchetype.BALANCED_INVESTIGATOR:     [0.50, 0.50, 0.50, 0.50, 0.50],
+        }
 
-        # คะแนน Maverick: ทำผิดกฎบ่อย ลองคำสั่งสุดโต่ง เผาของ หรือคำสั่งแปลก
-        maverick_score = ((1.0 - d.caution_score) * 0.60) + (0.25 if len(state.burned_objects) > 0 else 0.0)
-        maverick_score = min(1.0, maverick_score + (0.15 if d.social_score > 0.3 else 0.0))
+        x = [d.methodical_score, d.social_score, d.caution_score, d.curiosity_score, d.decisiveness_score]
+        norm_x = math.sqrt(sum(v * v for v in x))
 
-        # คะแนน Rusher: เทิร์นน้อยแต่รีบไปตู้จบ หรือกล่าวหาเร็ว
+        if norm_x < 1e-5:
+            scores = ArchetypeScores(forensic=0.2, interrogator=0.2, maverick=0.2, rusher=0.2, balanced=0.2)
+            return scores, PlayerArchetype.BALANCED_INVESTIGATOR
+
+        # คำนวณ Cosine Similarity เทียบกับทุกลักษณะ
+        sims: Dict[PlayerArchetype, float] = {}
+        for arch, centroid in centroids.items():
+            norm_c = math.sqrt(sum(v * v for v in centroid))
+            cosine_sim = sum(a * b for a, b in zip(x, centroid)) / (norm_x * norm_c)
+            sims[arch] = cosine_sim
+
+        # ปรับคะแนนด้วย Dynamic Context Priors (พฤติกรรมเฉพาะที่ชัดเจน)
+        if len(state.burned_objects) > 0 or d.caution_score < 0.25:
+            sims[PlayerArchetype.MAVERICK_TRAILBLAZER] += 0.40
+
         is_early_accuse = (self.action_counts.get(ActionType.ACCUSE.value, 0) > 0 and len(state.discovered_evidence) < 5)
-        rusher_score = (0.50 if is_early_accuse else 0.0) + (d.decisiveness_score * 0.30) + ((1.0 - d.methodical_score) * 0.20)
+        if is_early_accuse or (d.decisiveness_score > 0.85 and d.methodical_score < 0.4):
+            sims[PlayerArchetype.INTUITIVE_RUSHER] += 0.35
 
-        # คะแนน Balanced: ค่ามิติมีความใกล้เคียงกัน ไม่เอียงไปทางใดทางหนึ่งสุดโต่ง
+        # ปรับความสมดุล (Balanced Indicator)
         diff = max(
             abs(d.methodical_score - d.social_score),
             abs(d.methodical_score - d.caution_score),
         )
-        balanced_score = max(0.0, 1.0 - (diff * 1.5)) * 0.55
+        if diff < 0.20:
+            sims[PlayerArchetype.BALANCED_INVESTIGATOR] += 0.25
+
+        # Softmax Normalization (Temperature tau = 0.15 สำหรับแยกแยะคลาสอย่างเด่นชัด)
+        tau = 0.15
+        max_z = max(v / tau for v in sims.values())
+        exp_z = {k: math.exp((v / tau) - max_z) for k, v in sims.items()}
+        sum_exp = sum(exp_z.values())
+        probs = {k: round(v / sum_exp, 3) for k, v in exp_z.items()}
 
         scores = ArchetypeScores(
-            forensic=round(min(1.0, forensic_score), 3),
-            interrogator=round(min(1.0, interrogator_score), 3),
-            maverick=round(min(1.0, maverick_score), 3),
-            rusher=round(min(1.0, rusher_score), 3),
-            balanced=round(min(1.0, balanced_score), 3),
+            forensic=probs[PlayerArchetype.FORENSIC_ANALYST],
+            interrogator=probs[PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR],
+            maverick=probs[PlayerArchetype.MAVERICK_TRAILBLAZER],
+            rusher=probs[PlayerArchetype.INTUITIVE_RUSHER],
+            balanced=probs[PlayerArchetype.BALANCED_INVESTIGATOR],
         )
 
-        candidates = [
-            (PlayerArchetype.FORENSIC_ANALYST, scores.forensic),
-            (PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR, scores.interrogator),
-            (PlayerArchetype.MAVERICK_TRAILBLAZER, scores.maverick),
-            (PlayerArchetype.INTUITIVE_RUSHER, scores.rusher),
-            (PlayerArchetype.BALANCED_INVESTIGATOR, scores.balanced),
-        ]
-
-        # เลือก Archetype ที่มีคะแนนสูงสุด (และต้องมีคะแนนนำเกิน threshold 0.35 ไม่งั้นถือเป็น Balanced)
-        best_archetype, best_score = max(candidates, key=lambda x: x[1])
-        if best_score < 0.35:
+        best_archetype, best_prob = max(probs.items(), key=lambda item: item[1])
+        if best_prob < 0.28:
             best_archetype = PlayerArchetype.BALANCED_INVESTIGATOR
 
         return scores, best_archetype
