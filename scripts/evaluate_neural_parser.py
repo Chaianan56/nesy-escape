@@ -23,12 +23,10 @@ scripts/evaluate_neural_parser.py — สคริปต์วัดผลแล
 
 import argparse
 import json
-import logging
-import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -36,7 +34,7 @@ sys.path.insert(0, str(ROOT))
 from app.schemas import ActionType, GameState, ParsedCommand
 from app.neural.prompts import build_interpret_system_prompt
 from app.neural.repair import repair_parsed_command
-from app.neural.retriever import get_retriever, score_entity_candidate
+from app.neural.retriever import get_retriever
 from app.neural.typed_commands import parse_typed_command
 
 DEFAULT_DATASET = ROOT / "data/neural_eval_dataset.json"
@@ -255,7 +253,7 @@ def main():
 
     client = None
     if args.live:
-        from app.neural.gemini_client import get_genai_client, DEFAULT_MODEL
+        from app.neural.gemini_client import get_genai_client
         client = get_genai_client()
         if not client:
             print("Warning: Live API requested but credentials missing. Falling back to offline simulation.")

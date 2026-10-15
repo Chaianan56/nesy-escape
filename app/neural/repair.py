@@ -7,7 +7,6 @@ app/neural/repair.py — Symbolic-Guided Self-Correction (Neuro-Symbolic Constra
 - รักษาความถูกต้องตามหลักการ NeSy: ซ่อมเฉพาะความผิดเพี้ยนของการแปลงภาษา โดยไม่ข้ามกฎตรรกะโลก (Invariants)
 """
 
-import re
 from typing import Any, Dict, Optional, Tuple
 from app.schemas import ActionType, GameState, ParsedCommand
 from app.neural.retriever import score_entity_candidate

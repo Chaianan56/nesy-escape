@@ -5,9 +5,8 @@ app.profiler.telemetry — ระบบจัดเก็บและส่ง�
 
 import csv
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 from app.profiler.schemas import SessionSummary
 

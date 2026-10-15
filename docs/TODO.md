@@ -35,7 +35,7 @@ branch `frontend` ได้รับการผสาน (Merge) เข้า�
 
 ### 2. Dynamic Entity Pruning & Latency Optimization
 - ตัดทอนทะเบียน Entity ใน Prompt ส่งเฉพาะตู้รถไฟที่ผู้เล่นยืนอยู่ ช่วยลด Token Consumption และ Latency ของ Gemini ลงกว่า 30-50%
-- มีชุดสคริปต์ Benchmark ตรวจวัดผลใน `test_pruning.py`
+- มีชุดสคริปต์ Benchmark ตรวจวัดผลใน `scripts/benchmark_pruning.py` และ `scripts/evaluate_neural_parser.py`
 
 ### 3. Typed Direct Commands & Baseline Neural Engine
 - เพิ่มระบบคำสั่งพิมพ์ตรง (`app/neural/typed_commands.py`) ตอบสนองการตรวจฉากและเดินข้ามตู้ได้ทันทีแบบ Zero-latency
