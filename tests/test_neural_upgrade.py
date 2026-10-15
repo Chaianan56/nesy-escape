@@ -4,7 +4,7 @@ tests/test_neural_upgrade.py — Unit Tests สำหรับ Dynamic kNN Few-s
 
 import json
 from pathlib import Path
-from app.schemas import ActionType, GameState, ParsedCommand
+from app.schemas import ActionType, Decision, GameState, ParsedCommand
 from app.neural.retriever import (
     KNNExampleRetriever,
     calculate_ngram_similarity,
@@ -170,4 +170,111 @@ def test_symbolic_repair_recover_target_with_margin():
     assert repaired.target == "pocket_watch"
     assert note is not None
     assert "Recovered missing target as 'pocket_watch'" in note
+
+
+def test_knn_mmr_diversity():
+    """ทดสอบว่า MMR สามารถดึงตัวอย่างที่หลากหลาย ไม่ซ้ำเฉพาะ Action เดียว"""
+    retriever = KNNExampleRetriever()
+    # ดึงตัวอย่าง 5 ข้อด้วย MMR
+    results = retriever.retrieve_mmr("ดูและคุยเกี่ยวกับคดีนี้", k=5, lambda_param=0.6)
+    assert len(results) == 5
+    actions = [r.get("action") for r in results]
+    # ตรวจสอบว่ามีความหลากหลายของ action อย่างน้อย 2 ชนิด
+    assert len(set(actions)) >= 2
+
+
+def test_reflexion_spatial_violation_retry():
+    """ทดสอบ Closed-Loop NeSy Reflexion: แก้ไข R005 Spatial Indirection (สั่งเดินไปหาของ -> เปลี่ยนเป็นตู้รถ)"""
+    from app.neural.reflexion import execute_reflexion_retry, should_attempt_reflexion
+
+    state = GameState(current_location="lounge_car")
+    # ผู้เล่นพิมพ์ 'เดินไปที่นาฬิกาพก' แต่ parsed เผลอส่ง action=MOVE, target=pocket_watch (ซึ่ง pocket_watch เป็นวัตถุ ไม่อยู่ในห้องนี้)
+    cmd = ParsedCommand(
+        action=ActionType.MOVE,
+        target="pocket_watch",
+        raw_text="เดินไปที่นาฬิกาพก",
+        confidence=0.8,
+    )
+    # Symbolic Engine ปฏิเสธด้วย R005
+    denied = Decision(
+        allowed=False,
+        message="เป้าหมายไม่อยู่ในสถานที่ปัจจุบัน",
+        violated_rule_id="R005_SAME_LOCATION",
+    )
+
+    assert should_attempt_reflexion(cmd, denied) is True
+
+    # จำลอง decide_fn: ถ้า target เป็น first_class_car จะ allowed=True
+    def mock_decide(p, s):
+        if p.action == ActionType.MOVE and p.target == "first_class_car":
+            return Decision(allowed=True, message="เดินสำเร็จ")
+        return Decision(allowed=False, message="ไม่อนุญาต", violated_rule_id="R005_SAME_LOCATION")
+
+    repaired_cmd, new_dec, note = execute_reflexion_retry(
+        raw_text="เดินไปที่นาฬิกาพก",
+        parsed=cmd,
+        decision=denied,
+        state=state,
+        world_data=STORY_DATA,
+        decide_fn=mock_decide,
+    )
+
+    assert new_dec.allowed is True
+    assert repaired_cmd.action == ActionType.MOVE
+    assert repaired_cmd.target == "first_class_car"
+    assert repaired_cmd.parser_mode == "reflexion"
+    assert note is not None
+
+
+def test_reflexion_preserves_genuine_violations():
+    """ทดสอบว่า Reflexion จะไม่แทรกแซงหากผู้เล่นตั้งใจทำผิดกฎจริงๆ เช่น ตั้งใจหยิบของห้ามหยิบ"""
+    from app.neural.reflexion import should_attempt_reflexion
+
+    cmd = ParsedCommand(
+        action=ActionType.TAKE,
+        target="clock",
+        raw_text="หยิบนาฬิกาแขวนติดมือไปด้วย",
+        confidence=0.9,
+    )
+    denied = Decision(
+        allowed=False,
+        message="วัตถุนี้ห้ามหยิบ",
+        violated_rule_id="R007_ACTION_SUPPORTED",
+    )
+    # raw_text เป็น 'หยิบ' ไม่ใช่การตีความผิด -> Reflexion ต้องไม่แทรกแซง
+    assert should_attempt_reflexion(cmd, denied) is False
+
+
+def test_telemetry_token_and_latency_tracking():
+    """ทดสอบการบันทึกสถิติ Token Count และ Latency ลงใน Telemetry และ Summary"""
+    from app.profiler.tracker import BehaviorTracker
+
+    tracker = BehaviorTracker(session_id="test_telemetry_metrics")
+    state = GameState(current_location="lounge_car")
+    dec = Decision(allowed=True, message="ok")
+
+    cmd = ParsedCommand(
+        action=ActionType.EXAMINE,
+        target="pocket_watch",
+        raw_text="ตรวจดูนาฬิกา",
+        confidence=0.95,
+        prompt_tokens=1500,
+        completion_tokens=45,
+        latency_ms=120.5,
+        parser_mode="gemini_knn",
+    )
+
+    tracker.record_turn("ตรวจดูนาฬิกา", cmd, dec, state)
+
+    turn = tracker.turns[-1]
+    assert turn.prompt_tokens == 1500
+    assert turn.completion_tokens == 45
+    assert turn.latency_ms == 120.5
+    assert turn.parser_mode == "gemini_knn"
+
+    summary = tracker.get_summary(state)
+    assert summary.total_prompt_tokens == 1500
+    assert summary.total_completion_tokens == 45
+    assert summary.avg_neural_latency_ms == 120.5
+
 

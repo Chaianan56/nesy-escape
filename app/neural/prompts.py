@@ -148,6 +148,7 @@ def build_interpret_system_prompt(
     user_text: Optional[str] = None,
     prune: bool = True,
     use_knn: bool = True,
+    use_mmr: bool = True,
     k_examples: int = 5,
     zero_shot: bool = False,
 ) -> str:
@@ -206,10 +207,13 @@ def build_interpret_system_prompt(
     if zero_shot:
         examples = "(โหมด Zero-Shot: ไม่มีตัวอย่างประกอบ ให้สกัดตาม Schema และ Entity Grounding Table)"
 
-    # 2. โหมด Dynamic kNN Few-Shot (Memory Bank Retrieval)
+    # 2. โหมด Dynamic kNN Few-Shot (Memory Bank Retrieval with MMR)
     elif use_knn and user_text:
         retriever = get_retriever()
-        retrieved_items = retriever.retrieve(user_text, k=k_examples)
+        if use_mmr:
+            retrieved_items = retriever.retrieve_mmr(user_text, k=k_examples)
+        else:
+            retrieved_items = retriever.retrieve(user_text, k=k_examples)
         formatted_items = [_format_example_entry(item, default_loc=curr_loc) for item in retrieved_items]
         # Anchor Examples: ตัวอย่างหลักยึดที่แนบเสมอเพื่อป้องกัน Edge Cases
         # ที่ Retriever อาจไม่ดึงมาจากคลัง (วัตถุนอกเกม + Prompt Injection)

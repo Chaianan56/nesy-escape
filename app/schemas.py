@@ -65,6 +65,10 @@ class ParsedCommand(BaseModel):
         False,
         description="true เมื่อ alternatives คือขั้นที่ผู้เล่นสั่งให้ทำทั้งหมดตามลำดับ ไม่ใช่ตัวเลือกให้เลือกอย่างเดียว",
     )
+    prompt_tokens: Optional[int] = Field(None, description="จำนวนโทเค็นอินพุตที่ใช้ในการตีความ")
+    completion_tokens: Optional[int] = Field(None, description="จำนวนโทเค็นเอาต์พุตที่สร้างขึ้น")
+    latency_ms: Optional[float] = Field(None, description="ระยะเวลาที่ใช้ในการประมวลผล (มิลลิวินาที)")
+    parser_mode: Optional[str] = Field("typed", description="โหมดที่ใช้ประมวลผล: typed, gemini_knn, reflexion, fallback")
 
 
 # ============================================================

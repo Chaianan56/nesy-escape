@@ -123,6 +123,78 @@ class KNNExampleRetriever:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored[:k]]
 
+    def retrieve_mmr(
+        self, query: str, k: int = 5, lambda_param: float = 0.65
+    ) -> List[Dict[str, Any]]:
+        """Maximal Marginal Relevance (MMR) Retrieval:
+        สมดุลระหว่างความเกี่ยวข้อง (Relevance ต่อ Query) และความหลากหลาย (Diversity ไม่ให้ Action/เป้าหมายซ้ำกันเกินไป)
+        MMR = argmax_{d in C} [ lambda * Sim(d, query) - (1 - lambda) * max_{s in S} Sim(d, s) ]
+        """
+        if not query or not self.examples:
+            return self.examples[:k]
+
+        q_lower = query.lower().strip()
+        has_sequence_hint = any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย"))
+
+        # 1. ให้คะแนนความเกี่ยวข้อง (Relevance) ของทุกตัวอย่าง
+        candidate_scores: List[Tuple[float, Dict[str, Any]]] = []
+        for ex in self.examples:
+            target_text = ex.get("query", "")
+            base_score = calculate_ngram_similarity(q_lower, target_text)
+
+            boost = 1.0
+            if has_sequence_hint and ex.get("action") == "sequence":
+                boost += 0.35
+            if not has_sequence_hint and ex.get("action") == "sequence":
+                boost -= 0.15
+
+            for word in ("เผา", "ทำลาย", "จับ", "กล่าวหา", "ปลดล็อก", "รหัส", "สรุป", "ถาม", "คุย"):
+                if word in q_lower and word in target_text:
+                    boost += 0.2
+
+            final_rel = base_score * boost
+            candidate_scores.append((final_rel, ex))
+
+        # เรียงตาม Relevance และเลือก Pool ผู้สมัครที่ดีที่สุด Top-M
+        candidate_scores.sort(key=lambda x: x[0], reverse=True)
+        pool = candidate_scores[: max(k * 4, 20)]
+
+        if not pool:
+            return []
+
+        # 2. ทำการคัดเลือกแบบ MMR
+        selected: List[Dict[str, Any]] = [pool[0][1]]
+        remaining = pool[1:]
+
+        while len(selected) < k and remaining:
+            best_idx = -1
+            best_mmr_score = -float("inf")
+
+            for idx, (rel_score, cand) in enumerate(remaining):
+                max_sim_to_selected = 0.0
+                cand_action = cand.get("action")
+                cand_query = cand.get("query", "")
+
+                for sel in selected:
+                    sim_text = calculate_ngram_similarity(cand_query, sel.get("query", ""))
+                    if cand_action and cand_action == sel.get("action"):
+                        sim_text = max(sim_text, 0.45)
+                    if sim_text > max_sim_to_selected:
+                        max_sim_to_selected = sim_text
+
+                mmr_score = (lambda_param * rel_score) - ((1.0 - lambda_param) * max_sim_to_selected)
+                if mmr_score > best_mmr_score:
+                    best_mmr_score = mmr_score
+                    best_idx = idx
+
+            if best_idx >= 0:
+                selected.append(remaining[best_idx][1])
+                remaining.pop(best_idx)
+            else:
+                break
+
+        return selected
+
     def _default_fallback_bank(self) -> List[Dict[str, Any]]:
         """ตัวอย่างสำรองฉุกเฉินกรณีไม่มีไฟล์ bank"""
         return [

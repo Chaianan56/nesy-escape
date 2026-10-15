@@ -86,6 +86,11 @@ class BehaviorTracker:
                         if is_ok:
                             pillars_count += 1
 
+        prompt_tokens = getattr(parsed, "prompt_tokens", 0) or 0
+        completion_tokens = getattr(parsed, "completion_tokens", 0) or 0
+        latency_ms = getattr(parsed, "latency_ms", 0.0) or 0.0
+        parser_mode = getattr(parsed, "parser_mode", "typed") or "typed"
+
         # 4. บันทึก Telemetry
         telemetry = TurnTelemetry(
             turn_id=turn_id,
@@ -102,6 +107,10 @@ class BehaviorTracker:
             pillars_count=pillars_count,
             is_looping=is_looping,
             adaptive_note=adaptive_note,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_ms=latency_ms,
+            parser_mode=parser_mode,
         )
         self.turns.append(telemetry)
 
@@ -281,6 +290,11 @@ class BehaviorTracker:
 
         is_solved = (state.ending_id in ("true_ending", "ending_true_justice"))
 
+        total_p_tokens = sum(t.prompt_tokens for t in self.turns)
+        total_c_tokens = sum(t.completion_tokens for t in self.turns)
+        neural_latencies = [t.latency_ms for t in self.turns if t.parser_mode != "typed" and t.latency_ms > 0]
+        avg_neural_lat = round(sum(neural_latencies) / len(neural_latencies), 2) if neural_latencies else 0.0
+
         return SessionSummary(
             session_id=self.session_id,
             started_at=self.started_at,
@@ -296,6 +310,9 @@ class BehaviorTracker:
             dimensions=dims.model_dump(),
             archetype_scores=scores.model_dump(),
             scaffolding_count=self.scaffolding_triggers,
+            total_prompt_tokens=total_p_tokens,
+            total_completion_tokens=total_c_tokens,
+            avg_neural_latency_ms=avg_neural_lat,
             final_ending_id=state.ending_id,
             case_solved_successfully=is_solved,
             turn_history=self.turns,

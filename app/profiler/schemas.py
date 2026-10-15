@@ -80,6 +80,10 @@ class TurnTelemetry(BaseModel):
     pillars_count: int
     is_looping: bool = False
     adaptive_note: Optional[str] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    latency_ms: float = 0.0
+    parser_mode: str = "typed"
 
 
 class PlayerProfile(BaseModel):
@@ -121,6 +125,9 @@ class SessionSummary(BaseModel):
     dimensions: Dict[str, float]
     archetype_scores: Dict[str, float]
     scaffolding_count: int = 0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    avg_neural_latency_ms: float = 0.0
     final_ending_id: Optional[str] = None
     case_solved_successfully: bool = False
     turn_history: List[TurnTelemetry] = Field(default_factory=list)

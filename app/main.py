@@ -359,6 +359,23 @@ def _handle_command(req: CommandRequest):
             parsed = parsed.model_copy(update={"evidence": list(req.submitted_evidence or [])})
         decision = engine.decide(parsed, req.state)
 
+    # --- ขั้นที่ 2.5: Closed-Loop NeSy Reflexion & Uncertainty Gating ---
+    if not decision.allowed:
+        from app.neural.reflexion import execute_reflexion_retry
+        parsed, decision, _ = execute_reflexion_retry(
+            raw_text=req.text,
+            parsed=parsed,
+            decision=decision,
+            state=req.state,
+            world_data=engine.world,
+            decide_fn=lambda p, s: engine.decide(p, s),
+            interpret_remote_fn=interpret_remote if llm_online() else None,
+        )
+        if parsed.confidence < 0.50 and parsed.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS) and not decision.allowed:
+            decision = decision.model_copy(
+                update={"message": f"{decision.message}\n\n💡 *[ความเชื่อมั่นของ AI ต่ำ ({int(parsed.confidence * 100)}%)]*: ลองระบุชื่อเป้าหมายหรือคำสั่งให้ชัดเจนยิ่งขึ้น"}
+            )
+
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
     if decision.allowed:
         new_state = apply_changes(req.state, decision.state_changes)

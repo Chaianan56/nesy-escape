@@ -6,7 +6,17 @@ from app.schemas import ActionType, ParsedCommand
 def parse_typed_command(text, state, world):
     value = text.strip()
     def command(action, target, **extra):
-        return ParsedCommand(action=action, target=target, raw_text=text, confidence=1.0, **extra)
+        return ParsedCommand(
+            action=action,
+            target=target,
+            raw_text=text,
+            confidence=1.0,
+            prompt_tokens=0,
+            completion_tokens=0,
+            latency_ms=0.05,
+            parser_mode="typed",
+            **extra,
+        )
     def resolve(label, groups):
         matches = set()
         for group in groups:
