@@ -65,14 +65,14 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .command-dock .route-label{font-size:10px;margin-bottom:2px;color:var(--muted);letter-spacing:0.3px}
 .command-dock .train-cars{display:block;width:100%;padding:0}
 .command-dock .train-map-svg{display:block;width:100%;height:auto;max-height:70px;overflow:visible}
-.command-body{flex:0 1 480px;width:480px;max-width:480px;min-width:0}
+.command-body{flex:1;min-width:0}
 .quick-actions{margin-bottom:4px;color:var(--gold)}
 .quick-actions label,.dock-input-label{font-size:12px;color:#eed29c;letter-spacing:0.3px}
 .chat-input-bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;background:transparent;border:0;padding:0;align-items:stretch}
 .chat-input-bar input{width:100%;min-width:0;font-size:13px;padding:9px 12px;color:#f3eee4;background:#0a141f;border:1px solid #c6a368;border-radius:4px}
 .chat-input-bar input:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
 #sendBtn{background:linear-gradient(#e6c88e,#b18a48);color:#181612;border-radius:4px;padding:9px 18px;min-height:38px;font-size:12.5px;font-weight:600;border:0;cursor:pointer;white-space:nowrap}
-.dock-note{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;width:120px;flex:0 0 120px;margin-left:auto;text-align:right}
+.dock-note{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;width:120px;flex:0 0 120px;text-align:right}
 .dock-note small{color:var(--muted);font-size:10px;margin-bottom:1px}
 .hud-pill{padding:3px 0;border:0;font-size:24px;gap:7px;display:flex;align-items:center}
 .hud-pill #clockText{font:inherit;color:inherit}
