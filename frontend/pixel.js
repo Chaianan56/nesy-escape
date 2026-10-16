@@ -618,6 +618,7 @@ const PixelUI = (() => {
           ? GameArt.journalImage(item.id, item.name)
           : null;
         if (image) {
+          chip.classList.add('has-image');
           image.classList.add('inventory-item-image');
           chip.append(image);
         }
