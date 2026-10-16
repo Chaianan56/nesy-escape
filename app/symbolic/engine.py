@@ -554,6 +554,7 @@ class SymbolicEngine:
             names = "\n".join(f"  - {self.world['objects'][oid].get('name_th', oid)}"
                               for oid in visible)
             lines.append(f"สิ่งที่สังเกตเห็นได้ตอนนี้:\n{names}")
+            lines.append('ตรวจของได้โดยพิมพ์ “ตรวจดู<ชื่อสิ่งของ>” หรือกดปุ่มสำรวจตรงหน้า')
         else:
             lines.append("ตอนนี้ยังไม่มีอะไรในตู้นี้ที่น่าตรวจสอบเพิ่ม")
 
@@ -563,9 +564,19 @@ class SymbolicEngine:
         people = [(sid, s) for sid, s in self.world["suspects"].items()
                   if s.get("location") == loc_id]
         if people:
-            who = "\n".join(f"  - {s.get('name_th', sid)}" + (f" ({s['role']})" if s.get('role') else "")
-                            for sid, s in people)
+            entries = []
+            for sid, person in people:
+                name = person.get("name_th", sid)
+                role = f" ({person['role']})" if person.get("role") else ""
+                topics = self.dialogue_options(sid, state)
+                topic_labels = ", ".join(topic["label"] for topic in topics)
+                entry = f"  - {name}{role}"
+                if topic_labels:
+                    entry += f" — ถามได้: {topic_labels}"
+                entries.append(entry)
+            who = "\n".join(entries)
             lines.append(f"คนที่อยู่ในตู้นี้:\n{who}")
+            lines.append('ถามได้โดยพิมพ์ “สอบปากคำ <ชื่อคน> เรื่อง <หัวข้อ>” หรือสอบปากคำตามชื่อ')
         return "\n".join(lines)
 
     def offerable(self, target: str, state: GameState) -> bool:
