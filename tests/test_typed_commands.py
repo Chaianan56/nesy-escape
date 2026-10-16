@@ -42,12 +42,15 @@ def test_visible_dialogue_labels_locks_and_inference_parse_without_model(monkeyp
          'unlock', 'dossier_bag', {'code': '1923'}),
         ('ใช้กุญแจห้องแพทย์กับประตูห้องแพทย์',
          'use', 'medical_room_door', {'instrument': 'medical_key'}),
+        ('ใช้กุญแจเปิดประตูห้องแพทย์',
+         'use', 'medical_room_door', {'instrument': 'medical_key'}),
         ('unlock electrical_room_door staff_key',
          'unlock', 'electrical_room_door', {'instrument': 'staff_key'}),
         ('infer claim_two_times', 'infer', 'claim_two_times', {'evidence': []}),
     ]
     for text, action, target, fields in samples:
-        parsed = interpret_game(text, GameState())
+        state = GameState(inventory=['medical_key']) if text == 'ใช้กุญแจเปิดประตูห้องแพทย์' else GameState()
+        parsed = interpret_game(text, state)
         assert (parsed.action.value, parsed.target) == (action, target), text
         assert all(getattr(parsed, field) == value for field, value in fields.items()), text
 

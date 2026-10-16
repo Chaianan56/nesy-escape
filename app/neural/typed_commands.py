@@ -28,6 +28,15 @@ def parse_typed_command(text, state, world):
                 if label.strip() in aliases:
                     matches.add(key)
         return next(iter(matches)) if len(matches) == 1 else None
+    def resolve_carried_key(label):
+        instrument = resolve(label, ['objects'])
+        if instrument:
+            return instrument
+        if label.strip() != 'กุญแจ':
+            return None
+        carried_keys = [key for key in state.inventory
+                        if world.get('objects', {}).get(key, {}).get('type') == 'key']
+        return carried_keys[0] if len(carried_keys) == 1 else None
     if value in ('ดูรอบๆ', 'ดูรอบ ๆ', 'มองรอบๆ', 'สำรวจห้อง'):
         return command(ActionType.EXAMINE, state.current_location)
     # "<action> <id>" ที่หน้าเว็บส่งมาทีละขั้นของคำสั่งพ่วง ไม่ต้องถาม Gemini ซ้ำ
@@ -76,9 +85,32 @@ def parse_typed_command(text, state, world):
             return command(ActionType.UNLOCK, target, code=match[2])
     match = re.fullmatch(r'ใช้\s*(.+?)\s*(?:กับ|เพื่อเปิด)\s*(.+)', value)
     if match:
-        instrument, target = resolve(match[1], ['objects']), resolve(match[2], ['objects'])
+        instrument, target = resolve_carried_key(match[1]), resolve(match[2], ['objects'])
         if instrument and target:
             return command(ActionType.USE, target, instrument=instrument)
+    # “ใช้กุญแจเปิดประตู...” เป็นรูปแบบธรรมชาติที่ไม่มีคำว่า “กับ” คั่น
+    # จับคู่จากกุญแจที่ผู้เล่นพกอยู่เท่านั้น และไม่เดาเมื่อมีกุญแจหลายดอก
+    if value.startswith('ใช้'):
+        remainder = value[len('ใช้'):].lstrip()
+        carried_keys = [key for key in state.inventory
+                        if world.get('objects', {}).get(key, {}).get('type') == 'key']
+        candidates = []
+        for key in carried_keys:
+            entity = world['objects'][key]
+            candidates.extend((label, key) for label in {
+                key, entity.get('name_th', ''), entity.get('name_th', '').split(' (')[0],
+                *entity.get('aliases', []),
+            } if label)
+        if len(carried_keys) == 1:
+            candidates.append(('กุญแจ', carried_keys[0]))
+        for label, instrument in sorted(candidates, key=lambda pair: len(pair[0]), reverse=True):
+            if not remainder.startswith(label):
+                continue
+            target_text = remainder[len(label):].lstrip()
+            if target_text.startswith('เปิด'):
+                target = resolve(target_text[len('เปิด'):].strip(), ['objects'])
+                if target:
+                    return command(ActionType.USE, target, instrument=instrument)
     prefixes = [('สอบปากคำ', ActionType.INTERROGATE, ['suspects']),
                 ('คุยกับ', ActionType.INTERROGATE, ['suspects']),
                 ('กล่าวหา', ActionType.ACCUSE, ['suspects']),
