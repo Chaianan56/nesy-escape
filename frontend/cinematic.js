@@ -1,11 +1,54 @@
 // Reuse the existing game controls and journal; only change their presentation.
 window.addEventListener('DOMContentLoaded', () => {
+  const header = document.querySelector('.header-right');
   const clock = document.getElementById('clockWidget');
   const dockNote = document.querySelector('.dock-note');
-  if (clock && dockNote && !dockNote.querySelector('small')) {
-    const caption = document.createElement('small');
-    caption.textContent = 'เวลาเหลือ · นาที';
-    clock.before(caption);
+  if (clock && dockNote) {
+    if (!dockNote.contains(clock)) {
+      dockNote.replaceChildren(clock);
+    }
+    if (!dockNote.querySelector('small')) {
+      const caption = document.createElement('small');
+      caption.textContent = 'เวลาเหลือ · นาที';
+      clock.before(caption);
+    }
+  }
+
+  if (header) {
+    header.replaceChildren();
+    const journalButton = document.createElement('button');
+    journalButton.type = 'button';
+    journalButton.className = 'utility-button';
+    journalButton.textContent = '◇ สมุดคดี';
+    journalButton.setAttribute('aria-haspopup', 'dialog');
+
+    const historyButton = document.createElement('button');
+    historyButton.type = 'button';
+    historyButton.className = 'utility-button history-open-btn';
+    historyButton.textContent = '↶ ประวัติ';
+    historyButton.setAttribute('aria-haspopup', 'dialog');
+    historyButton.setAttribute('data-open-history', '');
+    historyButton.addEventListener('click', () => {
+      document.getElementById('historyDialog')?.showModal();
+    });
+    header.append(journalButton, historyButton);
+
+    const journal = document.createElement('dialog');
+    journal.id = 'casebookDialog';
+    journal.className = 'casebook-dialog';
+    journal.setAttribute('aria-labelledby', 'casebookTitle');
+    journal.innerHTML = '<header class="history-header"><div><div class="eyebrow">DETECTIVE’S JOURNAL</div><h2 id="casebookTitle">กระดานคดี</h2><p>หลักฐานและข้อสรุปที่คุณค้นพบ · เวลาในเกมยังเดินต่อ</p></div><button type="button" class="history-close" autofocus>✕ ปิด</button></header><div class="casebook-body"></div>';
+    const casePanel = document.querySelector('.case-panel');
+    if (casePanel) {
+      journal.querySelector('.casebook-body').append(casePanel);
+    }
+    document.body.append(journal);
+    journalButton.addEventListener('click', () => journal.showModal());
+    journal.querySelector('.history-close')?.addEventListener('click', () => journal.close());
+    journal.addEventListener('click', (e) => {
+      if (e.target === journal) journal.close();
+    });
+    journal.addEventListener('close', () => journalButton.focus());
   }
 
   // Connect History Dialog button
