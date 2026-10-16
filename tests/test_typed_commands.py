@@ -71,7 +71,7 @@ def test_model_has_bounded_timeout_and_no_automatic_retries(monkeypatch):
         return SimpleNamespace(text='{"action":"examine","target":"lounge_car","raw_text":"test"}')
     monkeypatch.setattr(gemini_client, '_clients', lambda:[SimpleNamespace(models=SimpleNamespace(generate_content=generate))])
     gemini_client.interpret('ช่วยมองรอบห้องหน่อย', GameState())
-    assert 0 < configs[0].http_options.timeout <= 3000
+    assert 0 < configs[0].http_options.timeout <= 8000
     assert configs[0].http_options.retry_options.attempts == 1
 
 

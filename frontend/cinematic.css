@@ -702,3 +702,234 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
   border-color: #ff7b7b;
   box-shadow: 0 0 14px rgba(220, 60, 60, 0.4);
 }
+
+/* ============================================================
+   Retro Dossier Timeline & Rubber Stamp System
+   ============================================================ */
+.journal-tabs button {
+  font-size: 11px;
+  padding: 10px 4px;
+  white-space: nowrap;
+}
+.tab-icon {
+  margin-right: 2px;
+}
+
+.timeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 20px;
+}
+
+.timeline-tab-header {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.timeline-headline strong {
+  display: block;
+  font-size: 14px;
+  color: var(--gold);
+  font-family: Georgia, serif;
+  letter-spacing: 0.5px;
+}
+.timeline-headline small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Critical Timeframe Banner */
+.timeline-critical-banner {
+  border: 1px dashed var(--gold);
+  background: rgba(197, 171, 114, 0.08);
+  padding: 12px 14px;
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.timeline-critical-banner.unconfirmed {
+  border-color: #555e4e;
+  background: rgba(40, 48, 38, 0.4);
+}
+.timeline-critical-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.timeline-critical-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold);
+}
+.timeline-critical-desc {
+  font-size: 11px;
+  color: var(--cream);
+  line-height: 1.5;
+}
+
+/* Rubber Stamps */
+.dossier-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.4);
+  line-height: 1.2;
+}
+.stamp-contradiction {
+  color: #ee6b54;
+  border-color: #ee6b54;
+  background: rgba(238, 107, 84, 0.12);
+  transform: rotate(-3deg);
+}
+.stamp-verified {
+  color: #5cc27c;
+  border-color: #5cc27c;
+  background: rgba(92, 194, 124, 0.12);
+  transform: rotate(2deg);
+}
+.stamp-fabrication {
+  color: #e5a440;
+  border-color: #e5a440;
+  background: rgba(229, 164, 64, 0.12);
+  transform: rotate(-2deg);
+}
+.stamp-pending {
+  color: #898d78;
+  border-color: #555b46;
+  background: rgba(137, 141, 120, 0.08);
+  transform: rotate(0deg);
+}
+.stamp-critical {
+  color: #dfc58c;
+  border-color: #c5ab72;
+  background: rgba(223, 197, 140, 0.14);
+  transform: rotate(1deg);
+}
+.stamp-suspect {
+  color: #d89675;
+  border-color: #d89675;
+  background: rgba(216, 150, 117, 0.12);
+  transform: rotate(-1deg);
+}
+
+/* Chronological Event Rail */
+.timeline-rail {
+  border-left: 2px solid #3c4436;
+  margin: 6px 0 10px 14px;
+  padding: 6px 0 6px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.timeline-event-node {
+  position: relative;
+}
+.timeline-event-node::before {
+  content: '';
+  position: absolute;
+  left: -21px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #606d54;
+  border: 1px solid var(--gold);
+}
+.timeline-event-node.critical-node::before {
+  background: #ee6b54;
+  box-shadow: 0 0 6px #ee6b54;
+}
+.timeline-event-node.active-node::before {
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold);
+}
+.timeline-node-time {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--gold);
+  font-weight: 600;
+  margin-right: 6px;
+}
+.timeline-node-title {
+  font-size: 11px;
+  color: var(--cream);
+  font-weight: 500;
+}
+.timeline-node-sub {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Suspect Deduction & Contradiction Cards */
+.timeline-suspects-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.timeline-suspect-card {
+  border: 1px solid var(--line);
+  background: #171e17;
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s ease;
+}
+.timeline-suspect-card:hover {
+  border-color: #555f48;
+}
+.timeline-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.timeline-suspect-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cream);
+}
+.timeline-alibi-claim {
+  font-size: 11px;
+  color: var(--gold);
+  font-style: italic;
+  padding-left: 8px;
+  border-left: 2px solid #575138;
+}
+.timeline-evidence-findings {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 10px;
+  border-radius: 3px;
+}
+.timeline-findings-title {
+  display: block;
+  color: var(--cream);
+  font-weight: 500;
+  margin-bottom: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+

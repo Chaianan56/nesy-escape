@@ -113,14 +113,14 @@ def test_inference_rejects_unavailable_unseen_and_incomplete_evidence(engine):
     assert state.claim_evidence == {'test_correct': ['pocket_watch', 'wall_clock']}
 
 
-def test_claim_pillar_requires_player_inference_and_its_submitted_support(engine):
+def test_claim_pillar_supported_by_discovered_evidence(engine):
     configure_claim(engine)
     engine.world['deductions']['test_d'] = {'requires_evidence': ['pocket_watch']}
     engine.world['pillars']['gideon_hart']['timeline'] = {
         'requires_deductions': ['test_d'], 'requires_claims': ['test_correct']}
-    state = GameState(discovered_evidence=['pocket_watch', 'wall_clock'])
+    state = GameState(discovered_evidence=['pocket_watch'])
     assert not engine.pillar_status('gideon_hart', state)['timeline']
-    state, _ = run(engine, state, ActionType.INFER, 'test_correct', evidence=state.discovered_evidence)
+    state.discovered_evidence.append('wall_clock')
     assert engine.pillar_status('gideon_hart', state)['timeline']
     state.discovered_evidence.remove('wall_clock')
     assert not engine.pillar_status('gideon_hart', state)['timeline']

@@ -625,6 +625,190 @@ const PixelUI = (() => {
     wrap.append(peopleGrid);
   }
 
+  function renderTimelineTab(wrap) {
+    if (!data) return;
+
+    const evidenceSet = new Set((data.evidence || []).map(e => e.id));
+    const hasWatch = evidenceSet.has('pocket_watch');
+    const hasWallClock = evidenceSet.has('wall_clock');
+    const hasSoot = evidenceSet.has('red_soot');
+    const hasStaffImpact = evidenceSet.has('staff_impact_testimony');
+    const hasTunnelSched = evidenceSet.has('tunnel_schedule');
+    const hasGideonAlibi = evidenceSet.has('gideon_blackout_alibi');
+    const hasGideonNoEarly = evidenceSet.has('gideon_no_early_alibi');
+    const hasStaffNoMsg = evidenceSet.has('staff_no_message');
+    const hasBurntC = evidenceSet.has('burnt_folder_c');
+    const hasDossierC = evidenceSet.has('dossier_missing_file_c');
+    const hasVincentConfession = evidenceSet.has('vincent_blackout_confession');
+    const hasVincentCutters = evidenceSet.has('wire_cutters') || evidenceSet.has('cut_copper_wire');
+    const hasVincentTicket = evidenceSet.has('vincent_ticket');
+    const hasVincentStation = evidenceSet.has('vincent_station_alibi');
+    const hasLioraLog = evidenceSet.has('liora_patient_log');
+    const hasPatientWitness = evidenceSet.has('liora_patient_witness');
+
+    const container = document.createElement('div');
+    container.className = 'timeline-container';
+
+    // 1. Header
+    const header = document.createElement('div');
+    header.className = 'timeline-tab-header';
+    header.innerHTML = `
+      <div class="timeline-headline">
+        <strong>ลำดับเวลา & การหักล้างคำให้การ</strong>
+        <small>วิเคราะห์ความสอดคล้องของที่อยู่และพยานช่วง 20:00–21:30</small>
+      </div>
+    `;
+    container.append(header);
+
+    // 2. Critical Timeframe Banner
+    const banner = document.createElement('div');
+    banner.className = 'timeline-critical-banner' + (hasWatch ? '' : ' unconfirmed');
+    if (hasWatch) {
+      banner.innerHTML = `
+        <div class="timeline-critical-top">
+          <span class="timeline-critical-title">ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:26</span>
+          <span class="dossier-stamp stamp-critical">ระบุเวลาแล้ว</span>
+        </div>
+        <div class="timeline-critical-desc">
+          นาฬิกาพกแคสเซียนหยุดที่ 20:25 จากแรงกระแทกในอุโมงค์${hasStaffImpact ? ' (ตรงกับเสียงที่พนักงานได้ยิน)' : ''}${hasSoot ? ' พร้อมเขม่าแดงจากปล่องรถจักร' : ''} เหตุฆาตกรรมเกิดขึ้นก่อนที่ผู้สืบสวนจะขึ้นรถไฟที่ฮัลเบิร์ด
+        </div>
+      `;
+    } else {
+      banner.innerHTML = `
+        <div class="timeline-critical-top">
+          <span class="timeline-critical-title">ช่วงเวลาเกิดเหตุ: ยังไม่ยืนยัน</span>
+          <span class="dossier-stamp stamp-pending">รอหลักฐานเวลา</span>
+        </div>
+        <div class="timeline-critical-desc">
+          ยังไม่พบวัตถุที่บันทึกเวลาเกิดเหตุโดยตรง ให้ตรวจค้นสิ่งของในห้องตู้ 4 เพื่อหาร่องรอยนาฬิกาหรือเวลาที่แม่นยำ
+        </div>
+      `;
+    }
+    container.append(banner);
+
+    // 3. Chronological Rail (Event Nodes)
+    const rail = document.createElement('div');
+    rail.className = 'timeline-rail';
+    rail.innerHTML = `
+      <div class="timeline-event-node">
+        <span class="timeline-node-time">20:10–20:35</span>
+        <span class="timeline-node-title">สถานีฮัลเบิร์ด (ชานชาลา)</span>
+        <div class="timeline-node-sub">${hasVincentStation && hasVincentTicket ? '✓ วินเซนต์อยู่ที่เคาน์เตอร์สถานี มีใบรับรองยืนยัน' : 'วินเซนต์แจ้งว่ารอตรวจตัวตนที่สถานี'}</div>
+      </div>
+      <div class="timeline-event-node ${hasWatch ? 'critical-node' : ''}">
+        <span class="timeline-node-time">20:20–20:26</span>
+        <span class="timeline-node-title">รถไฟวิ่งผ่านอุโมงค์ · ห้องตู้ 4</span>
+        <div class="timeline-node-sub">${hasWatch ? '⚡ แคสเซียนถูกทำร้าย กลไกนาฬิกาพกหยุดเดิน' : 'คาดว่าเป็นช่วงที่มีเสียงกระแทกในห้องพัก'}</div>
+      </div>
+      <div class="timeline-event-node">
+        <span class="timeline-node-time">20:45</span>
+        <span class="timeline-node-title">สถานีฮัลเบิร์ด (ออกขบวน)</span>
+        <div class="timeline-node-sub">นรินทร์ เวล ก้าวขึ้นรถไฟ พบกิเดียนที่ตู้เลานจ์</div>
+      </div>
+      <div class="timeline-event-node ${hasWallClock || hasVincentConfession ? 'active-node' : ''}">
+        <span class="timeline-node-time">21:15–21:18</span>
+        <span class="timeline-node-title">ไฟบนขบวนดับวูบ</span>
+        <div class="timeline-node-sub">${hasWallClock ? 'นาฬิกาไฟฟ้าตู้ 4 หยุดที่ 21:15' : 'สายไฟหลักถูกตัด'}${hasGideonAlibi ? ' · กิเดียนอยู่กับคุณที่เลานจ์' : ''}</div>
+      </div>
+      <div class="timeline-event-node">
+        <span class="timeline-node-time">21:20</span>
+        <span class="timeline-node-title">พบศพแคสเซียน รีด</span>
+        <div class="timeline-node-sub">พนักงานเปิดประตูห้องตู้ 4 และตาม ดร. ลิโอรา มาตรวจ</div>
+      </div>
+      <div class="timeline-event-node active-node">
+        <span class="timeline-node-time">21:30</span>
+        <span class="timeline-node-title">เริ่มการสืบสวน</span>
+        <div class="timeline-node-sub">เหลือ 90 นาทีก่อนรถไฟถึงสถานีปลายทางเวสต์มาร์ช</div>
+      </div>
+    `;
+    container.append(rail);
+
+    // 4. Suspect Alibi & Contradiction Cards
+    const suspectsGrid = document.createElement('div');
+    suspectsGrid.className = 'timeline-suspects-grid';
+
+    // Gideon Card
+    const gideonCard = document.createElement('div');
+    gideonCard.className = 'timeline-suspect-card';
+    let gideonStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
+    let gideonFindings = 'กิเดียนอ้างว่าอยู่กับคุณตอนไฟดับ 21:15 กำลังรอหลักฐานยืนยันว่าช่วงเกิดเหตุที่แท้จริงเกิดขึ้นเมื่อใด';
+    if (hasWatch) {
+      gideonStampHtml = '<span class="dossier-stamp stamp-contradiction">หักล้างแล้ว / CONTRADICTION</span>';
+      gideonFindings = 'คำอ้างช่วงไฟดับ (21:15) ไร้ผล! เหตุฆาตกรรมเกิดช่วง 20:20–20:26 ซึ่งกิเดียนยอมรับว่าอยู่คนเดียวและไม่มีพยานยืนยันที่อยู่';
+      if (hasStaffNoMsg) {
+        gideonFindings += '<br><strong style="color:#e5a440;">[เจตนาลวง / FABRICATION]</strong> พนักงานยืนยันว่าไม่เคยฝากข่าวเลื่อนนัด กิเดียนสร้างเรื่องเท็จเพื่อรั้งตัวคุณไว้ที่เลานจ์';
+      }
+      if (hasBurntC && hasDossierC) {
+        gideonFindings += '<br><strong style="color:#ee6b54;">[พบแรงจูงใจ / MOTIVE]</strong> เศษเอกสารที่เผามีลายเซ็น G.H. เพื่อทำลายความรับผิดในคดีเบลล์เวเธอร์';
+      }
+    }
+    gideonCard.innerHTML = `
+      <div class="timeline-card-header">
+        <span class="timeline-suspect-name">กิเดียน ฮาร์ต (Gideon Hart)</span>
+        ${gideonStampHtml}
+      </div>
+      <div class="timeline-alibi-claim">“ตอนไฟดับคุณอยู่กับผม คุณยืนยันให้ผมได้”</div>
+      <div class="timeline-evidence-findings">
+        <span class="timeline-findings-title">ผลการวิเคราะห์พยานหลักฐาน:</span>
+        ${gideonFindings}
+      </div>
+    `;
+    suspectsGrid.append(gideonCard);
+
+    // Vincent Card
+    const vincentCard = document.createElement('div');
+    vincentCard.className = 'timeline-suspect-card';
+    let vincentStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
+    let vincentFindings = 'วินเซนต์นั่งเงียบอยู่ตู้ 6 มีพิรุธและท่าทางวิตกกังวล';
+    if (hasVincentTicket && hasVincentStation) {
+      vincentStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
+      vincentFindings = 'พ้นข้อหาฆาตกรรม! ตั๋วรถไฟและใบรับรองของนายสถานียืนยันว่าเขาอยู่ที่เคาน์เตอร์สถานีฮัลเบิร์ดช่วง 20:10–20:35 จึงไม่อาจอยู่ในห้องเกิดเหตุช่วง 20:20–20:26 ได้';
+      if (hasVincentConfession) {
+        vincentFindings += ' (เขายอมรับว่าตัดสายไฟตอน 21:15 เพื่อขโมยกระเป๋าเท่านั้น)';
+      }
+    } else if (hasVincentConfession || hasVincentCutters) {
+      vincentStampHtml = '<span class="dossier-stamp stamp-suspect">ต้องสงสัย / SUSPECTED</span>';
+      vincentFindings = 'พบหลักฐานการตัดสายไฟหรือคราบเลือด จำเป็นต้องหาหลักฐานยืนยันที่อยู่ช่วง 20:20–20:26 เพื่อพิสูจน์ความบริสุทธิ์';
+    }
+    vincentCard.innerHTML = `
+      <div class="timeline-card-header">
+        <span class="timeline-suspect-name">วินเซนต์ เกรย์ (Vincent Gray)</span>
+        ${vincentStampHtml}
+      </div>
+      <div class="timeline-alibi-claim">“ผมตัดสายไฟตอนสามทุ่มสิบห้า แต่ผมไม่ได้ฆ่าเขา”</div>
+      <div class="timeline-evidence-findings">
+        <span class="timeline-findings-title">ผลการวิเคราะห์พยานหลักฐาน:</span>
+        ${vincentFindings}
+      </div>
+    `;
+    suspectsGrid.append(vincentCard);
+
+    // Liora Card
+    const lioraCard = document.createElement('div');
+    lioraCard.className = 'timeline-suspect-card';
+    let lioraStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
+    let lioraFindings = 'ดร. ลิโอรา อ้างว่าดูแลผู้ป่วยที่ตู้ 3 กำลังรอตรวจสมุดบันทึกในห้องแพทย์และสอบถามผู้ป่วย';
+    if (hasLioraLog && hasPatientWitness) {
+      lioraStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
+      lioraFindings = 'พ้นข้อหาฆาตกรรม! สมุดบันทึกการรักษาในห้องแพทย์และคำให้การของผู้ป่วยตู้ 3 สอดคล้องกัน ยืนยันว่าเธออยู่ดูแลคนไข้ตลอดช่วงที่รถไฟวิ่งในอุโมงค์ (20:20–20:26)';
+    }
+    lioraCard.innerHTML = `
+      <div class="timeline-card-header">
+        <span class="timeline-suspect-name">ดร. ลิโอรา เวนน์ (Dr. Liora Venn)</span>
+        ${lioraStampHtml}
+      </div>
+      <div class="timeline-alibi-claim">“ฉันอยู่ดูแลผู้ป่วยที่ตู้เสบียงตลอดช่วงรถไฟวิ่งในอุโมงค์”</div>
+      <div class="timeline-evidence-findings">
+        <span class="timeline-findings-title">ผลการวิเคราะห์พยานหลักฐาน:</span>
+        ${lioraFindings}
+      </div>
+    `;
+    suspectsGrid.append(lioraCard);
+
+    container.append(suspectsGrid);
+    wrap.append(container);
+  }
+
   // Journal Dispatcher
   function journal() {
     const wrap = $('journalContent');
@@ -640,6 +824,8 @@ const PixelUI = (() => {
       renderChatTab(wrap);
     } else if (activeTab === 'people') {
       renderPeopleTab(wrap);
+    } else if (activeTab === 'timeline') {
+      renderTimelineTab(wrap);
     } else {
       // Default: 'evidence' (Items & Documents)
       renderEvidenceTab(wrap);
