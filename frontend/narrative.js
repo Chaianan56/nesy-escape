@@ -50,7 +50,7 @@ const StoryScenes = (() => {
     art.hidden = !/^[a-z0-9-]+$/.test(page.art || '');
     if (!art.hidden) art.src = `/game-art/${page.art}.png`;
     const evidence = $('narrativeEvidence'); evidence.replaceChildren();
-    if (page.evidence?.length) {
+    if (mode !== 'opening' && page.evidence?.length) {
       const title = document.createElement('strong'); title.textContent = 'ข้อมูลที่คุณใช้เชื่อมเหตุการณ์'; evidence.append(title);
       const list = document.createElement('ul');
       page.evidence.forEach(item => {const li=document.createElement('li');li.textContent=item.name;list.append(li);});
