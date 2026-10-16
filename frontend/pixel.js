@@ -211,44 +211,266 @@ const PixelUI = (() => {
     const currentLocationLabel = $('mapCurrentLocation');
     if (currentLocationLabel) currentLocationLabel.textContent = currentLabel;
 
+    const displayLabels = ['หัวรถจักร', 'ระบบไฟฟ้า', 'ตู้เสบียง', 'ชั้นหนึ่ง', 'ตู้เลานจ์', 'ชั้นสอง'];
+
+    const renderPin = cx => `
+      <g class="train-active-pin" transform="translate(${cx} 16)" filter="url(#trainGoldGlow)">
+        <path d="M 0 0 C -4 -5.5 -6.5 -8.5 -6.5 -12.5 A 6.5 6.5 0 0 1 6.5 -12.5 C 6.5 -8.5 4 -5.5 0 0 Z" fill="#ffd580" stroke="#fff4d4" stroke-width="0.8"/>
+        <circle cx="0" cy="-12.5" r="2.4" fill="#070c12"/>
+      </g>`;
+
+    const renderActivePip = cx => `
+      <path d="M ${cx - 12} 75 H ${cx - 4} M ${cx + 4} 75 H ${cx + 12}" stroke="#ffd580" stroke-width="0.8"/>
+      <circle cx="${cx}" cy="75" r="1.5" fill="#ffd580"/>`;
+
     const passengerCar = (x, index) => {
       const [id, label] = rooms[index];
       const active = currentLocation === id;
-      const shell = active ? 'active-shell' : 'car-shell';
-      const roof = active ? 'active-roof' : 'car-roof';
-      const window = active ? 'train-window-active' : 'train-window';
-      const sideStroke = active ? '#e6bd70' : '#9e7844';
-      return `<g class="train-svg-car${active ? ' active' : ''}" data-room-index="${index}" transform="translate(${x} 0)">
-        <path class="${shell}" d="M6 48h183l12 9v21H0V57z"/><path class="${roof}" d="M12 48l12-10h147l14 10z"/>
-        <path d="M8 52v25m181-25v25" fill="none" stroke="${sideStroke}" stroke-width="2"/>
-        <use href="#${window}" x="21" y="52"/><use href="#${window}" x="52" y="52"/><use href="#${window}" x="83" y="52"/><use href="#${window}" x="114" y="52"/><use href="#${window}" x="145" y="52"/>
-        <use href="#train-wheel${active ? '-active' : ''}" x="38" y="83"/><use href="#train-wheel${active ? '-active' : ''}" x="164" y="83"/>
-        <rect class="train-hit" x="-3" y="27" width="208" height="70" aria-hidden="true"/>
-        ${active ? '<path class="train-position-pin" d="M103 5l-10 15h7v10h6V20h7z" aria-hidden="true"/>' : ''}
-      </g>`;
+      const stroke = active ? '#ffd580' : '#7e6742';
+      const subStroke = active ? '#e8be6e' : '#58472d';
+      const winBg = active ? 'url(#warmLitWindow)' : 'url(#dimWindow)';
+      const winBorder = active ? '#fff0c2' : '#57462c';
+      const sil = active ? '#1a1309' : '#141009';
+      const cx = x + 56;
+
+      let windowsHtml = '';
+      if (index === 1) {
+        // Luggage / Electrical
+        windowsHtml = `
+          <rect x="${x + 16}" y="32" width="16" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <line x1="${x + 24}" y1="32" x2="${x + 24}" y2="45" stroke="${winBorder}" stroke-width="0.6"/>
+          <rect x="${x + 40}" y="31" width="32" height="24" fill="#131920" stroke="${subStroke}" stroke-width="0.8"/>
+          <line x1="${x + 56}" y1="31" x2="${x + 56}" y2="55" stroke="${subStroke}" stroke-width="1"/>
+          <line x1="${x + 48}" y1="34" x2="${x + 48}" y2="52" stroke="${subStroke}" stroke-width="0.5"/>
+          <line x1="${x + 64}" y1="34" x2="${x + 64}" y2="52" stroke="${subStroke}" stroke-width="0.5"/>
+          <rect x="${x + 80}" y="32" width="16" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <line x1="${x + 88}" y1="32" x2="${x + 88}" y2="45" stroke="${winBorder}" stroke-width="0.6"/>
+        `;
+      } else if (index === 2) {
+        // Dining car with dining tables, lamps, and diner silhouettes
+        windowsHtml = `
+          <rect x="${x + 14}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <path d="M${x + 23} 45 v-4 h4 v4 M${x + 24} 41 l-2 -3 h4 l-2 3" stroke="${sil}" fill="${sil}" stroke-width="0.5"/>
+          <circle cx="${x + 19}" cy="38" r="2.2" fill="${sil}"/>
+          <circle cx="${x + 31}" cy="38" r="2.2" fill="${sil}"/>
+
+          <rect x="${x + 45}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <path d="M${x + 54} 45 v-4 h4 v4 M${x + 55} 41 l-2 -3 h4 l-2 3" stroke="${sil}" fill="${sil}" stroke-width="0.5"/>
+          <circle cx="${x + 50}" cy="37" r="2.4" fill="${sil}"/>
+          <circle cx="${x + 62}" cy="37" r="2.4" fill="${sil}"/>
+
+          <rect x="${x + 76}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <path d="M${x + 85} 45 v-4 h4 v4" stroke="${sil}" fill="${sil}" stroke-width="0.5"/>
+          <circle cx="${x + 81}" cy="38" r="2.2" fill="${sil}"/>
+          <circle cx="${x + 93}" cy="38" r="2.2" fill="${sil}"/>
+        `;
+      } else if (index === 3) {
+        // First Class with draped curtains and luxury passenger silhouettes
+        windowsHtml = `
+          <rect x="${x + 14}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <path d="M${x + 15} 33 q3 5 1 11 h-1 v-11 M${x + 35} 33 q-3 5 -1 11 h1 v-11" fill="${subStroke}" stroke="none"/>
+          <circle cx="${x + 25}" cy="38" r="2.5" fill="${sil}"/>
+
+          <rect x="${x + 45}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <path d="M${x + 46} 33 q3 5 1 11 h-1 v-11 M${x + 66} 33 q-3 5 -1 11 h1 v-11" fill="${subStroke}" stroke="none"/>
+          <circle cx="${x + 56}" cy="37" r="2.5" fill="${sil}"/>
+
+          <rect x="${x + 76}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <path d="M${x + 77} 33 q3 5 1 11 h-1 v-11 M${x + 97} 33 q-3 5 -1 11 h1 v-11" fill="${subStroke}" stroke="none"/>
+          <circle cx="${x + 87}" cy="38" r="2.5" fill="${sil}"/>
+        `;
+      } else if (index === 4) {
+        // Lounge Bar with bar stools and relaxed patron silhouettes
+        windowsHtml = `
+          <rect x="${x + 14}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 22}" cy="38" r="2.2" fill="${sil}"/>
+          <rect x="${x + 29}" y="40" width="5" height="5" fill="${sil}"/>
+
+          <rect x="${x + 45}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 52}" cy="37" r="2.4" fill="${sil}"/>
+          <circle cx="${x + 60}" cy="37" r="2.4" fill="${sil}"/>
+          <line x1="${x + 56}" y1="41" x2="${x + 56}" y2="45" stroke="${sil}" stroke-width="1"/>
+
+          <rect x="${x + 76}" y="32" width="22" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 85}" cy="38" r="2.2" fill="${sil}"/>
+        `;
+      } else {
+        // Second Class standard coach
+        windowsHtml = `
+          <rect x="${x + 12}" y="32" width="18" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 21}" cy="38" r="2.1" fill="${sil}"/>
+          <rect x="${x + 35}" y="32" width="18" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 44}" cy="38" r="2.1" fill="${sil}"/>
+          <rect x="${x + 58}" y="32" width="18" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 67}" cy="38" r="2.1" fill="${sil}"/>
+          <rect x="${x + 81}" y="32" width="18" height="13" rx="1.5" fill="${winBg}" stroke="${winBorder}" stroke-width="0.8"/>
+          <circle cx="${x + 90}" cy="38" r="2.1" fill="${sil}"/>
+        `;
+      }
+
+      return `
+        <g class="train-svg-car${active ? ' active' : ''}" data-room-index="${index}" style="cursor: pointer;">
+          ${active ? renderPin(cx) : ''}
+          ${active ? `<rect class="train-active-glow" x="${x + 2}" y="20" width="108" height="40" rx="3" fill="none" stroke="#ffd580" stroke-width="1.8" filter="url(#trainGoldGlow)"/>` : ''}
+
+          <!-- Clerestory Roof -->
+          <path d="M${x + 18} 25 h76 v-3 h-76 z" fill="#18130c" stroke="${stroke}" stroke-width="1"/>
+          <line x1="${x + 32}" y1="23.5" x2="${x + 36}" y2="23.5" stroke="${subStroke}" stroke-width="0.6"/>
+          <line x1="${x + 48}" y1="23.5" x2="${x + 52}" y2="23.5" stroke="${subStroke}" stroke-width="0.6"/>
+          <line x1="${x + 64}" y1="23.5" x2="${x + 68}" y2="23.5" stroke="${subStroke}" stroke-width="0.6"/>
+          <line x1="${x + 80}" y1="23.5" x2="${x + 84}" y2="23.5" stroke="${subStroke}" stroke-width="0.6"/>
+
+          <!-- Main Curved Roof -->
+          <path d="M${x + 4} 29 c8 -4 14 -4 14 -4 h76 c0 0 6 0 14 4 z" fill="#201a12" stroke="${stroke}" stroke-width="1"/>
+
+          <!-- Carriage Body Shell -->
+          <rect x="${x + 4}" y="29" width="104" height="27" rx="1.5" fill="#101720" stroke="${stroke}" stroke-width="1.2"/>
+          <line x1="${x + 4}" y1="46" x2="${x + 108}" y2="46" stroke="${subStroke}" stroke-width="0.8"/>
+          <rect x="${x + 6}" y="56" width="100" height="3" fill="#1b150f" stroke="${subStroke}" stroke-width="0.8"/>
+
+          <!-- Windows and Interior Art -->
+          ${windowsHtml}
+
+          <!-- Bogie 1 (Front Wheels) -->
+          <path d="M${x + 15} 63 h29 m-23 2 h17" stroke="${subStroke}" stroke-width="1.2"/>
+          <circle cx="${x + 22}" cy="65" r="5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="${x + 22}" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+          <circle cx="${x + 38}" cy="65" r="5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="${x + 38}" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+
+          <!-- Bogie 2 (Rear Wheels) -->
+          <path d="M${x + 67} 63 h29 m-23 2 h17" stroke="${subStroke}" stroke-width="1.2"/>
+          <circle cx="${x + 74}" cy="65" r="5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="${x + 74}" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+          <circle cx="${x + 90}" cy="65" r="5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="${x + 90}" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+
+          <!-- Coupler to next car -->
+          <line x1="${x + 108}" y1="50" x2="${x + 116}" y2="50" stroke="${subStroke}" stroke-width="1.8"/>
+
+          <!-- Under-label & pip -->
+          ${active ? renderActivePip(cx) : ''}
+          <text x="${cx}" y="86" text-anchor="middle" class="train-car-label${active ? ' active' : ''}" fill="${active ? '#ffd580' : '#8a8677'}" font-size="${active ? '11' : '10.5'}" font-weight="${active ? 'bold' : 'normal'}" font-family="'Segoe UI', Tahoma, sans-serif">${displayLabels[index]}</text>
+
+          <!-- Interaction Hit Area -->
+          <rect x="${x}" y="12" width="112" height="76" fill="transparent" aria-hidden="true"/>
+        </g>
+      `;
     };
 
-    const svg = `<svg class="train-map-svg" viewBox="0 0 1320 106" role="group" aria-label="แผนผังตู้รถไฟ เลือกตู้เพื่อเดินทาง">
-      <defs>
-        <g id="train-wheel"><circle class="train-wheel" r="11"/><circle class="train-wheel-hub" r="3"/></g>
-        <g id="train-wheel-active"><circle class="train-wheel active-wheel" r="11"/><circle class="train-wheel-hub active-hub" r="3"/></g>
-        <g id="train-window"><rect class="train-window" width="25" height="21" rx="2"/><path class="train-window-glint" d="M5 4v14"/></g>
-        <g id="train-window-active"><rect class="train-window active-window" width="25" height="21" rx="2"/><path class="train-window-glint" d="M5 4v14"/></g>
-      </defs>
-      <path class="train-rail" d="M12 94H1308M12 101H1308"/>
-      <path class="train-sleepers" d="M28 91v13M72 91v13M116 91v13M160 91v13M204 91v13M248 91v13M292 91v13M336 91v13M380 91v13M424 91v13M468 91v13M512 91v13M556 91v13M600 91v13M644 91v13M688 91v13M732 91v13M776 91v13M820 91v13M864 91v13M908 91v13M952 91v13M996 91v13M1040 91v13M1084 91v13M1128 91v13M1172 91v13M1216 91v13M1260 91v13"/>
-      <path class="train-coupler" d="M194 77h29M419 77h27M642 77h27M865 77h27M1088 77h27"/>
-      <g class="train-svg-car${currentLocation === rooms[0][0] ? ' active' : ''}" data-room-index="0">
-        <path class="train-metal" d="M20 77h18l13-11h20V48h24V40h55v8h32v22l20 7v8H20z"/>
-        <path class="train-car-roof" d="M91 40V31h59v9"/><rect class="train-window${currentLocation === rooms[0][0] ? ' active-window' : ''}" x="102" y="43" width="34" height="21" rx="2"/>
-        <path class="train-metal" d="M42 52h56v23H42zM48 46h47v5H48zM58 41h31v5H58z"/><rect class="train-metal" x="61" y="23" width="11" height="24"/><path class="train-metal" d="M58 23h17l-3-6H61z"/>
-        <circle class="train-headlamp" cx="30" cy="63" r="4"/><path class="train-metal" d="M20 77h-7l11 9h22l-9-9"/>
-        <use href="#train-wheel${currentLocation === rooms[0][0] ? '-active' : ''}" x="61" y="83"/><use href="#train-wheel${currentLocation === rooms[0][0] ? '-active' : ''}" x="113" y="83"/><use href="#train-wheel${currentLocation === rooms[0][0] ? '-active' : ''}" x="169" y="83"/>
-        <path class="train-engine-rod" d="M61 83h108"/><rect class="train-hit" x="10" y="14" width="200" height="82" aria-hidden="true"/>
-        ${currentLocation === rooms[0][0] ? '<path class="train-position-pin" d="M104 5l-10 15h7v10h6V20h7z" aria-hidden="true"/>' : ''}
-      </g>
-      ${passengerCar(218, 1)}${passengerCar(441, 2)}${passengerCar(664, 3)}${passengerCar(887, 4)}${passengerCar(1110, 5)}
-    </svg>`;
+    // Locomotive Car (Index 0)
+    const renderLocomotive = () => {
+      const active = currentLocation === rooms[0][0];
+      const stroke = active ? '#ffd580' : '#7e6742';
+      const subStroke = active ? '#e8be6e' : '#58472d';
+      const cx = 67;
+
+      return `
+        <g class="train-svg-car${active ? ' active' : ''}" data-room-index="0" style="cursor: pointer;">
+          ${active ? renderPin(cx) : ''}
+          ${active ? `<rect class="train-active-glow" x="6" y="20" width="122" height="40" rx="3" fill="none" stroke="#ffd580" stroke-width="1.8" filter="url(#trainGoldGlow)"/>` : ''}
+
+          <!-- Cowcatcher / Pilot -->
+          <polygon points="14,70 4,70 16,57" fill="#18130c" stroke="${stroke}" stroke-width="1"/>
+          <line x1="7" y1="67" x2="15" y2="67" stroke="${subStroke}" stroke-width="0.8"/>
+          <line x1="10" y1="63" x2="16" y2="63" stroke="${subStroke}" stroke-width="0.8"/>
+
+          <!-- Front Pilot Wheel -->
+          <circle cx="21" cy="65" r="4.5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="21" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+
+          <!-- 3 Driver Wheels & Rod -->
+          <circle cx="36" cy="62" r="8" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="36" cy="62" r="2.5" fill="${active ? '#ffd580' : '#453822'}"/>
+          <circle cx="56" cy="62" r="8" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="56" cy="62" r="2.5" fill="${active ? '#ffd580' : '#453822'}"/>
+          <circle cx="76" cy="62" r="8" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="76" cy="62" r="2.5" fill="${active ? '#ffd580' : '#453822'}"/>
+          <rect x="36" y="60.5" width="40" height="3" rx="1.5" fill="${active ? '#ffd580' : '#8e7548'}"/>
+
+          <!-- Boiler & Bands -->
+          <rect x="22" y="31" width="60" height="22" fill="#161c22" stroke="${stroke}" stroke-width="1"/>
+          <line x1="37" y1="31" x2="37" y2="53" stroke="${subStroke}" stroke-width="0.8"/>
+          <line x1="52" y1="31" x2="52" y2="53" stroke="${subStroke}" stroke-width="0.8"/>
+          <line x1="67" y1="31" x2="67" y2="53" stroke="${subStroke}" stroke-width="0.8"/>
+
+          <!-- Headlamp -->
+          <path d="M14 41 h8 v-6 h-8 z" fill="#2a2215" stroke="${stroke}" stroke-width="0.8"/>
+          <circle cx="14" cy="38" r="3" fill="#ffe082" filter="url(#trainGoldGlow)"/>
+
+          <!-- Smokestack & Domes -->
+          <path d="M28 31 v-8 h7 v8 z" fill="#1a140d" stroke="${stroke}" stroke-width="1"/>
+          <path d="M26 23 h11 l-2 3 h-7 z" fill="${stroke}"/>
+          <path d="M44 31 c0 -5 7 -5 7 0 z" fill="#1a140d" stroke="${stroke}" stroke-width="1"/>
+          <path d="M64 31 c0 -4 6 -4 6 0 z" fill="#1a140d" stroke="${stroke}" stroke-width="1"/>
+
+          <!-- Cab -->
+          <path d="M82 53 h22 v-29 h-22 z" fill="#181e26" stroke="${stroke}" stroke-width="1"/>
+          <path d="M79 24 h27" stroke="${stroke}" stroke-width="1.5"/>
+          <path d="M87 34 v8 h12 v-8 c0 -3 -12 -3 -12 0 z" fill="${active ? 'url(#warmLitWindow)' : 'url(#dimWindow)'}" stroke="${active ? '#ffd580' : '#57482f'}" stroke-width="0.8"/>
+
+          <!-- Tender with coal -->
+          <path d="M106 53 h20 v-16 h-20 z" fill="#181e26" stroke="${stroke}" stroke-width="1"/>
+          <path d="M107 37 q10 -5 18 0 z" fill="#0b0e12" stroke="#332a1d"/>
+          <circle cx="112" cy="65" r="4.5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="112" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+          <circle cx="122" cy="65" r="4.5" fill="#14181d" stroke="${stroke}" stroke-width="1"/>
+          <circle cx="122" cy="65" r="1.5" fill="${active ? '#ffd580' : '#453822'}"/>
+
+          <!-- Coupler to Car 1 -->
+          <line x1="126" y1="50" x2="134" y2="50" stroke="${subStroke}" stroke-width="1.8"/>
+
+          <!-- Under-label & pip -->
+          ${active ? renderActivePip(cx) : ''}
+          <text x="${cx}" y="86" text-anchor="middle" class="train-car-label${active ? ' active' : ''}" fill="${active ? '#ffd580' : '#8a8677'}" font-size="${active ? '11' : '10.5'}" font-weight="${active ? 'bold' : 'normal'}" font-family="'Segoe UI', Tahoma, sans-serif">${displayLabels[0]}</text>
+
+          <!-- Interaction Hit Area -->
+          <rect x="4" y="12" width="126" height="76" fill="transparent" aria-hidden="true"/>
+        </g>
+      `;
+    };
+
+    // Sleepers (track ties) generator across the train
+    let sleepersHtml = '';
+    for (let t = 10; t <= 740; t += 12) {
+      sleepersHtml += `<line x1="${t}" y1="70" x2="${t}" y2="74" stroke="#4a3c27" stroke-width="1"/>`;
+    }
+
+    const svg = `
+      <svg class="train-map-svg" viewBox="0 0 748 94" role="group" aria-label="แผนผังตู้รถไฟ เลือกตู้เพื่อเดินทาง">
+        <defs>
+          <filter id="trainGoldGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.2" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+          <linearGradient id="warmLitWindow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fff2cc"/>
+            <stop offset="100%" stop-color="#e5af4b"/>
+          </linearGradient>
+          <linearGradient id="dimWindow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2a2014"/>
+            <stop offset="100%" stop-color="#151009"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Rails & Sleepers -->
+        ${sleepersHtml}
+        <line x1="6" y1="71" x2="742" y2="71" stroke="#685536" stroke-width="1.2"/>
+        <line x1="6" y1="73" x2="742" y2="73" stroke="#4f3f27" stroke-width="1.2"/>
+
+        <!-- Train Cars: Locomotive + 5 Passenger Cars -->
+        ${renderLocomotive()}
+        ${passengerCar(134, 1)}
+        ${passengerCar(246, 2)}
+        ${passengerCar(358, 3)}
+        ${passengerCar(470, 4)}
+        ${passengerCar(582, 5)}
+      </svg>
+    `;
+
     wrap.replaceChildren();
     wrap.classList.add('train-cars-rendered');
     wrap.insertAdjacentHTML('beforeend', svg);
@@ -258,13 +480,14 @@ const PixelUI = (() => {
       const [id] = rooms[index];
       fillInput(currentLocation === id ? 'ดูรอบๆ' : `ไปตู้ ${index + 1}`);
     };
+
     wrap.querySelectorAll('.train-svg-car').forEach(car => {
       const index = Number(car.dataset.roomIndex);
       const [id, label] = rooms[index];
       const current = currentLocation === id;
       car.setAttribute('role', 'button');
       car.setAttribute('tabindex', typeof gameOver !== 'undefined' && gameOver ? '-1' : '0');
-      car.setAttribute('aria-label', `${index === 0 ? 'หัวรถจักร' : `ตู้ ${label}`} · ${rooms[index][2]}${current ? ' · ตำแหน่งปัจจุบัน' : ''}`);
+      car.setAttribute('aria-label', `${index === 0 ? 'หัวรถจักร พื้นที่หวงห้าม' : `ตู้ ${label}`} · ${rooms[index][2]}${current ? ' · ตำแหน่งปัจจุบัน' : ''}`);
       if (current) car.setAttribute('aria-current', 'location');
       if (typeof gameOver !== 'undefined' && gameOver) car.setAttribute('aria-disabled', 'true');
       car.addEventListener('click', () => activateRoom(index));
@@ -275,32 +498,6 @@ const PixelUI = (() => {
         }
       });
     });
-
-    const stops = document.createElement('div');
-    stops.className = 'train-map-stops';
-    rooms.forEach(([id, label], i) => {
-      const isCurrent = gameState?.current_location === id;
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'train-map-stop' + (isCurrent ? ' active' : '');
-      b.title = isCurrent ? `คุณยืนอยู่ที่นี่: ${label}` : `คลิกเพื่อเดินทางไปที่ ${label}`;
-      b.setAttribute('aria-label', i === 0 ? 'หัวรถจักร พื้นที่หวงห้าม' : `ตู้ ${label}`);
-      if (isCurrent) b.setAttribute('aria-current', 'location');
-      const name = document.createElement('span');
-      name.className = 'train-map-stop-name';
-      name.textContent = label;
-      const subtitle = document.createElement('small');
-      subtitle.textContent = ['ห้องเครื่อง','สัมภาระ','ห้องครัว','ห้องเกิดเหตุ','เลานจ์บาร์','ตู้โดยสาร'][i];
-      name.append(subtitle);
-      b.append(name);
-      b.onclick = () => {
-        if (typeof gameOver !== 'undefined' && gameOver) return;
-        fillInput(isCurrent ? 'ดูรอบๆ' : `ไปตู้ ${i + 1}`);
-      };
-      b.disabled = typeof gameOver !== 'undefined' && gameOver;
-      stops.append(b);
-    });
-    wrap.append(stops);
   }
 
   // Case Board

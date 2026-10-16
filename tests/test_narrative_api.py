@@ -58,7 +58,7 @@ def test_opening_is_read_only_before_start_and_not_replayed_on_resume(client):
     before = session(client).state.model_dump()
     opening = client.get("/scene").json()["opening_scene"]
     assert opening["id"] == "boarding"
-    assert len(opening["pages"]) == 5
+    assert len(opening["pages"]) == 4
     assert {item["id"] for page in opening["pages"] for item in page["evidence"]} == {
         "postponed_meeting_claim", "gideon_blackout_alibi"
     }
