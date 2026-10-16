@@ -350,7 +350,7 @@ const PixelUI = (() => {
 
           <!-- Under-label & pip -->
           ${active ? renderActivePip(cx) : ''}
-          <text x="${cx}" y="86" text-anchor="middle" class="train-car-label${active ? ' active' : ''}" fill="${active ? '#ffd580' : '#8a8677'}" font-size="${active ? '11' : '10.5'}" font-weight="${active ? 'bold' : 'normal'}" font-family="'Segoe UI', Tahoma, sans-serif">${displayLabels[index]}</text>
+          <text x="${cx}" y="89" text-anchor="middle" class="train-car-label${active ? ' active' : ''}" fill="${active ? '#ffd580' : '#b3ada0'}" font-size="${active ? '13.5' : '12.5'}" font-weight="${active ? 'bold' : '600'}" font-family="'Segoe UI', Tahoma, sans-serif">${displayLabels[index]}</text>
 
           <!-- Interaction Hit Area -->
           <rect x="${x}" y="12" width="112" height="76" fill="transparent" aria-hidden="true"/>
@@ -422,7 +422,7 @@ const PixelUI = (() => {
 
           <!-- Under-label & pip -->
           ${active ? renderActivePip(cx) : ''}
-          <text x="${cx}" y="86" text-anchor="middle" class="train-car-label${active ? ' active' : ''}" fill="${active ? '#ffd580' : '#8a8677'}" font-size="${active ? '11' : '10.5'}" font-weight="${active ? 'bold' : 'normal'}" font-family="'Segoe UI', Tahoma, sans-serif">${displayLabels[0]}</text>
+          <text x="${cx}" y="89" text-anchor="middle" class="train-car-label${active ? ' active' : ''}" fill="${active ? '#ffd580' : '#b3ada0'}" font-size="${active ? '13.5' : '12.5'}" font-weight="${active ? 'bold' : '600'}" font-family="'Segoe UI', Tahoma, sans-serif">${displayLabels[0]}</text>
 
           <!-- Interaction Hit Area -->
           <rect x="4" y="12" width="126" height="76" fill="transparent" aria-hidden="true"/>
@@ -437,7 +437,7 @@ const PixelUI = (() => {
     }
 
     const svg = `
-      <svg class="train-map-svg" viewBox="0 0 748 94" role="group" aria-label="แผนผังตู้รถไฟ เลือกตู้เพื่อเดินทาง">
+      <svg class="train-map-svg" viewBox="0 0 748 98" role="group" aria-label="แผนผังตู้รถไฟ เลือกตู้เพื่อเดินทาง">
         <defs>
           <filter id="trainGoldGlow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="2.2" result="blur"/>
