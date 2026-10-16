@@ -1068,7 +1068,7 @@ const PixelUI = (() => {
         });
       }
 
-      // Visible Objects in Center Column (Interactive Clickable Chips)
+      // Visible objects and locally available dialogue topics in the scene strip.
       const visible = $('visibleObjects');
       if (visible) {
         visible.replaceChildren();
@@ -1082,10 +1082,24 @@ const PixelUI = (() => {
             btn.onclick = () => fillInput(`ตรวจ${o.name}`);
             visible.append(btn);
           });
-        } else {
+        }
+        const peopleHere = (data.people || []).filter(person => person.here && person.topics?.length);
+        peopleHere.forEach(person => {
+          const personName = person.name.split(' (')[0];
+          person.topics.forEach(topic => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'object-button quick-talk-btn';
+            btn.title = `ถาม ${personName} เรื่อง${topic.label}`;
+            btn.textContent = `🗣 ${personName} · ${topic.label}`;
+            btn.onclick = () => fillInput(`สอบปากคำ ${personName} เรื่อง ${topic.label}`);
+            visible.append(btn);
+          });
+        });
+        if (!(data.visible?.length || peopleHere.length)) {
           const emptySpan = document.createElement('span');
           emptySpan.className = 'muted';
-          emptySpan.textContent = typeof gameOver !== 'undefined' && gameOver ? 'คดีปิดแล้ว' : 'ไม่มีสิ่งที่ตรวจเพิ่มได้ในตู้นี้';
+          emptySpan.textContent = typeof gameOver !== 'undefined' && gameOver ? 'คดีปิดแล้ว' : 'ไม่มีของให้ตรวจหรือคนให้ถามเพิ่มในตู้นี้';
           visible.append(emptySpan);
         }
       }
