@@ -552,7 +552,8 @@ const PixelUI = (() => {
   // Render Tab 1: Chat History
   function renderChatTab(wrap) {
     const feed = $('chatFeed');
-    if (!feed || !feed.children.length) {
+    const messages = Array.from(feed?.children || []).filter(node => !node.classList.contains('msg-loading'));
+    if (!messages.length) {
       wrap.append(empty('ยังไม่มีประวัติการคุย', 'พิมพ์คำสั่งสืบสวนหรือกดสำรวจตรงหน้า บันทึกการสนทนาจะปรากฏที่นี่'));
       return;
     }
@@ -562,7 +563,7 @@ const PixelUI = (() => {
     header.innerHTML = `
       <div class="archive-headline">
         <strong>บันทึกบทสนทนาและคำสั่ง</strong>
-        <small>${feed.children.length} ข้อความ</small>
+        <small>${messages.length} ข้อความ</small>
       </div>
       <button type="button" class="chip-btn scroll-latest-btn" id="scrollTabLatest">ไปล่าสุด ↓</button>
     `;
@@ -571,8 +572,7 @@ const PixelUI = (() => {
     const logContainer = document.createElement('div');
     logContainer.className = 'archive-chat-log';
 
-    Array.from(feed.children).forEach((node, idx) => {
-      if (node.id === 'initLoading') return;
+    messages.forEach((node, idx) => {
       const item = document.createElement('div');
       item.className = 'archive-chat-item ' + (node.className || '');
 
@@ -598,8 +598,9 @@ const PixelUI = (() => {
     wrap.append(logContainer);
 
     header.querySelector('#scrollTabLatest')?.addEventListener('click', () => {
-      logContainer.scrollTo({ top: logContainer.scrollHeight, behavior: 'smooth' });
+      wrap.scrollTo({ top: wrap.scrollHeight, behavior: 'smooth' });
     });
+    wrap.scrollTop = wrap.scrollHeight;
   }
 
   // Render Tab 2: Items & Documents
@@ -1013,14 +1014,18 @@ const PixelUI = (() => {
     if (!wrap) return;
     wrap.replaceChildren();
 
+    // Chat history is already on the page and does not depend on /journal.
+    if (activeTab === 'chat') {
+      renderChatTab(wrap);
+      return;
+    }
+
     if (!data) {
       wrap.append(empty('กำลังเปิดแฟ้มคดี', 'รอสักครู่…'));
       return;
     }
 
-    if (activeTab === 'chat') {
-      renderChatTab(wrap);
-    } else if (activeTab === 'people') {
+    if (activeTab === 'people') {
       renderPeopleTab(wrap);
     } else if (activeTab === 'timeline') {
       renderTimelineTab(wrap);

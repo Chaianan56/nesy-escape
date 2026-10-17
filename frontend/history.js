@@ -17,15 +17,16 @@ window.addEventListener('DOMContentLoaded', () => {
   new MutationObserver(updatePreview).observe(feed, {childList: true});
   updatePreview();
 
-  document.querySelectorAll('[data-open-history]').forEach(button => {
-    button.addEventListener('click', () => {
-      opener = button;
-      savedScroll = feed.scrollTop;
-      document.getElementById('historyChatHost').appendChild(feed);
-      dialog.showModal();
-      document.body.classList.add('history-is-open');
-      feed.scrollTop = feed.scrollHeight;
-    });
+  // The header buttons can be rebuilt after this script initializes.
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-open-history]');
+    if (!button || dialog.open) return;
+    opener = button;
+    savedScroll = feed.scrollTop;
+    document.getElementById('historyChatHost').appendChild(feed);
+    dialog.showModal();
+    document.body.classList.add('history-is-open');
+    feed.scrollTop = feed.scrollHeight;
   });
   document.getElementById('closeHistory').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => {
