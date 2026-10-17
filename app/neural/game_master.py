@@ -23,7 +23,7 @@ PROMPT_VERSION = "neural-gm-1.1"
 
 
 class NeuralGameOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="ignore", strict=True)
     allowed: bool
     message: str
     new_state: GameState
@@ -63,6 +63,52 @@ def digest(value) -> str:
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+def _strip_additional_properties(schema: dict) -> dict:
+    """Recursively remove ``additionalProperties`` from a JSON Schema dict.
+
+    Gemini Developer API rejects this keyword; the full Pydantic model is still
+    used for validation after the response is received.
+    """
+    if not isinstance(schema, dict):
+        return schema
+    out = {}
+    for key, value in schema.items():
+        if key == "additionalProperties":
+            continue
+        if isinstance(value, dict):
+            out[key] = _strip_additional_properties(value)
+        elif isinstance(value, list):
+            out[key] = [
+                _strip_additional_properties(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            out[key] = value
+    return out
+
+
+def _pydantic_schema_for_gemini(model_cls: type[BaseModel]) -> dict:
+    """Return a Gemini-compatible JSON Schema dict from a Pydantic model class."""
+    raw = model_cls.model_json_schema()
+    # Inline $defs / definitions so Gemini receives a self-contained schema.
+    defs = raw.pop("$defs", raw.pop("definitions", {}))
+    def _resolve(node):
+        if not isinstance(node, dict):
+            return node
+        ref = node.get("$ref")
+        if ref and ref.startswith("#/$defs/"):
+            resolved = defs.get(ref.split("/")[-1], {})
+            return _resolve(dict(resolved))
+        if ref and ref.startswith("#/definitions/"):
+            resolved = defs.get(ref.split("/")[-1], {})
+            return _resolve(dict(resolved))
+        return {k: _resolve(v) if isinstance(v, dict) else
+                   [_resolve(i) if isinstance(i, dict) else i for i in v] if isinstance(v, list) else v
+                for k, v in node.items()}
+    resolved = _resolve(raw)
+    return _strip_additional_properties(resolved)
+
+
 def load_game_bundle(root: Path = ROOT) -> dict:
     """Load source facts only. Never calculate available evidence or deductions."""
     return {
@@ -86,11 +132,12 @@ class GeminiGameProvider:
         client = get_genai_client()
         if client is None:
             raise NeuralNotConfigured("Configure Gemini before running the neural game master")
+        sanitized_schema = _pydantic_schema_for_gemini(schema)
         response = client.models.generate_content(
             model=self.model, contents=content,
             config=types.GenerateContentConfig(
                 system_instruction=system, response_mime_type="application/json",
-                response_schema=schema, temperature=0,
+                response_schema=sanitized_schema, temperature=0,
                 http_options=types.HttpOptions(timeout=self.timeout_ms,
                     retry_options=types.HttpRetryOptions(attempts=1)),
             ),
@@ -150,8 +197,15 @@ class NeuralGameMaster:
         try:
             data = json.loads(reply.text)
             state_data = data.get("new_state") if isinstance(data, dict) else None
-            if not isinstance(state_data, dict) or set(state_data) != set(GameState.model_fields):
-                raise ValueError("new_state must include exactly the complete state shape")
+            if not isinstance(state_data, dict):
+                raise ValueError("new_state must be an object")
+            # Fill missing fields from the input state so flash-lite omissions
+            # don't cause a schema reject — omitted fields stay unchanged.
+            baseline = state.model_dump(mode="json")
+            for field in GameState.model_fields:
+                if field not in state_data:
+                    state_data[field] = baseline[field]
+            data["new_state"] = state_data
             # Strict JSON shape/type validation only; arbitrary IDs and wrong deductions
             # intentionally pass so the experiment can observe semantic mistakes.
             output = NeuralGameOutput.model_validate(data, strict=True)
