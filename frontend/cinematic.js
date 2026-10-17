@@ -28,9 +28,6 @@ window.addEventListener('DOMContentLoaded', () => {
     historyButton.textContent = '↶ ประวัติ';
     historyButton.setAttribute('aria-haspopup', 'dialog');
     historyButton.setAttribute('data-open-history', '');
-    historyButton.addEventListener('click', () => {
-      document.getElementById('historyDialog')?.showModal();
-    });
     header.append(journalButton, historyButton);
 
     const journal = document.createElement('dialog');
@@ -50,11 +47,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     journal.addEventListener('close', () => journalButton.focus());
   }
-
-  // Connect History Dialog button
-  document.querySelectorAll('[data-open-history]').forEach(btn => {
-    btn.onclick = () => document.getElementById('historyDialog')?.showModal();
-  });
 
   // Keep the latest response panel layered over the scene artwork, as in the main UI.
   const art = document.querySelector('.scene-art');
