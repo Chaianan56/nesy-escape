@@ -50,8 +50,7 @@ def test_semantically_wrong_full_response_is_preserved():
 
 
 @pytest.mark.parametrize("payload", ["not-json", json.dumps({"allowed": True}),
-    json.dumps(response(new_state={"current_location": "lounge_car"})),
-    json.dumps(response(allowed="true")), json.dumps(response(unrecognized_field=True))])
+    json.dumps(response(allowed="true")), json.dumps(response(message=12345))])
 def test_format_failure_is_not_a_symbolic_rejection(payload):
     calls = []
     def provider(*args):

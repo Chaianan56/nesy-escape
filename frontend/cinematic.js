@@ -2,17 +2,6 @@
 window.addEventListener('DOMContentLoaded', () => {
   const header = document.querySelector('.header-right');
   const clock = document.getElementById('clockWidget');
-  const dockNote = document.querySelector('.dock-note');
-  if (clock && dockNote) {
-    if (!dockNote.contains(clock)) {
-      dockNote.replaceChildren(clock);
-    }
-    if (!dockNote.querySelector('small')) {
-      const caption = document.createElement('small');
-      caption.textContent = 'เวลาเหลือ · นาที';
-      clock.before(caption);
-    }
-  }
 
   if (header) {
     header.replaceChildren();
@@ -28,7 +17,12 @@ window.addEventListener('DOMContentLoaded', () => {
     historyButton.textContent = '↶ ประวัติ';
     historyButton.setAttribute('aria-haspopup', 'dialog');
     historyButton.setAttribute('data-open-history', '');
-    header.append(journalButton, historyButton);
+
+    if (clock) {
+      header.append(clock, journalButton, historyButton);
+    } else {
+      header.append(journalButton, historyButton);
+    }
 
     const journal = document.createElement('dialog');
     journal.id = 'casebookDialog';
@@ -52,6 +46,51 @@ window.addEventListener('DOMContentLoaded', () => {
   const art = document.querySelector('.scene-art');
   const dialoguePanel = document.querySelector('.dialogue-panel');
   if (art && dialoguePanel) art.append(dialoguePanel);
+
+  // Toggle hiding dialogue overlay so the user can view the scene artwork unobstructed
+  function hideDialogueBox() {
+    if (typeof window.hideDialogue === 'function') {
+      window.hideDialogue();
+    } else {
+      const panel = document.querySelector('.dialogue-panel');
+      const showBtn = document.getElementById('showDialogueBtn');
+      if (panel) {
+        panel.classList.add('is-hidden');
+        panel.style.setProperty('display', 'none', 'important');
+      }
+      if (showBtn) {
+        showBtn.removeAttribute('hidden');
+        showBtn.style.setProperty('display', 'inline-flex', 'important');
+      }
+    }
+  }
+
+  function showDialogueBox() {
+    if (typeof window.showDialogue === 'function') {
+      window.showDialogue();
+    } else {
+      const panel = document.querySelector('.dialogue-panel');
+      const showBtn = document.getElementById('showDialogueBtn');
+      if (panel) {
+        panel.classList.remove('is-hidden');
+        panel.style.removeProperty('display');
+      }
+      if (showBtn) {
+        showBtn.setAttribute('hidden', '');
+        showBtn.style.setProperty('display', 'none', 'important');
+      }
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#hideDialogueBtn, #toggleDialogueBtn, .dialogue-hide-btn')) {
+      e.preventDefault();
+      hideDialogueBox();
+    } else if (e.target.closest('#showDialogueBtn, .show-dialogue-floating-btn')) {
+      e.preventDefault();
+      showDialogueBox();
+    }
+  });
 
   const quickActions = document.querySelector('.quick-actions');
   if (quickActions) {
@@ -139,4 +178,67 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }).observe(feed, { childList: true, subtree: true });
   }
+
+  // Smooth Mouse Wheel & Click-and-Drag Horizontal Scrolling for Chips
+  function setupHorizontalScroll(el) {
+    if (!el || el.__hasHorizontalScroll) return;
+    el.__hasHorizontalScroll = true;
+
+    // 1. Mouse wheel horizontal scrolling
+    el.addEventListener('wheel', (e) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+
+    // 2. Click and drag to scroll
+    let isDown = false;
+    let startX = 0;
+    let initialScrollLeft = 0;
+    let hasMoved = false;
+
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // Only primary mouse button
+      isDown = true;
+      hasMoved = false;
+      el.classList.add('is-dragging');
+      startX = e.pageX - el.offsetLeft;
+      initialScrollLeft = el.scrollLeft;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDown) {
+        isDown = false;
+        el.classList.remove('is-dragging');
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      if (Math.abs(walk) > 4) {
+        hasMoved = true;
+      }
+      el.scrollLeft = initialScrollLeft - walk;
+    });
+
+    // Suppress child button clicks if user dragged rather than clicked
+    el.addEventListener('click', (e) => {
+      if (hasMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+        hasMoved = false;
+      }
+    }, true);
+  }
+
+  // Attach to #visibleObjects and existing .chips-scroll
+  const visibleObjects = document.getElementById('visibleObjects');
+  if (visibleObjects) setupHorizontalScroll(visibleObjects);
+  document.querySelectorAll('.chips-scroll').forEach(setupHorizontalScroll);
+
+  // Expose globally so dynamic chip rows can use it
+  window.setupHorizontalScroll = setupHorizontalScroll;
 });

@@ -14,6 +14,10 @@ from pathlib import Path
 import logging
 import time
 
+from dotenv import load_dotenv
+ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +29,7 @@ from app.schemas import (
     Decision,
     GameState,
     ParsedCommand,
+    ReasoningStep,
 )
 from app.case_notes import evidence_entry, case_questions, conversation_summaries
 from app.game_clock import sync_clock
@@ -74,6 +79,7 @@ def get_tracker(session_id: str | None = None) -> BehaviorTracker:
 from app.neural.gemini_client import (
     NeuralUnavailable,
     _clients,
+    get_api_status,
     interpret as interpret_remote,
     llm_online,
 )
@@ -97,6 +103,7 @@ def health(probe: bool = False):
         "status": "ok",
         "llm_configured": llm_online(),
         "llm_keys": len(_clients()),
+        "api_status": get_api_status(),
         "rules_loaded": len(engine.rules),
         "objects_loaded": len(engine.world["objects"]),
         "suspects_loaded": len(engine.world["suspects"]),
@@ -137,6 +144,7 @@ def scene(session: Session = Depends(session_for)):
         "restricted_locations": [k for k, v in w["locations"].items() if v.get("restricted")],
         "actions": [a.value for a in ActionType],
         "rules_count": len(engine.rules),
+        "api_status": get_api_status(),
         "initial_state": session.state.model_dump(),
     }
 
@@ -278,6 +286,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
             "evidence": list(req.submitted_evidence or []), "accepted": result.decision.allowed,
             "elapsed_seconds": result.new_state.elapsed_seconds})
         session.inference_attempts = session.inference_attempts[-200:]
+    result.api_status = get_api_status()
     return result
 
 
@@ -386,6 +395,17 @@ def _handle_command(req: CommandRequest):
             decision = decision.model_copy(
                 update={"message": f"{decision.message}\n\n💡 *[ความเชื่อมั่นของ AI ต่ำ ({int(parsed.confidence * 100)}%)]*: ลองระบุชื่อเป้าหมายหรือคำสั่งให้ชัดเจนยิ่งขึ้น"}
             )
+
+    # สะท้อนผลลัพธ์ของ Symbolic Constraint Repair สู่ Explainable Reasoning Chain (XAI)
+    if parsed.repair_note and not any(r.rule_id == "SYMBOLIC_REPAIR" for r in decision.reasoning_chain):
+        repair_step = ReasoningStep(
+            rule_id="SYMBOLIC_REPAIR",
+            description=f"Neuro-Symbolic Constraint Repair: {parsed.repair_note}",
+            passed=True,
+        )
+        decision = decision.model_copy(
+            update={"reasoning_chain": [repair_step] + decision.reasoning_chain}
+        )
 
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
     if decision.allowed:

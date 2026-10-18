@@ -365,4 +365,61 @@ def test_vector_centroid_classifier_archetype_probability():
     assert scores_mav.maverick > scores_mav.forensic
 
 
+def test_bilingual_retriever_and_sequence_detection():
+    """ทดสอบว่า Retriever ตรวจจับ sequence และ entity matching ในภาษาอังกฤษได้แม่นยำ"""
+    retriever = KNNExampleRetriever()
+
+    # 1. English sequence detection via 'then' or 'and'
+    res_seq = retriever.retrieve("go to first class car then examine pocket watch", k=3)
+    assert res_seq[0].get("action") == "sequence"
+
+    # 2. English action keyword boost (e.g. examine, inspect)
+    res_examine = retriever.retrieve("examine the pocket watch carefully", k=3)
+    assert any(r.get("target") == "pocket_watch" for r in res_examine)
+
+    # 3. Entity candidate scoring with English ID tokens & parens name
+    obj_data = STORY_DATA["objects"]["pocket_watch"]
+    score = score_entity_candidate("examine pocket watch", "pocket_watch", obj_data)
+    assert score >= 0.90
+
+
+def test_symbolic_repair_note_and_xai_reasoning_step():
+    """ทดสอบว่า Symbolic Repair บันทึก repair_note และสะท้อนออกเป็น ReasoningStep ใน XAI"""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    # 1. repair_parsed_command ปรับ unlock -> examine สำหรับ non-lockable object พร้อมแนบ note
+    cmd = ParsedCommand(
+        action=ActionType.UNLOCK,
+        target="pocket_watch",
+        raw_text="open pocket watch",
+        confidence=0.9,
+    )
+    repaired, note = repair_parsed_command(cmd, STORY_DATA, raw_text="open pocket watch")
+    assert repaired.action == ActionType.EXAMINE
+    assert repaired.repair_note is not None
+    assert "Adjusted UNLOCK to EXAMINE" in repaired.repair_note
+
+    # 2. เมื่อเรียกผ่าน /command ทาง API จะมี rule_id='SYMBOLIC_REPAIR' ปรากฏใน reasoning_chain
+    with TestClient(app) as client:
+        # Establish session first
+        client.get("/scene")
+        # Mock interpret ให้ส่งคำสั่งที่ต้องถูกซ่อมแซม
+        from app import main as app_main
+        original_interpret = app_main.interpret
+        try:
+            app_main.interpret = lambda text, state: repaired
+            resp = client.post("/command", json={"text": "open pocket watch"})
+            assert resp.status_code == 200
+            data = resp.json()
+            chain = data["decision"]["reasoning_chain"]
+            repair_steps = [s for s in chain if s["rule_id"] == "SYMBOLIC_REPAIR"]
+            assert len(repair_steps) == 1
+            assert "Neuro-Symbolic Constraint Repair" in repair_steps[0]["description"]
+            assert repair_steps[0]["passed"] is True
+        finally:
+            app_main.interpret = original_interpret
+
+
+
 

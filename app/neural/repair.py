@@ -48,7 +48,7 @@ def repair_parsed_command(
         
         # ถ้าไม่มีกลไกล็อก และไม่รองรับ unlock แต่รองรับ examine
         if "unlock" not in supports and not has_lock:
-            if "examine" in supports or any(w in raw for w in ("เปิดดู", "เปิดอ่าน", "ตรวจ", "ส่อง", "ดู")):
+            if "examine" in supports or any(w in raw for w in ("เปิดดู", "เปิดอ่าน", "ตรวจ", "ส่อง", "ดู", "open", "read", "check", "inspect")):
                 updates["action"] = ActionType.EXAMINE
                 updates["code"] = None
                 updates["instrument"] = None
@@ -66,7 +66,7 @@ def repair_parsed_command(
 
     elif action == ActionType.EXAMINE and target in suspects and target not in objects:
         # สั่ง examine ใส่คน แต่ในประโยคมีเจตนาคุย/ถาม
-        if any(w in raw for w in ("คุย", "ถาม", "สอบปากคำ", "ซัก")):
+        if any(w in raw for w in ("คุย", "ถาม", "สอบปากคำ", "ซัก", "talk", "ask", "interrogate", "speak")):
             updates["action"] = ActionType.INTERROGATE
             repair_notes.append(f"Adjusted EXAMINE to INTERROGATE for person '{target}'")
 
@@ -102,6 +102,7 @@ def repair_parsed_command(
     if not updates:
         return parsed, None
 
-    repaired = parsed.model_copy(update=updates)
     note = "; ".join(repair_notes)
+    updates["repair_note"] = note
+    repaired = parsed.model_copy(update=updates)
     return repaired, note
