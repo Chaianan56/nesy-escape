@@ -396,6 +396,7 @@ const SequencePlayback = (() => {
 
   function play(data) {
     if (!data.sequence_steps || data.sequence_steps.length <= 1) return Promise.resolve();
+    if (typeof window !== 'undefined' && typeof window.showDialogue === 'function') window.showDialogue();
     return new Promise((resolve) => {
       active = true;
       steps = data.sequence_steps;
@@ -755,6 +756,9 @@ async function submit(text, opts = {}) {
     return null;
   }
   showLoading();
+  if (typeof window !== 'undefined' && typeof window.showDialogue === 'function') {
+    window.showDialogue();
+  }
   try {
     if (!gameState) {
       const sRes = await fetch(`${API_BASE}/scene`);
@@ -781,13 +785,21 @@ async function submit(text, opts = {}) {
     if (data.new_state) gameState = data.new_state;
     if (data.profile) updateProfilerHUD(data.profile);
     if (data.api_status) updateApiStatus(data.api_status);
-    if (typeof document.querySelector === 'function') {
+    if (typeof window !== 'undefined' && typeof window.showDialogue === 'function') {
+      window.showDialogue();
+    } else if (typeof document.querySelector === 'function') {
       const dialoguePanel = document.querySelector('.dialogue-panel');
       const showBtn = document.getElementById('showDialogueBtn');
-      if (dialoguePanel && dialoguePanel.classList && dialoguePanel.classList.contains('is-hidden')) {
+      if (dialoguePanel) {
         dialoguePanel.classList.remove('is-hidden');
+        dialoguePanel.style.removeProperty('display');
       }
-      if (showBtn) showBtn.hidden = true;
+      if (showBtn) {
+        showBtn.setAttribute('hidden', '');
+        showBtn.hidden = true;
+        showBtn.style.removeProperty('display');
+        showBtn.style.setProperty('display', 'none', 'important');
+      }
     }
     anchorClock();
     updateLocationHUD();

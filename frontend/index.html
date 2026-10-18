@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Nocturne Express — คดีบนรถไฟ</title>
-    <link rel="stylesheet" href="style.css?v=20261019-ui6">
+    <link rel="stylesheet" href="style.css?v=20261019-ui7">
 
-    <link rel="stylesheet" href="art.css?v=20261019-ui6">
-    <link rel="stylesheet" href="novel.css?v=20261019-ui6">
-    <link rel="stylesheet" href="accusation.css?v=20261019-ui6">
-    <link rel="stylesheet" href="cinematic.css?v=20261019-ui6">
-    <link rel="stylesheet" href="narrative.css?v=20261019-ui6">
+    <link rel="stylesheet" href="art.css?v=20261019-ui7">
+    <link rel="stylesheet" href="novel.css?v=20261019-ui7">
+    <link rel="stylesheet" href="accusation.css?v=20261019-ui7">
+    <link rel="stylesheet" href="cinematic.css?v=20261019-ui7">
+    <link rel="stylesheet" href="narrative.css?v=20261019-ui7">
     <style>
     /* Direct Art-Deco styles for Dialogue Toggle & API Status */
     .dialogue-panel.is-hidden { display: none !important; }
@@ -374,6 +374,8 @@
       }
       if (showBtn) {
         showBtn.removeAttribute('hidden');
+        showBtn.hidden = false;
+        showBtn.style.removeProperty('display');
         showBtn.style.setProperty('display', 'inline-flex', 'important');
       }
     };
@@ -387,11 +389,13 @@
       }
       if (showBtn) {
         showBtn.setAttribute('hidden', '');
+        showBtn.hidden = true;
+        showBtn.style.removeProperty('display');
         showBtn.style.setProperty('display', 'none', 'important');
       }
     };
     </script>
-    <script src="history.js?v=20261019-ui6"></script><script src="novel.js?v=20261019-ui6"></script><script src="narrative.js?v=20261019-ui6"></script><script src="chat.js?v=20261019-ui6"></script><script src="art.js?v=20261019-ui6"></script><script src="inference.js?v=20261019-ui6"></script><script src="pixel.js?v=20261019-ui6"></script>
-    <script src="cinematic.js?v=20261019-ui6"></script>
+    <script src="history.js?v=20261019-ui7"></script><script src="novel.js?v=20261019-ui7"></script><script src="narrative.js?v=20261019-ui7"></script><script src="chat.js?v=20261019-ui7"></script><script src="art.js?v=20261019-ui7"></script><script src="inference.js?v=20261019-ui7"></script><script src="pixel.js?v=20261019-ui7"></script>
+    <script src="cinematic.js?v=20261019-ui7"></script>
 </body>
 </html>
