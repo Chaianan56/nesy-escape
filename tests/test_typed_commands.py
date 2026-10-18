@@ -59,6 +59,27 @@ def test_visible_dialogue_labels_locks_and_inference_parse_without_model(monkeyp
         assert all(getattr(parsed, field) == value for field, value in fields.items()), text
 
 
+def test_generic_key_pick_resolves_only_when_one_takeable_key_is_local():
+    world = main.engine.world
+    state = GameState(current_location='dining_car_staff')
+    parsed = parse_typed_command('หยิบกุญแจ', state, world)
+    assert parsed is not None
+    assert (parsed.action, parsed.target) == (ActionType.TAKE, 'staff_key')
+    assert main.engine.decide(parsed, state).allowed
+
+    # Do not guess when no key is in this car.
+    elsewhere = GameState(current_location='luggage_van_electrical')
+    assert parse_typed_command('หยิบกุญแจ', elsewhere, world) is None
+
+    # Do not guess when two locally takeable keys are possible.
+    multiple_keys = {**world, 'objects': dict(world['objects'])}
+    multiple_keys['objects']['spare_staff_key'] = {
+        'name_th': 'กุญแจสำรอง', 'type': 'key',
+        'location': 'dining_car_staff', 'supports': ['take'],
+    }
+    assert parse_typed_command('หยิบกุญแจ', state, multiple_keys) is None
+
+
 def test_fast_input_still_obeys_location_rules(monkeypatch):
     monkeypatch.setattr(main, 'interpret', interpret_game)
     with TestClient(main.app) as client:

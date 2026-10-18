@@ -51,6 +51,21 @@ def parse_typed_command(text, state, world):
         carried_keys = [key for key in state.inventory
                         if world.get('objects', {}).get(key, {}).get('type') == 'key']
         return carried_keys[0] if len(carried_keys) == 1 else None
+    def resolve_local_key_to_take(label):
+        # Resolve a generic reference only when exactly one takeable key is
+        # present in the current location. If there are multiple keys (or
+        # visibility depends on hidden requirements), leave it to the model
+        # rather than guessing.
+        if label.strip() not in {'กุญแจ', 'กุญแจดอกนั้น', 'กุญแจที่วางอยู่'}:
+            return None
+        candidates = [key for key, entity in world.get('objects', {}).items()
+                      if entity.get('type') == 'key'
+                      and entity.get('location') == state.current_location
+                      and 'take' in entity.get('supports', [])
+                      and key not in state.inventory
+                      and key not in state.burned_objects
+                      and not entity.get('visible_requirements')]
+        return candidates[0] if len(candidates) == 1 else None
     if value.lower() in ('ดูรอบๆ', 'ดูรอบ ๆ', 'มองรอบๆ', 'สำรวจห้อง', 'look around', 'look', 'search room', 'examine room'):
         return command(ActionType.EXAMINE, state.current_location)
     # "<action> <id>" ที่หน้าเว็บส่งมาทีละขั้นของคำสั่งพ่วง ไม่ต้องถาม Gemini ซ้ำ
@@ -166,6 +181,8 @@ def parse_typed_command(text, state, world):
         elif target_text.lower().startswith('a '):
             target_text = target_text[2:].strip()
         target = resolve(target_text, groups)
+        if target is None and action == ActionType.TAKE:
+            target = resolve_local_key_to_take(target_text)
         if target:
             return command(action, target)
     return None
