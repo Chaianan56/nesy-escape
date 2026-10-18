@@ -283,7 +283,7 @@ def _unlock_ready(cmd, state, world, p):
     if "code" in requirement and cmd.code != str(requirement["code"]):
         return False, "รหัสไม่ถูกต้อง"
     key = requirement.get("key")
-    if key and (cmd.instrument != key or key not in state.inventory):
+    if key and (key not in state.inventory or (cmd.instrument and cmd.instrument != key)):
         return False, "ต้องใช้กุญแจที่ถูกต้องและมีอยู่ในครอบครอง"
     return True, ""
 

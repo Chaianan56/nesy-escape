@@ -109,11 +109,18 @@ def parse_typed_command(text, state, world):
             topic = next((key for key, node in topics.items() if match[2].strip().lower() in {key.lower(), str(node.get('label', '')).lower(), str(node.get('name_th', '')).lower()}), None)
             if topic:
                 return command(ActionType.INTERROGATE, person, topic=topic)
-    match = re.fullmatch(r'(?:ปลดล็อก|เปิด|unlock|open)\s*(.+?)\s+(?:(?:รหัส|code)\s*)?(\d+)', value, re.IGNORECASE)
+    match = re.fullmatch(r'(?:ปลดล็อก|เปิด|ไข|ใส่รหัส|unlock|open)\s*(.+?)\s+(?:(?:รหัส|code)\s*)?(\d+)', value, re.IGNORECASE)
     if match:
         target = resolve(match[1], ['objects'])
         if target:
             return command(ActionType.UNLOCK, target, code=match[2])
+    match = re.fullmatch(r'(?:ใส่รหัส|รหัส)\s*(\d+)', value, re.IGNORECASE)
+    if match and state:
+        code_objs = [oid for oid, o in world.get('objects', {}).items()
+                     if o.get('location') == state.current_location
+                     and 'code' in o.get('unlock_requirements', {})]
+        if len(code_objs) == 1:
+            return command(ActionType.UNLOCK, code_objs[0], code=match[1])
     match = re.fullmatch(r'ใช้\s*(.+?)\s*(?:กับ|เพื่อเปิด)\s*(.+)', value)
     if match:
         instrument, target = resolve_carried_key(match[1]), resolve(match[2], ['objects'])
@@ -139,14 +146,36 @@ def parse_typed_command(text, state, world):
                 continue
             target_text = remainder[len(label):].lstrip()
             if target_text.startswith('เปิด'):
-                target = resolve(target_text[len('เปิด'):].strip(), ['objects'])
-                if target:
-                    return command(ActionType.USE, target, instrument=instrument)
+                target_text = target_text[len('เปิด'):].strip()
+            target = resolve(target_text, ['objects'])
+            if not target and (target_text in ('', 'ประตู', 'บานประตู', 'ห้อง', 'door', 'doors') or not target_text):
+                room_doors = [oid for oid, o in world.get('objects', {}).items()
+                              if o.get('location') == state.current_location
+                              and (o.get('type') == 'door' or 'door' in oid)
+                              and o.get('unlock_requirements', {}).get('key') == instrument]
+                if len(room_doors) == 1:
+                    target = room_doors[0]
+                elif not room_doors:
+                    any_doors = [oid for oid, o in world.get('objects', {}).items()
+                                 if o.get('location') == state.current_location
+                                 and (o.get('type') == 'door' or 'door' in oid)]
+                    if len(any_doors) == 1:
+                        target = any_doors[0]
+            if target:
+                return command(ActionType.USE, target, instrument=instrument)
     prefixes = [
         ('สอบปากคำ', ActionType.INTERROGATE, ['suspects']),
         ('คุยกับ', ActionType.INTERROGATE, ['suspects']),
         ('กล่าวหา', ActionType.ACCUSE, ['suspects']),
+        ('เปิดดู', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('เปิดอ่าน', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
         ('ปลดล็อก', ActionType.UNLOCK, ['objects']),
+        ('เปิดประตู', ActionType.UNLOCK, ['objects']),
+        ('เปิดห้อง', ActionType.UNLOCK, ['objects']),
+        ('เปิด', ActionType.UNLOCK, ['objects']),
+        ('ไขประตู', ActionType.UNLOCK, ['objects']),
+        ('ไขห้อง', ActionType.UNLOCK, ['objects']),
+        ('ไข', ActionType.UNLOCK, ['objects']),
         ('หยิบ', ActionType.TAKE, ['objects']),
         ('เก็บ', ActionType.TAKE, ['objects']),
         ('ตรวจสอบ', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
@@ -184,7 +213,12 @@ def parse_typed_command(text, state, world):
         if target is None and action == ActionType.TAKE:
             target = resolve_local_key_to_take(target_text)
         if target:
-            return command(action, target)
+            extra = {}
+            if action in (ActionType.UNLOCK, ActionType.USE):
+                req_key = world.get("objects", {}).get(target, {}).get("unlock_requirements", {}).get("key")
+                if req_key and req_key in state.inventory:
+                    extra["instrument"] = req_key
+            return command(action, target, **extra)
     return None
 
 

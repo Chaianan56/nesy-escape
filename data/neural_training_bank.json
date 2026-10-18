@@ -386,15 +386,39 @@
   {
     "query": "ใช้กุญแจห้องแพทย์ไขเปิดประตูห้องแพทย์",
     "action": "unlock",
-    "target": "doctor_compartment_door",
-    "instrument": "doctor_key",
+    "target": "medical_room_door",
+    "instrument": "medical_key",
+    "category": "unlock",
+    "confidence": 0.95
+  },
+  {
+    "query": "เปิดห้องพยาบาล",
+    "action": "unlock",
+    "target": "medical_room_door",
+    "instrument": "medical_key",
+    "category": "unlock",
+    "confidence": 0.95
+  },
+  {
+    "query": "เปิดห้องแพทย์",
+    "action": "unlock",
+    "target": "medical_room_door",
+    "instrument": "medical_key",
     "category": "unlock",
     "confidence": 0.95
   },
   {
     "query": "ใช้กุญแจพนักงานไขประตูห้องระบบไฟ",
     "action": "unlock",
-    "target": "electrical_door",
+    "target": "electrical_room_door",
+    "instrument": "staff_key",
+    "category": "unlock",
+    "confidence": 0.95
+  },
+  {
+    "query": "เปิดห้องระบบไฟ",
+    "action": "unlock",
+    "target": "electrical_room_door",
     "instrument": "staff_key",
     "category": "unlock",
     "confidence": 0.95
@@ -402,7 +426,7 @@
   {
     "query": "ใช้คีมตัดสายไฟในตู้ไฟ",
     "action": "use",
-    "target": "electrical_box",
+    "target": "cut_copper_wire",
     "instrument": "wire_cutters",
     "category": "use",
     "confidence": 0.9
