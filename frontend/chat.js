@@ -163,6 +163,7 @@ async function initGame() {
 
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
+    if (sceneData.api_status) updateApiStatus(sceneData.api_status);
     serverSessionId = gameState.session_id || null;
     timeLimitSeconds = sceneData.time_limit_seconds || 5400;
     if (sessionMonitorTimer !== null) clearInterval(sessionMonitorTimer);
@@ -303,6 +304,29 @@ function updateClock() {
   }
 }
 
+function updateApiStatus(info) {
+  if (!info) return;
+  const statusText = document.getElementById("apiStatusText");
+  const keyBadge = document.getElementById("apiKeyBadge");
+  const dot = document.getElementById("apiStatusDot");
+  const widget = document.getElementById("apiStatusWidget");
+  if (statusText) statusText.textContent = info.message || (info.online ? "พร้อมใช้งาน" : "ออฟไลน์");
+  if (keyBadge) {
+    keyBadge.textContent = info.key_label || (info.active_key ? `Key ${info.active_key}` : "Key 1");
+    if (info.online === false) {
+      keyBadge.classList.add("key-error");
+    } else {
+      keyBadge.classList.remove("key-error");
+    }
+  }
+  if (dot) {
+    dot.style.background = info.online !== false ? "var(--green, #68ba82)" : "#d8a18d";
+  }
+  if (widget) {
+    widget.title = `Gemini API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''}`;
+  }
+}
+
 // ============================================================
 
 
@@ -396,6 +420,15 @@ async function submit(text, opts = {}) {
     if (gameOver) return null; // Ignore late responses after the deadline closed the case.
     if (data.new_state) gameState = data.new_state;
     if (data.profile) updateProfilerHUD(data.profile);
+    if (data.api_status) updateApiStatus(data.api_status);
+    if (typeof document.querySelector === 'function') {
+      const dialoguePanel = document.querySelector('.dialogue-panel');
+      const showBtn = document.getElementById('showDialogueBtn');
+      if (dialoguePanel && dialoguePanel.classList && dialoguePanel.classList.contains('is-hidden')) {
+        dialoguePanel.classList.remove('is-hidden');
+      }
+      if (showBtn) showBtn.hidden = true;
+    }
     anchorClock();
     updateLocationHUD();
     updateClock();
@@ -570,6 +603,9 @@ function offerSteps(steps, confirm = false) {
     : `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>เลือกสิ่งที่ต้องการ</div>`;
   const wrap = document.createElement("div");
   wrap.className = "chips-scroll";
+  if (typeof window !== 'undefined' && typeof window.setupHorizontalScroll === 'function') {
+    window.setupHorizontalScroll(wrap);
+  }
   box.appendChild(wrap);
   feed.appendChild(box);
 
@@ -643,6 +679,19 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
   }
 
   const modeLabel = "โหมด B (NeSy Engine)";
+  const modeTag = parsed?.parser_mode ? `
+    <span class="parser-mode-tag ${parsed.parser_mode === 'typed' ? 'fast' : 'neural'}">
+      ${parsed.parser_mode === 'typed' ? '⚡ Fast-Path' : '🧠 Neural Few-Shot'} (${parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '<1ms'})
+    </span>` : '';
+
+  const repairBanner = parsed?.repair_note ? `
+    <div class="nesy-repair-banner">
+      <span class="nesy-icon">⚡</span>
+      <div class="nesy-repair-content">
+        <strong>Neuro-Symbolic Constraint Repair</strong>
+        <span>${escapeHtml(parsed.repair_note)}</span>
+      </div>
+    </div>` : '';
 
   // Reasoning Chain (FE-1 Core)
   let reasoningHtml = "";
@@ -675,8 +724,12 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
   card.innerHTML = `
     <div class="card-header-bar">
       ${statusBadge}
-      <span class="mode-tag">${modeLabel}</span>
+      <div class="card-meta-tags">
+        ${modeTag}
+        <span class="mode-tag">${modeLabel}</span>
+      </div>
     </div>
+    ${repairBanner}
     <div class="story-text">${escapeHtml(decision.message)}</div>
     ${reasoningHtml}
   `;
@@ -695,13 +748,18 @@ function renderError(message) {
 }
 
 function renderRules(steps) {
-  return steps.map(s => `
-    <div class="rule-row">
+  return steps.map(s => {
+    const isRepair = s.rule_id === "SYMBOLIC_REPAIR";
+    const ruleIdLabel = isRepair ? "⚡ REPAIR" : escapeHtml(s.rule_id.split('_')[0]);
+    const idClass = isRepair ? "rule-id nesy-repair-badge" : "rule-id";
+    return `
+    <div class="rule-row ${isRepair ? 'repair-row' : ''}">
       <span class="rule-status ${s.passed ? 'pass' : 'fail'}">${s.passed ? 'ผ่าน' : 'ไม่ผ่าน'}</span>
-      <span class="rule-id">${escapeHtml(s.rule_id.split('_')[0])}</span>
+      <span class="${idClass}">${ruleIdLabel}</span>
       <span>${escapeHtml(s.description)}</span>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function escapeHtml(t) {

@@ -69,6 +69,7 @@ class ParsedCommand(BaseModel):
     completion_tokens: Optional[int] = Field(None, description="จำนวนโทเค็นเอาต์พุตที่สร้างขึ้น")
     latency_ms: Optional[float] = Field(None, description="ระยะเวลาที่ใช้ในการประมวลผล (มิลลิวินาที)")
     parser_mode: Optional[str] = Field("typed", description="โหมดที่ใช้ประมวลผล: typed, gemini_knn, reflexion, fallback")
+    repair_note: Optional[str] = Field(None, description="บันทึกการซ่อมแซมคำสั่งโดย Symbolic Constraint Repair (ถ้ามี)")
 
 
 # ============================================================
@@ -136,5 +137,6 @@ class CommandResponse(BaseModel):
     decision: Decision
     new_state: GameState
     profile: Optional[Dict[str, Any]] = Field(None, description="ข้อมูลโปรไฟล์และพฤติกรรมผู้เล่นล่าสุด")
+    api_status: Optional[Dict[str, Any]] = Field(None, description="สถานะ API และ Key ที่ใช้งานอยู่")
 
 

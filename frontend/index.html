@@ -3,13 +3,171 @@
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Nocturne Express — คดีบนรถไฟ</title>
-    <link rel="stylesheet" href="style.css?v=history-dialog">
+    <link rel="stylesheet" href="style.css?v=20261018-ui6">
 
-    <link rel="stylesheet" href="art.css">
-    <link rel="stylesheet" href="novel.css?v=2">
-    <link rel="stylesheet" href="accusation.css?v=5">
-    <link rel="stylesheet" href="cinematic.css?v=20">
-    <link rel="stylesheet" href="narrative.css?v=2">
+    <link rel="stylesheet" href="art.css?v=20261018-ui6">
+    <link rel="stylesheet" href="novel.css?v=20261018-ui6">
+    <link rel="stylesheet" href="accusation.css?v=20261018-ui6">
+    <link rel="stylesheet" href="cinematic.css?v=20261018-ui6">
+    <link rel="stylesheet" href="narrative.css?v=20261018-ui6">
+    <style>
+    /* Direct Art-Deco styles for Dialogue Toggle & API Status */
+    .dialogue-panel.is-hidden { display: none !important; }
+    
+    #hideDialogueBtn, .dialogue-hide-btn {
+        border: 1px solid #c5a059 !important;
+        background: linear-gradient(180deg, rgba(28, 38, 48, 0.95) 0%, rgba(14, 21, 29, 0.98) 100%) !important;
+        color: #eed29c !important;
+        padding: 6px 16px !important;
+        font-size: 12.5px !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        border-radius: 4px !important;
+        transition: all 0.2s ease !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        font-family: inherit !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+        user-select: none !important;
+    }
+    #hideDialogueBtn:hover, .dialogue-hide-btn:hover {
+        background: linear-gradient(180deg, #2e4052 0%, #172433 100%) !important;
+        border-color: #eed29c !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 12px rgba(217, 183, 117, 0.5) !important;
+    }
+
+    #showDialogueBtn, .show-dialogue-floating-btn {
+        position: absolute !important;
+        right: 24px !important;
+        bottom: 20px !important;
+        z-index: 100 !important;
+        border: 1.5px solid #d9b775 !important;
+        background: linear-gradient(180deg, rgba(20, 32, 44, 0.96) 0%, rgba(10, 16, 24, 0.98) 100%) !important;
+        color: #eed29c !important;
+        padding: 10px 22px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        border-radius: 4px !important;
+        box-shadow: 0 6px 25px rgba(0, 0, 0, 0.8), 0 0 15px rgba(217, 183, 117, 0.35) !important;
+        cursor: pointer !important;
+        align-items: center !important;
+        gap: 8px !important;
+        backdrop-filter: blur(8px) !important;
+        transition: all 0.2s ease !important;
+        letter-spacing: 0.3px !important;
+        font-family: inherit !important;
+        user-select: none !important;
+    }
+    #showDialogueBtn:hover, .show-dialogue-floating-btn:hover {
+        border-color: #ffffff !important;
+        background: linear-gradient(180deg, #2b3d52 0%, #152232 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9), 0 0 22px rgba(217, 183, 117, 0.65) !important;
+        transform: translateY(-2px) !important;
+    }
+    #showDialogueBtn[hidden], .show-dialogue-floating-btn[hidden] {
+        display: none !important;
+    }
+    #showDialogueBtn:not([hidden]), .show-dialogue-floating-btn:not([hidden]) {
+        display: inline-flex !important;
+    }
+
+    /* API Status Widget - Large & Prominent */
+    #apiStatusDock, .dock-note {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-end !important;
+        justify-content: center !important;
+        width: auto !important;
+        min-width: 210px !important;
+        flex: 0 0 auto !important;
+        text-align: right !important;
+        gap: 6px !important;
+    }
+    #apiStatusDock small, .dock-note small {
+        color: #d9b775 !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        letter-spacing: 1.5px !important;
+        text-transform: uppercase !important;
+        opacity: 0.95 !important;
+    }
+    #apiStatusWidget, .api-status-pill {
+        padding: 9px 18px !important;
+        border: 1.5px solid #a48450 !important;
+        background: rgba(12, 21, 30, 0.95) !important;
+        border-radius: 4px !important;
+        font-size: 14px !important;
+        gap: 10px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+    }
+    #apiStatusWidget .live-dot, .api-status-pill .live-dot {
+        width: 10px !important;
+        height: 10px !important;
+        margin-right: 0 !important;
+        background: #68ba82 !important;
+        border-radius: 50% !important;
+        box-shadow: 0 0 10px rgba(104, 186, 130, 0.9) !important;
+    }
+    #apiStatusDock span, .dock-note span {
+        font-size: 14px !important;
+    }
+    #apiStatusText {
+        color: #f7f3ea !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.4px !important;
+    }
+    #apiKeyBadge, .api-key-badge {
+        background: #14331d !important;
+        color: #7ce397 !important;
+        border: 1.5px solid #366d44 !important;
+        padding: 3px 12px !important;
+        border-radius: 4px !important;
+        font: bold 13.5px monospace !important;
+        letter-spacing: 0.8px !important;
+        box-shadow: 0 0 10px rgba(124, 227, 151, 0.4) !important;
+    }
+    #apiKeyBadge.key-error, .api-key-badge.key-error {
+        background: #441e17 !important;
+        color: #ffa08f !important;
+        border-color: #923e31 !important;
+        box-shadow: 0 0 10px rgba(255, 160, 143, 0.4) !important;
+    }
+
+    /* Quick Action Chips: Hidden Scrollbar with smooth wheel & drag */
+    .chips-scroll, #visibleObjects {
+        display: flex !important;
+        gap: 8px !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        scrollbar-width: none !important; /* Firefox */
+        -ms-overflow-style: none !important; /* IE 10+ */
+        cursor: grab !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        padding-bottom: 2px !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .chips-scroll::-webkit-scrollbar, #visibleObjects::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        background: transparent !important;
+    }
+    .chips-scroll.is-dragging, #visibleObjects.is-dragging {
+        cursor: grabbing !important;
+    }
+    .chips-scroll .object-button, #visibleObjects .object-button, .chips-scroll .chip-btn {
+        flex-shrink: 0 !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+    }
+    </style>
 </head>
 <body>
     <section id="introScreen" class="intro-screen" hidden aria-labelledby="introTitle">
@@ -30,6 +188,10 @@
         </div>
         <div class="header-right">
             <span class="edition">แฟ้มคดี  /  01</span>
+            <div id="clockWidget" class="hud-pill clock-pill" title="เวลาเล่นจริง รวมเวลาคิดและอ่าน">
+                <span class="clock-icon">◷</span>
+                <span id="clockText">90:00</span>
+            </div>
             <div id="profilerWidget" class="hud-pill profiler-pill" title="รูปแบบการสืบสวน">
                 <span id="profilerIcon">⚖️</span>
                 <span id="profilerText">นักสืบสายสมดุล</span>
@@ -82,6 +244,7 @@
                             <div id="dialogueProgress" class="dialogue-progress"></div>
                         </section>
                         <div id="artStatus" class="art-status" role="status">กำลังโหลดภาพ…</div>
+                        <button type="button" id="showDialogueBtn" class="show-dialogue-floating-btn" hidden onclick="showDialogue()" title="แสดงบทสนทนา">💬 แสดงบทสนทนา ▴</button>
                     </div>
                     <div class="scene-caption">
                         <span id="sceneLabel">THE LOUNGE CAR</span>
@@ -97,7 +260,7 @@
                 <section class="dialogue-panel panel">
                     <div class="section-bar">
                         <span>คำตอบล่าสุด</span>
-                        <button type="button" class="history-open" data-open-history aria-haspopup="dialog">ประวัติการคุยทั้งหมด ↗</button>
+                        <button type="button" id="hideDialogueBtn" class="dialogue-hide-btn" onclick="hideDialogue()" title="ซ่อนบทสนทนาเพื่อมองภาพ">ซ่อนบทสนทนา ▾</button>
                     </div>
                     <div id="latestChatHost">
                         <div id="chatFeed" class="chat-feed" role="log" aria-label="บทสนทนาและผลการสืบสวน" aria-live="polite"></div>
@@ -154,11 +317,12 @@
             </button>
         </form>
     </div>
-    <div class="dock-note">
-        <small>เวลาเหลือ · นาที</small>
-        <div id="clockWidget" class="hud-pill clock-pill" title="เวลาเล่นจริง รวมเวลาคิดและอ่าน">
-            <span class="clock-icon">◷</span>
-            <span id="clockText">90:00</span>
+    <div class="dock-note" id="apiStatusDock">
+        <small>สถานะ API</small>
+        <div id="apiStatusWidget" class="hud-pill api-status-pill" title="สถานะ Google Gemini API">
+            <span class="live-dot" id="apiStatusDot"></span>
+            <span id="apiStatusText">พร้อมใช้งาน</span>
+            <span id="apiKeyBadge" class="api-key-badge">Key 1</span>
         </div>
     </div>
     </footer>
@@ -200,7 +364,34 @@
             </div>
         </div>
     </dialog>
-    <script src="history.js?v=2"></script><script src="novel.js?v=5"></script><script src="narrative.js?v=1"></script><script src="chat.js?v=10"></script><script src="art.js?v=5"></script><script src="inference.js?v=1"></script><script src="pixel.js?v=22"></script>
-    <script src="cinematic.js?v=6"></script>
+    <script>
+    window.hideDialogue = function() {
+      const panel = document.querySelector('.dialogue-panel');
+      const showBtn = document.getElementById('showDialogueBtn');
+      if (panel) {
+        panel.classList.add('is-hidden');
+        panel.style.setProperty('display', 'none', 'important');
+      }
+      if (showBtn) {
+        showBtn.removeAttribute('hidden');
+        showBtn.style.setProperty('display', 'inline-flex', 'important');
+      }
+    };
+
+    window.showDialogue = function() {
+      const panel = document.querySelector('.dialogue-panel');
+      const showBtn = document.getElementById('showDialogueBtn');
+      if (panel) {
+        panel.classList.remove('is-hidden');
+        panel.style.removeProperty('display');
+      }
+      if (showBtn) {
+        showBtn.setAttribute('hidden', '');
+        showBtn.style.setProperty('display', 'none', 'important');
+      }
+    };
+    </script>
+    <script src="history.js?v=20261018-ui6"></script><script src="novel.js?v=20261018-ui6"></script><script src="narrative.js?v=20261018-ui6"></script><script src="chat.js?v=20261018-ui6"></script><script src="art.js?v=20261018-ui6"></script><script src="inference.js?v=20261018-ui6"></script><script src="pixel.js?v=20261018-ui6"></script>
+    <script src="cinematic.js?v=20261018-ui6"></script>
 </body>
 </html>

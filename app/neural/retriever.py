@@ -142,11 +142,14 @@ class KNNExampleRetriever:
         q_lower = query.lower().strip()
         scored: List[Tuple[float, Dict[str, Any]]] = []
 
-        # สกัดลักษณะพิเศษของคำถาม เช่น มีคำว่า 'แล้ว', 'และ' (บ่งบอก sequence) หรือคำนอกเกม
-        has_sequence_hint = any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย"))
+        # สกัดลักษณะพิเศษของคำถาม เช่น มีคำว่า 'แล้ว', 'และ', 'and', 'then' (บ่งบอก sequence) หรือคำนอกเกม
+        has_sequence_hint = (
+            any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย", "จากนั้น", "เสร็จแล้ว"))
+            or bool(re.search(r"\b(and|then|after that|afterwards|followed by)\b", q_lower))
+        )
 
         for ex in self.examples:
-            target_text = ex.get("query", "")
+            target_text = ex.get("query", "").lower()
             base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
 
             # ให้ Priority Boost หากประเภทคำสั่งสอดคล้องกับโครงสร้างประโยค
@@ -156,9 +159,13 @@ class KNNExampleRetriever:
             if not has_sequence_hint and ex.get("action") == "sequence":
                 boost -= 0.15
 
-            # ถ้ามีคำสำคัญตรงกันเป๊ะ เพิ่มน้ำหนักพิเศษ
+            # ถ้ามีคำสำคัญตรงกันเป๊ะ เพิ่มน้ำหนักพิเศษ (ครอบคลุมทั้งไทยและอังกฤษ)
             for word in ("เผา", "ทำลาย", "จับ", "กล่าวหา", "ปลดล็อก", "รหัส", "สรุป", "ถาม", "คุย"):
                 if word in q_lower and word in target_text:
+                    boost += 0.2
+            for word in ("burn", "destroy", "arrest", "accuse", "unlock", "code", "infer", "ask", "talk", "examine", "inspect", "check", "look", "move", "go", "take", "grab", "open"):
+                pattern = r"\b" + re.escape(word) + r"\b"
+                if re.search(pattern, q_lower) and re.search(pattern, target_text):
                     boost += 0.2
 
             final_score = base_score * boost
@@ -179,12 +186,15 @@ class KNNExampleRetriever:
             return self.examples[:k]
 
         q_lower = query.lower().strip()
-        has_sequence_hint = any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย"))
+        has_sequence_hint = (
+            any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย", "จากนั้น", "เสร็จแล้ว"))
+            or bool(re.search(r"\b(and|then|after that|afterwards|followed by)\b", q_lower))
+        )
 
         # 1. ให้คะแนนความเกี่ยวข้อง (Relevance) ของทุกตัวอย่าง
         candidate_scores: List[Tuple[float, Dict[str, Any]]] = []
         for ex in self.examples:
-            target_text = ex.get("query", "")
+            target_text = ex.get("query", "").lower()
             base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
 
             boost = 1.0
@@ -195,6 +205,10 @@ class KNNExampleRetriever:
 
             for word in ("เผา", "ทำลาย", "จับ", "กล่าวหา", "ปลดล็อก", "รหัส", "สรุป", "ถาม", "คุย"):
                 if word in q_lower and word in target_text:
+                    boost += 0.2
+            for word in ("burn", "destroy", "arrest", "accuse", "unlock", "code", "infer", "ask", "talk", "examine", "inspect", "check", "look", "move", "go", "take", "grab", "open"):
+                pattern = r"\b" + re.escape(word) + r"\b"
+                if re.search(pattern, q_lower) and re.search(pattern, target_text):
                     boost += 0.2
 
             final_rel = base_score * boost
@@ -270,8 +284,8 @@ def score_entity_candidate(query: str, entity_id: str, entity_data: Dict[str, An
     """คำนวณคะแนนความเกี่ยวข้อง (0.0 - 1.0) ระหว่างข้อความผู้เล่นกับ Entity
 
     ตรวจสอบทั้ง:
-    - ID โดยตรง
-    - ชื่อภาษาไทย (name_th)
+    - ID โดยตรง (ทั้งแบบ snake_case และ spaced tokens เช่น 'pocket watch')
+    - ชื่อภาษาไทย (name_th) และชื่อภาษาอังกฤษในวงเล็บ เช่น '(Pocket Watch)'
     - รายการคำพ้อง (aliases)
     - ตำแหน่ง/บทบาท (role)
     """
@@ -280,16 +294,25 @@ def score_entity_candidate(query: str, entity_id: str, entity_data: Dict[str, An
 
     q_clean = query.lower()
     id_clean = entity_id.lower()
+    id_spaced = id_clean.replace("_", " ")
 
     # 1. เช็กการกล่าวถึง ID หรือชื่อย่อตรงๆ
-    if id_clean in q_clean:
+    if id_clean in q_clean or id_spaced in q_clean:
         return 1.0
 
-    scores = []
+    scores = [calculate_ngram_similarity(q_clean, id_spaced)]
 
-    # 2. ตรวจสอบชื่อไทย
+    # 2. ตรวจสอบชื่อไทย และชื่อภาษาอังกฤษในวงเล็บ
     name_th = entity_data.get("name_th", "")
     if name_th:
+        # สกัดชื่อภาษาอังกฤษในวงเล็บ เช่น 'นาฬิกาพก (Pocket Watch)' -> 'pocket watch'
+        en_match = re.search(r"\((.*?)\)", name_th)
+        if en_match:
+            en_clean = en_match.group(1).strip().lower()
+            if en_clean and en_clean in q_clean:
+                return 0.95
+            scores.append(calculate_ngram_similarity(q_clean, en_clean))
+
         # ตัดวงเล็บภาษาอังกฤษออก เช่น 'นาฬิกาพก (Pocket Watch)' -> 'นาฬิกาพก'
         th_clean = re.sub(r"\(.*?\)", "", name_th).strip()
         if th_clean and th_clean in q_clean:
@@ -303,7 +326,7 @@ def score_entity_candidate(query: str, entity_id: str, entity_data: Dict[str, An
             return 0.92
         scores.append(calculate_ngram_similarity(q_clean, str(alias)))
 
-    # 4. ตรวจสอบ Role (เช่น 'แพทย์', 'พนักงานตู้')
+    # 4. ตรวจสอบ Role (เช่น 'แพทย์', 'พนักงานตู้', 'doctor')
     role = entity_data.get("role", "")
     if role and role.lower() in q_clean:
         scores.append(0.85)

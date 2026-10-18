@@ -32,7 +32,8 @@ from app.neural.prompts import build_interpret_system_prompt
 from app.neural.repair import repair_parsed_command
 
 # โหลดตัวแปรสภาพแวดล้อมจาก .env
-load_dotenv()
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,34 @@ logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
 _clients_cache: Optional[list] = None
+_active_key_index: int = 1
+
+
+def get_api_status() -> dict:
+    """คืนสถานะการเชื่อมต่อ API และหมายเลข Key ที่กำลังใช้งานอยู่"""
+    clients = _clients()
+    total = len(clients)
+    if not GENAI_AVAILABLE or total == 0:
+        return {
+            "status": "offline",
+            "online": False,
+            "active_key": 0,
+            "total_keys": 0,
+            "key_label": "ไม่มี Key",
+            "message": "ไม่มี GEMINI_API_KEY",
+        }
+    return {
+        "status": "ready",
+        "online": True,
+        "active_key": _active_key_index,
+        "total_keys": total,
+        "key_label": f"Key {_active_key_index}",
+        "message": "พร้อมใช้งาน",
+    }
+
 
 class NeuralUnavailable(RuntimeError):
     """Exception แจ้งเตือนเมื่อเรียกใช้งาน LLM ไม่สำเร็จ"""
@@ -192,6 +218,11 @@ def interpret(
             t_elapsed_ms = round((time.perf_counter() - t_call_start) * 1000, 2)
             if not response.text:
                 raise RuntimeError("Gemini API คืนคำตอบว่าง")
+            try:
+                global _active_key_index
+                _active_key_index = clients.index(client) + 1
+            except Exception:
+                pass
             parsed_result = ParsedCommand.model_validate_json(response.text)
             parsed_result.raw_text = text
             parsed_result.latency_ms = t_elapsed_ms

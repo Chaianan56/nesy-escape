@@ -18,26 +18,40 @@ def parse_typed_command(text, state, world):
             **extra,
         )
     def resolve(label, groups):
+        clean = label.strip().lower()
         matches = set()
         for group in groups:
             for key, entity in world.get(group, {}).items():
                 name = entity.get('name_th', '')
-                aliases = {key, name, name.split(' (')[0], *entity.get('aliases', [])}
+                en_name = ""
+                if '(' in name and ')' in name:
+                    en_name = name.split('(')[1].split(')')[0].strip().lower()
+                aliases = {
+                    key.lower(),
+                    key.lower().replace('_', ' '),
+                    name.lower(),
+                    name.split(' (')[0].lower(),
+                    *[str(a).lower() for a in entity.get('aliases', [])],
+                }
+                if en_name:
+                    aliases.add(en_name)
                 if group == 'suspects':
-                    aliases.add(name.split(' (')[0].replace('ดร. ', '').split()[0])
-                if label.strip() in aliases:
+                    aliases.add(name.split(' (')[0].replace('ดร. ', '').split()[0].lower())
+                    if en_name:
+                        aliases.add(en_name.replace('dr. ', '').split()[0].lower())
+                if clean in aliases:
                     matches.add(key)
         return next(iter(matches)) if len(matches) == 1 else None
     def resolve_carried_key(label):
         instrument = resolve(label, ['objects'])
         if instrument:
             return instrument
-        if label.strip() != 'กุญแจ':
+        if label.strip() not in ('กุญแจ', 'key'):
             return None
         carried_keys = [key for key in state.inventory
                         if world.get('objects', {}).get(key, {}).get('type') == 'key']
         return carried_keys[0] if len(carried_keys) == 1 else None
-    if value in ('ดูรอบๆ', 'ดูรอบ ๆ', 'มองรอบๆ', 'สำรวจห้อง'):
+    if value.lower() in ('ดูรอบๆ', 'ดูรอบ ๆ', 'มองรอบๆ', 'สำรวจห้อง', 'look around', 'look', 'search room', 'examine room'):
         return command(ActionType.EXAMINE, state.current_location)
     # "<action> <id>" ที่หน้าเว็บส่งมาทีละขั้นของคำสั่งพ่วง ไม่ต้องถาม Gemini ซ้ำ
     parts = value.split()
@@ -54,31 +68,33 @@ def parse_typed_command(text, state, world):
     if (len(parts) == 2 and parts[0] in {'examine', 'take', 'move', 'interrogate', 'accuse', 'burn', 'unlock'}
             and any(parts[1] in world[g] for g in ('objects', 'suspects', 'locations'))):
         return command(ActionType(parts[0]), parts[1])
-    match = re.fullmatch(r'(?:ไป|ไปที่|เดินไป|เดินไปที่)\s*ตู้\s*([1-6])', value)
+    match = re.fullmatch(r'(?:ไป|ไปที่|เดินไป|เดินไปที่|go to|move to|walk to)\s*(?:car|ตู้)\s*([1-6])', value, re.IGNORECASE)
     if match:
         locations = list(world['locations'])
         return command(ActionType.MOVE, locations[int(match[1])-1])
     # คำสั่งไปหาบุคคลที่รู้จักแปลเป็นการเดินทางไปยังตู้ที่บุคคลนั้นอยู่
     # คำว่า "หมอ" เป็นชื่อเรียกของดร. ลิโอราในเรื่อง จึงไม่ต้องเรียก Gemini
-    match = re.fullmatch(r'(?:ไปหา|ไปพบ)\s*(.+)', value)
+    match = re.fullmatch(r'(?:ไปหา|ไปพบ|go to|visit)\s*(.+)', value, re.IGNORECASE)
     if match:
         person_label = match[1].strip()
         person = resolve(person_label, ['suspects'])
-        if person is None and person_label in {'หมอ', 'แพทย์', 'คุณหมอ'}:
+        if person is None and person_label.lower() in {'หมอ', 'แพทย์', 'คุณหมอ', 'doctor', 'dr', 'dr.', 'dr. liora'}:
             person = 'dr_liora_venn' if 'dr_liora_venn' in world['suspects'] else None
         if person:
             destination = world['suspects'][person].get('location')
             if destination in world.get('locations', {}):
                 return command(ActionType.MOVE, destination)
     match = re.fullmatch(r'(?:ถาม|สอบปากคำ|คุยกับ)\s*(.+?)\s+เรื่อง\s*(.+)', value)
+    if not match:
+        match = re.fullmatch(r'(?:ask|talk to|interrogate)\s*(.+?)\s+(?:about|on)\s*(.+)', value, re.IGNORECASE)
     if match:
         person = resolve(match[1], ['suspects'])
         if person:
             topics = {node.get('topic'): node for node in world['suspects'][person].get('dialogue_nodes', [])}
-            topic = next((key for key, node in topics.items() if match[2].strip() in {key, node.get('label'), node.get('name_th')}), None)
+            topic = next((key for key, node in topics.items() if match[2].strip().lower() in {key.lower(), str(node.get('label', '')).lower(), str(node.get('name_th', '')).lower()}), None)
             if topic:
                 return command(ActionType.INTERROGATE, person, topic=topic)
-    match = re.fullmatch(r'(?:ปลดล็อก|เปิด)\s*(.+?)\s+(?:รหัส\s*)?(\d+)', value)
+    match = re.fullmatch(r'(?:ปลดล็อก|เปิด|unlock|open)\s*(.+?)\s+(?:(?:รหัส|code)\s*)?(\d+)', value, re.IGNORECASE)
     if match:
         target = resolve(match[1], ['objects'])
         if target:
@@ -111,21 +127,44 @@ def parse_typed_command(text, state, world):
                 target = resolve(target_text[len('เปิด'):].strip(), ['objects'])
                 if target:
                     return command(ActionType.USE, target, instrument=instrument)
-    prefixes = [('สอบปากคำ', ActionType.INTERROGATE, ['suspects']),
-                ('คุยกับ', ActionType.INTERROGATE, ['suspects']),
-                ('กล่าวหา', ActionType.ACCUSE, ['suspects']),
-                ('ปลดล็อก', ActionType.UNLOCK, ['objects']),
-                ('หยิบ', ActionType.TAKE, ['objects']),
-                ('เก็บ', ActionType.TAKE, ['objects']),
-                ('ตรวจสอบ', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
-                ('ตรวจดู', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
-                ('ตรวจ', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
-                ('ไปที่', ActionType.MOVE, ['locations']),
-                ('ไป', ActionType.MOVE, ['locations'])]
+    prefixes = [
+        ('สอบปากคำ', ActionType.INTERROGATE, ['suspects']),
+        ('คุยกับ', ActionType.INTERROGATE, ['suspects']),
+        ('กล่าวหา', ActionType.ACCUSE, ['suspects']),
+        ('ปลดล็อก', ActionType.UNLOCK, ['objects']),
+        ('หยิบ', ActionType.TAKE, ['objects']),
+        ('เก็บ', ActionType.TAKE, ['objects']),
+        ('ตรวจสอบ', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('ตรวจดู', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('ตรวจ', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('ไปที่', ActionType.MOVE, ['locations']),
+        ('ไป', ActionType.MOVE, ['locations']),
+        ('interrogate', ActionType.INTERROGATE, ['suspects']),
+        ('talk to', ActionType.INTERROGATE, ['suspects']),
+        ('accuse', ActionType.ACCUSE, ['suspects']),
+        ('unlock', ActionType.UNLOCK, ['objects']),
+        ('take', ActionType.TAKE, ['objects']),
+        ('pick up', ActionType.TAKE, ['objects']),
+        ('examine', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('inspect', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('check', ActionType.EXAMINE, ['objects', 'suspects', 'locations']),
+        ('go to', ActionType.MOVE, ['locations']),
+        ('move to', ActionType.MOVE, ['locations']),
+        ('walk to', ActionType.MOVE, ['locations']),
+    ]
+    val_lower = value.lower()
     for prefix, action, groups in prefixes:
-        if not value.startswith(prefix):
+        pref_lower = prefix.lower()
+        if not val_lower.startswith(pref_lower):
             continue
-        target_text = value[len(prefix):].strip()
+        pref_len = len(prefix)
+        if prefix.isascii() and len(val_lower) > pref_len and not val_lower[pref_len].isspace():
+            continue
+        target_text = value[pref_len:].strip()
+        if target_text.lower().startswith('the '):
+            target_text = target_text[4:].strip()
+        elif target_text.lower().startswith('a '):
+            target_text = target_text[2:].strip()
         target = resolve(target_text, groups)
         if target:
             return command(action, target)
@@ -137,6 +176,8 @@ def interpret_game(text, state, **kwargs):
     from app.neural.repair import repair_parsed_command
     parsed = parse_typed_command(text, state, STORY_DATA)
     if parsed:
-        repaired, _ = repair_parsed_command(parsed, STORY_DATA, state=state, raw_text=text)
+        repaired, repair_note = repair_parsed_command(parsed, STORY_DATA, state=state, raw_text=text)
+        if repair_note and not repaired.repair_note:
+            repaired = repaired.model_copy(update={"repair_note": repair_note})
         return repaired
     return interpret(text, state, **kwargs)

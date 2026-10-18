@@ -15,9 +15,13 @@ def test_exact_typed_commands_do_not_call_remote(monkeypatch):
     state = GameState()
     for text, action, target in [('ไปตู้ 4', ActionType.MOVE, 'first_class_car'),
                                  ('ดูรอบๆ', ActionType.EXAMINE, 'lounge_car'),
+                                 ('look around', ActionType.EXAMINE, 'lounge_car'),
                                  ('สอบปากคำกิเดียน', ActionType.INTERROGATE, 'gideon_hart'),
+                                 ('talk to gideon', ActionType.INTERROGATE, 'gideon_hart'),
                                  ('ตรวจนาฬิกาพกกลไก', ActionType.EXAMINE, 'pocket_watch'),
                                  ('examine pocket_watch', ActionType.EXAMINE, 'pocket_watch'),
+                                 ('examine pocket watch', ActionType.EXAMINE, 'pocket_watch'),
+                                 ('go to car 4', ActionType.MOVE, 'first_class_car'),
                                  ('move first_class_car', ActionType.MOVE, 'first_class_car')]:
         result = interpret_game(text, state)
         assert (result.action, result.target) == (action, target)
