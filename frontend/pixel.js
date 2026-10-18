@@ -507,13 +507,57 @@ const PixelUI = (() => {
     wrap.replaceChildren();
     if (!data) return;
 
-    if (!data.case_closed) {
-      wrap.append(empty('สี่เสาหลักฐาน', 'รวบรวมเวลา แรงจูงใจ โอกาส และข้อหักล้างเพื่อประกอบข้อสรุป'));
-      return;
-    }
-
     const select = $('suspectSelect');
     const selectedSuspect = select ? select.value : Object.keys(data.pillars || {})[0];
+    const person = (data.people || []).find(p => p.id === selectedSuspect);
+
+    if (!data.case_closed) {
+      const box = document.createElement('div');
+      box.className = 'suspect-board-preview';
+
+      if (person) {
+        const metaRow = document.createElement('div');
+        metaRow.className = 'suspect-board-meta';
+        const locSpan = document.createElement('span');
+        const locLabel = (locationsMap && locationsMap[person.location]) || person.location || 'บนขบวนรถไฟ';
+        locSpan.textContent = `📍 ตำแหน่ง: ${locLabel}`;
+        const statusSpan = document.createElement('span');
+        statusSpan.className = person.interrogated ? 'badge allowed' : 'badge';
+        statusSpan.textContent = person.interrogated ? '✓ สอบปากคำแล้ว' : 'ยังไม่ได้สอบปากคำ';
+        metaRow.append(locSpan, statusSpan);
+        box.append(metaRow);
+      }
+
+      const pillarsList = document.createElement('div');
+      pillarsList.className = 'suspect-board-pillars';
+      Object.entries(data.pillar_labels || {}).forEach(([id, label]) => {
+        const row = document.createElement('div');
+        row.className = 'pillar-row';
+        const line = document.createElement('div');
+        const l = document.createElement('span');
+        l.textContent = label;
+        const r = document.createElement('span');
+        r.className = 'pillar-missing';
+        r.textContent = 'รอตรวจสอบเมื่อกล่าวหา';
+        line.append(l, r);
+        const p = document.createElement('progress');
+        p.max = 1;
+        p.value = 0;
+        p.className = 'pillar-progress-pending';
+        row.append(line, p);
+        pillarsList.append(row);
+      });
+      box.append(pillarsList);
+
+      const note = document.createElement('div');
+      note.className = 'pillar-board-note';
+      const count = data.evidence ? data.evidence.length : 0;
+      note.innerHTML = '<small>✦ <b>กระดานสี่เสา</b>จะถูกประเมินเมื่อคุณพิมพ์ <code>กล่าวหา [ชื่อคน]</code> หรือเมื่อปิดสำนวนคดี (ระบบไม่เฉลยคำตอบล่วงหน้าระหว่างสืบสวน เพื่อให้คุณเชื่อมโยงหลักฐานเอง)<br>✦ ดูรายละเอียดหลักฐานทั้ง ' + count + ' ชิ้นที่พบได้ที่แท็บ <b>หลักฐาน</b> บนแถบขวาของหน้าจอหลัก</small>';
+      box.append(note);
+
+      wrap.append(box);
+      return;
+    }
     const status = (data.pillars && data.pillars[selectedSuspect]) || {};
 
     Object.entries(data.pillar_labels || {}).forEach(([id, label]) => {
@@ -1053,6 +1097,10 @@ const PixelUI = (() => {
       const next = await res.json();
       if (request !== revision) return;
       data = next;
+
+      if (typeof updateProfilerHUD === 'function' && data.profile) {
+        updateProfilerHUD(data.profile);
+      }
 
       for (const item of [...data.evidence, ...data.visible]) {
         objectsMap[item.id] = item.name;

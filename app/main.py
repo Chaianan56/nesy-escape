@@ -81,6 +81,18 @@ def get_tracker(session_id: str | None = None) -> BehaviorTracker:
     return trackers[sid]
 
 
+def get_current_profile(session_id: str | None = None, state: GameState | None = None) -> dict:
+    sid = session_id or "default"
+    if sid in latest_profiles:
+        return latest_profiles[sid]
+    tracker = get_tracker(sid)
+    if state is None:
+        state = GameState()
+    profile = tracker.update_profile(state)
+    latest_profiles[sid] = profile.model_dump()
+    return latest_profiles[sid]
+
+
 # ============================================================
 # สะพานไปยัง NEURAL LAYER
 # main.py เรียกใช้แค่ interpret() และไม่สนใจว่าข้างในทำอะไร
@@ -158,6 +170,7 @@ def scene(session: Session = Depends(session_for)):
         "rules_count": len(engine.rules),
         "api_status": get_api_status(),
         "initial_state": session.state.model_dump(),
+        "profile": get_current_profile(session.state.session_id or "default", session.state),
     }
 
 
@@ -227,6 +240,7 @@ def journal(session: Session = Depends(session_for)):
         "background": [entry for entry in CASE_BACKGROUND
                        if all(e in state.discovered_evidence for e in entry["requires_evidence"])],
         "pillar_labels": w.get("pillar_labels", {}),
+        "profile": get_current_profile(state.session_id or "default", state),
     }
 
 
@@ -324,23 +338,7 @@ def study_export(session: Session = Depends(session_for)):
 @app.get("/profiler/profile")
 def get_player_profile(session_id: str = "default"):
     """ดึงข้อมูลโปรไฟล์ผู้เล่นล่าสุดและสถิติสะสม"""
-    if session_id in latest_profiles:
-        return latest_profiles[session_id]
-    tracker = get_tracker(session_id)
-    state = GameState()
-    dimensions = tracker._calculate_dimensions(state)
-    scores, primary = tracker._classify_archetype(dimensions, state)
-    metadata = ARCHETYPE_METADATA.get(primary, ARCHETYPE_METADATA[PlayerArchetype.BALANCED_INVESTIGATOR])
-    return {
-        "session_id": session_id,
-        "primary_archetype": primary.value,
-        "archetype_name_th": metadata["name_th"],
-        "archetype_badge": metadata["badge"],
-        "archetype_description_th": metadata["description_th"],
-        "scores": scores.model_dump(),
-        "dimensions": dimensions.model_dump(),
-        "total_turns": 0,
-    }
+    return get_current_profile(session_id)
 
 
 @app.get("/research/telemetry")

@@ -45,8 +45,12 @@ function updateProfilerHUD(profile) {
   if (label) label.textContent = profile.archetype_name_th || "นักสืบสายสมดุล";
   if (pill) {
     const dimensions = profile.dimensions || {};
-    pill.title = `ความรอบคอบ ${Math.round((dimensions.methodical_score || 0) * 100)}% · ความเคารพกฎ ${Math.round((dimensions.caution_score ?? 1) * 100)}%`;
+    pill.title = `${profile.archetype_name_th || "นักสืบสายสมดุล"} · ความรอบคอบ ${Math.round((dimensions.methodical_score || 0) * 100)}% · ความเคารพกฎ ${Math.round((dimensions.caution_score ?? 1) * 100)}%`;
   }
+  const statBadge = document.getElementById("profilerStatBadge");
+  const statLabel = document.getElementById("profilerStatLabel");
+  if (statBadge) statBadge.textContent = profile.archetype_badge || "⚖️";
+  if (statLabel) statLabel.textContent = profile.archetype_name_th || "นักสืบสายสมดุล";
 }
 
 function anchorClock() {
@@ -164,6 +168,7 @@ async function initGame() {
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
     if (sceneData.api_status) updateApiStatus(sceneData.api_status);
+    if (sceneData.profile) updateProfilerHUD(sceneData.profile);
     serverSessionId = gameState.session_id || null;
     timeLimitSeconds = sceneData.time_limit_seconds || 5400;
     if (sessionMonitorTimer !== null) clearInterval(sessionMonitorTimer);
