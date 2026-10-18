@@ -49,7 +49,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Toggle hiding dialogue overlay so the user can view the scene artwork unobstructed
   function hideDialogueBox() {
-    if (typeof window.hideDialogue === 'function') {
+    if (typeof window !== 'undefined' && typeof window.hideDialogue === 'function') {
       window.hideDialogue();
     } else {
       const panel = document.querySelector('.dialogue-panel');
@@ -60,13 +60,15 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       if (showBtn) {
         showBtn.removeAttribute('hidden');
+        showBtn.hidden = false;
+        showBtn.style.removeProperty('display');
         showBtn.style.setProperty('display', 'inline-flex', 'important');
       }
     }
   }
 
   function showDialogueBox() {
-    if (typeof window.showDialogue === 'function') {
+    if (typeof window !== 'undefined' && typeof window.showDialogue === 'function') {
       window.showDialogue();
     } else {
       const panel = document.querySelector('.dialogue-panel');
@@ -77,6 +79,8 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       if (showBtn) {
         showBtn.setAttribute('hidden', '');
+        showBtn.hidden = true;
+        showBtn.style.removeProperty('display');
         showBtn.style.setProperty('display', 'none', 'important');
       }
     }

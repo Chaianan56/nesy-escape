@@ -14,7 +14,9 @@ const GameArt = (() => {
     'detail-patient-log':['liora_patient_log'], 'detail-pocket-watch':['pocket_watch'],
     'detail-burnt-paper':['burnt_folder_c'], 'detail-teacups':['second_teacup','tea_lozenge_trace'],
     'detail-wax':['wax_seal_imprint'], 'detail-cufflink-soot':['obsidian_cufflink','red_soot'],
-    'detail-dossier':['dossier_missing_file_c','judicial_transfer_order','dossier_bag','case_year_note','mara_job_note','file_c_initials'], 'detail-wall-clock':['wall_clock'],
+    'detail-dossier':['dossier_missing_file_c','judicial_transfer_order','mara_job_note','file_c_initials'],
+    'detail-dossier-closed':['dossier_bag','case_year_note'],
+    'detail-wall-clock':['wall_clock'],
     'detail-medical-file':['secret_file'], 'medical-key-v2':['medical_key'],
     'scene-04-crime':['letter_opener'],
     'scene-02-electrical':['electrical_room_door'],
@@ -28,6 +30,14 @@ const GameArt = (() => {
   Object.entries(groups).forEach(([asset,ids])=>ids.forEach(id=>evidence[id]=asset));
   let selected=null, location=null, shown=null;
   function source(asset){return `/game-art/${asset}.png`;}
+  function resolveEvidenceAsset(target, state){
+    if (target === 'dossier_bag' || target === 'case_year_note') {
+      const isUnlocked = state?.unlocked_objects?.includes('dossier_bag') ||
+                         (typeof gameState !== 'undefined' && gameState?.unlocked_objects?.includes('dossier_bag'));
+      return isUnlocked ? 'detail-dossier' : 'detail-dossier-closed';
+    }
+    return evidence[target];
+  }
   function onResult(result){
     const state=result.new_state, command=result.parsed;
     if(!state || !command)return;
@@ -42,15 +52,19 @@ const GameArt = (() => {
     if(command.action==='move') selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
     else if(command.action==='interrogate' || (command.action==='examine'&&people[command.target])) selected={asset:people[command.target]||rooms[location],label:'สนทนาและตรวจสอบบุคคล'};
     else if(command.action==='examine'){
-      const asset=evidence[command.target]||rooms[command.target];
+      const asset=resolveEvidenceAsset(command.target, state)||rooms[command.target];
       if(asset)selected={asset,label:evidence[command.target]?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
       else selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
+    }
+    else if(command.action==='unlock'){
+      const asset=resolveEvidenceAsset(command.target, state)||evidence[command.target]||rooms[location];
+      selected={asset,label:'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ'};
     }
     else if(command.action==='sequence'){
       selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
     }
     else if(command.action==='take'){
-      const asset=evidence[command.target];
+      const asset=resolveEvidenceAsset(command.target, state)||evidence[command.target];
       selected={asset:asset||rooms[location],label:asset?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
     }
   }
@@ -62,8 +76,9 @@ const GameArt = (() => {
       view = { asset: rooms[loc] || rooms[target] || rooms.dining_car_staff, label: 'ภาพฉากผ่านสายตาผู้เล่น' };
     } else if (action === 'interrogate' || people[target]) {
       view = { asset: people[target] || rooms[loc], label: 'สนทนาและตรวจสอบบุคคล' };
-    } else if (evidence[target]) {
-      view = { asset: evidence[target], label: 'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ' };
+    } else if (evidence[target] || target === 'dossier_bag' || target === 'case_year_note') {
+      const asset = resolveEvidenceAsset(target, typeof gameState !== 'undefined' ? gameState : null) || evidence[target];
+      view = { asset, label: 'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ' };
     } else {
       view = { asset: rooms[loc] || rooms.lounge_car, label: 'ภาพฉากผ่านสายตาผู้เล่น' };
     }
@@ -98,9 +113,10 @@ const GameArt = (() => {
     img.alt=view.label;img.src=source(view.asset);
   }
   function journalImage(id,name){
-    if(!evidence[id])return null;
+    const asset = resolveEvidenceAsset(id, typeof gameState !== 'undefined' ? gameState : null) || evidence[id];
+    if(!asset)return null;
     const img=document.createElement('img');img.className='evidence-image';img.alt=`ภาพประกอบ ${name}`;
-    img.loading='lazy';img.decoding='async';img.src=source(evidence[id]);
+    img.loading='lazy';img.decoding='async';img.src=source(asset);
     img.onerror=()=>{img.hidden=true;};return img;
   }
   function journalPersonImage(id,name){

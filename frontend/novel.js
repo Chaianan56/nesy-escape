@@ -19,6 +19,19 @@ const NovelUI = (() => {
   }
   function active(){return pages.length>0 || introResolve!==null;}
   function paint(){
+    if (typeof window !== 'undefined' && typeof window.showDialogue === 'function') {
+      window.showDialogue();
+    } else if (typeof document !== 'undefined') {
+      const showBtn = document.getElementById('showDialogueBtn');
+      if (showBtn) {
+        if (typeof showBtn.setAttribute === 'function') showBtn.setAttribute('hidden', '');
+        showBtn.hidden = true;
+        if (showBtn.style && typeof showBtn.style.setProperty === 'function') {
+          if (typeof showBtn.style.removeProperty === 'function') showBtn.style.removeProperty('display');
+          showBtn.style.setProperty('display', 'none', 'important');
+        }
+      }
+    }
     document.getElementById('dialogueSpeaker').textContent=/^[“"]/.test(pages[position])?speaker:'คำบรรยาย';
     document.getElementById('dialogueText').textContent=pages[position];
     document.getElementById('dialogueProgress').textContent=`${position+1} / ${pages.length} · Enter หรือคลิก${position===pages.length-1?'เพื่อปิด':'เพื่ออ่านต่อ'} · พิมพ์คำสั่งต่อได้เลย`;

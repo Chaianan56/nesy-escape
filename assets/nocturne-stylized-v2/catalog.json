@@ -399,6 +399,23 @@
       "prompt_file": "prompts/detail-cufflink-soot.json"
     },
     {
+      "id": "detail-dossier-closed",
+      "file": "detail-dossier-closed.png",
+      "group": "detail",
+      "title_th": "กระเป๋าสำนวนล็อกรหัส (ปิดอยู่)",
+      "location": "first_class_car",
+      "evidence": [
+        "dossier_bag",
+        "case_year_note"
+      ],
+      "testimony": [],
+      "critical_text": [],
+      "check_th": [
+        "กระเป๋าหนังล็อกรหัสตัวเลขยังปิดสนิท วางอยู่บนโต๊ะทำงาน",
+        "มีบัตรผูกหูกระเป๋าหรือบันทึกช่วยจำข้างกระเป๋า"
+      ]
+    },
+    {
       "id": "detail-dossier",
       "file": "detail-dossier.png",
       "group": "detail",
