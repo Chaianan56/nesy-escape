@@ -8,12 +8,24 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function updatePreview() {
     const messages = [...feed.children];
-    const latest = messages.findLast(node => node.classList.contains('msg-system') || node.classList.contains('msg-error'));
+    if (typeof SequencePlayback !== 'undefined' && typeof SequencePlayback.isPlaying === 'function' && SequencePlayback.isPlaying()) {
+      const activeCard = messages.findLast(node => node.classList.contains('seq-step-card'));
+      messages.forEach(node => {
+        if (node.classList.contains('seq-step-card')) {
+          node.classList.toggle('history-older', node !== activeCard);
+        } else {
+          node.classList.add('history-older');
+        }
+      });
+      return;
+    }
+    const latest = messages.findLast(node => node.classList.contains('msg-system') || node.classList.contains('msg-error') || node.classList.contains('seq-step-card'));
     // Keep follow-up choices and loading indicators alongside the latest answer.
-    const lastAnswer = messages.findLast(node => node.querySelector('.card-header-bar')) || latest;
+    const lastAnswer = messages.findLast(node => node.querySelector('.card-header-bar') || node.classList.contains('seq-step-card')) || latest;
     const start = Math.max(0, messages.indexOf(lastAnswer));
     messages.forEach((node, index) => node.classList.toggle('history-older', index < start));
   }
+
   new MutationObserver(updatePreview).observe(feed, {childList: true});
   updatePreview();
 

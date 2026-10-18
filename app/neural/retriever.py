@@ -317,6 +317,10 @@ def score_entity_candidate(query: str, entity_id: str, entity_data: Dict[str, An
         th_clean = re.sub(r"\(.*?\)", "", name_th).strip()
         if th_clean and th_clean in q_clean:
             return 0.95
+        # ตรวจสอบคำสำคัญในชื่อไทย เช่น 'กุญแจ' ใน 'กุญแจห้องระบบไฟ'
+        for kw in ("กุญแจ", "กระเป๋า", "นาฬิกา", "บันทึก", "จดหมาย", "สมุด", "จาน", "ตาราง", "ถ้วย", "แผงไฟ", "คีม"):
+            if kw in th_clean and kw in q_clean:
+                scores.append(0.88)
         scores.append(calculate_ngram_similarity(q_clean, th_clean))
 
     # 3. ตรวจสอบ Aliases
@@ -330,5 +334,10 @@ def score_entity_candidate(query: str, entity_id: str, entity_data: Dict[str, An
     role = entity_data.get("role", "")
     if role and role.lower() in q_clean:
         scores.append(0.85)
+
+    # 5. ตรวจสอบประเภทวัตถุ (Type / Category)
+    obj_type = entity_data.get("type", "").lower()
+    if obj_type == "key" and any(k in q_clean for k in ("กุญแจ", "key", "ลูกกุญแจ")):
+        scores.append(0.88)
 
     return max(scores) if scores else 0.0

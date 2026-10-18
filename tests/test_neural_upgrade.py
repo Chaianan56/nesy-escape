@@ -421,5 +421,152 @@ def test_symbolic_repair_note_and_xai_reasoning_step():
             app_main.interpret = original_interpret
 
 
+def test_contextual_target_resolution_unit():
+    """ทดสอบ resolve_contextual_target แปลงคำนามกว้างๆ ตามห้องปลายทาง"""
+    from app.neural.repair import resolve_contextual_target
+    state = GameState(current_location="dining_car_staff")
 
+    # 1. ภาษาอังกฤษ 'key' ในตู้เสบียง -> staff_key
+    assert resolve_contextual_target("take", "key", state, STORY_DATA) == "staff_key"
+
+    # 2. ภาษาไทย 'กุญแจ' ในตู้เสบียง -> staff_key
+    assert resolve_contextual_target("take", "กุญแจ", state, STORY_DATA) == "staff_key"
+
+    # 3. ห้องที่ไม่มีกุญแจ (lounge_car) -> ไม่แปลงมั่วซั่ว
+    state_lounge = GameState(current_location="lounge_car")
+    assert resolve_contextual_target("take", "key", state_lounge, STORY_DATA) == "key"
+
+
+def test_sequential_execution_with_contextual_target():
+    """ทดสอบคำสั่งต่อเนื่องเดินไปห้องอาหารและหยิบกุญแจสำเร็จครบทั้ง sequence"""
+    from app.main import _handle_command
+    from app.schemas import CommandRequest
+
+    # สร้าง sequence จำลองที่แยกมาแล้ว: เดินไปตู้เสบียง แล้วหยิบกุญแจ
+    seq_cmd = ParsedCommand(
+        action=ActionType.SEQUENCE,
+        raw_text="เดินไปตู้อาหารและหยิบกุญแจ",
+        sequence=True,
+        confidence=0.95,
+        alternatives=["move dining_car_staff", "take key"],
+    )
+    from app import main as app_main
+    orig = app_main.interpret
+    try:
+        app_main.interpret = lambda text, state: seq_cmd
+        req = CommandRequest(
+            text="เดินไปตู้อาหารและหยิบกุญแจ",
+            state=GameState(current_location="lounge_car"),
+        )
+        res = _handle_command(req)
+        assert res.decision.allowed is True
+        assert res.new_state.current_location == "dining_car_staff"
+        assert "staff_key" in res.new_state.inventory
+        assert res.sequence_steps is not None
+        assert len(res.sequence_steps) == 2
+        assert res.sequence_steps[0]["action"] == "move"
+        assert res.sequence_steps[0]["location"] == "dining_car_staff"
+        assert res.sequence_steps[1]["action"] == "take"
+        assert res.sequence_steps[1]["target"] == "staff_key"
+        assert "staff_key" in res.sequence_steps[1]["inventory"]
+    finally:
+        app_main.interpret = orig
+
+
+def test_full_three_step_sequence_rpg_playback_data():
+    """ทดสอบ sequence 3 ขั้น: เดินไปตู้อาหาร คุยกับพนักงาน และหยิบกุญแจ โดยเริ่มจากตู้ไฟฟ้า"""
+    from app.main import _handle_command
+    from app.schemas import CommandRequest
+
+    seq_cmd = ParsedCommand(
+        action=ActionType.SEQUENCE,
+        raw_text="เดินไปคุยกับพนักงานที่ตู้อาหารและหยิบกุญแจ",
+        sequence=True,
+        confidence=0.95,
+        alternatives=["move dining_car_staff", "interrogate dining_staff", "take key"],
+    )
+    from app import main as app_main
+    orig = app_main.interpret
+    try:
+        app_main.interpret = lambda text, state: seq_cmd
+        req = CommandRequest(
+            text="เดินไปคุยกับพนักงานที่ตู้อาหารและหยิบกุญแจ",
+            state=GameState(current_location="luggage_van_electrical"),
+        )
+        res = _handle_command(req)
+        assert res.decision.allowed is True
+        assert res.new_state.current_location == "dining_car_staff"
+        assert "staff_key" in res.new_state.inventory
+        assert res.sequence_steps is not None
+        assert len(res.sequence_steps) == 3
+
+        # Step 1: Move from electrical to dining car
+        step1 = res.sequence_steps[0]
+        assert step1["step_index"] == 1
+        assert step1["action"] == "move"
+        assert step1["target"] == "dining_car_staff"
+        assert step1["location"] == "dining_car_staff"
+        assert step1["allowed"] is True
+
+        # Step 2: Interrogate staff
+        step2 = res.sequence_steps[1]
+        assert step2["step_index"] == 2
+        assert step2["action"] == "interrogate"
+        assert step2["target"] == "car_attendant"
+        assert step2["location"] == "dining_car_staff"
+        assert step2["allowed"] is True
+
+        # Step 3: Take staff key
+        step3 = res.sequence_steps[2]
+        assert step3["step_index"] == 3
+        assert step3["action"] == "take"
+        assert step3["target"] == "staff_key"
+        assert step3["allowed"] is True
+        assert "staff_key" in step3["inventory"]
+    finally:
+        app_main.interpret = orig
+
+
+def test_prune_entities_retains_staff_key_for_compound_query():
+    """ตรวจสอบว่า prune_entities สกัด staff_key เข้าสู่ Prompt ได้ แม้ผู้เล่นจะยืนอยู่ตู้ห้องไฟฟ้าหรือเลานจ์"""
+    from app.symbolic.engine import SymbolicEngine
+    engine = SymbolicEngine()
+    state = GameState(current_location="luggage_van_electrical")
+    objs, suspects, locs = prune_entities(engine.world, state, "เดินไปคุยกับพนักงานที่ตู้อาหารและหยิบกุญแจ")
+    assert "staff_key" in objs, "staff_key ต้องไม่ถูกตัดทิ้งเมื่อผู้เล่นระบุกุญแจในข้อความ"
+    assert "car_attendant" in suspects, "car_attendant ต้องอยู่ในรายการผู้ต้องสงสัย"
+
+
+def test_sequence_repair_single_token_or_misidentified_key():
+    """ตรวจสอบว่าคำสั่งลำดับที่มีเพียง 'take' หรือเผลอระบุ key ผิดตู้ จะถูก repair เป็น staff_key ในตู้อาหาร"""
+    import app.main as app_main
+    from app.main import _handle_command
+    from app.schemas import CommandRequest
+
+    orig = app_main.interpret
+    # จำลองกรณี Gemini คืน single-word 'take' หรือ 'take medical_key'
+    seq_cmd = ParsedCommand(
+        action=ActionType.SEQUENCE,
+        raw_text="เดินไปคุยกับพนักงานที่ตู้อาหารและหยิบกุญแจ",
+        confidence=0.9,
+        alternatives=[
+            "move dining_car_staff",
+            "interrogate car_attendant",
+            "take",  # single word ที่เดิมโดนตัดทิ้ง
+        ],
+    )
+    try:
+        app_main.interpret = lambda text, state: seq_cmd
+        req = CommandRequest(
+            text="เดินไปคุยกับพนักงานที่ตู้อาหารและหยิบกุญแจ",
+            state=GameState(current_location="luggage_van_electrical"),
+        )
+        res = _handle_command(req)
+        assert res.decision.allowed is True
+        assert len(res.sequence_steps) == 3
+        assert res.sequence_steps[2]["action"] == "take"
+        assert res.sequence_steps[2]["target"] == "staff_key"
+        assert "staff_key" in res.new_state.inventory
+    finally:
+        app_main.interpret = orig
 

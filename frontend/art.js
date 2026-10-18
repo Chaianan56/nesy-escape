@@ -17,10 +17,10 @@ const GameArt = (() => {
     'detail-dossier':['dossier_missing_file_c','judicial_transfer_order','dossier_bag','case_year_note','mara_job_note','file_c_initials'], 'detail-wall-clock':['wall_clock'],
     'detail-medical-file':['secret_file'], 'medical-key-v2':['medical_key'],
     'scene-04-crime':['letter_opener'],
-    'scene-02-electrical':['electrical_room_door','staff_key'],
+    'scene-02-electrical':['electrical_room_door'],
     'detail-gideon':['gideon_lozenge_tin','gideon_signet_ring','gideon_missing_button','gideon_sleeve_soot'],
     'detail-vincent':['wire_cutters','vincent_blood','vincent_ticket'],
-    'scene-03-dining':['liora_patient_witness','staff_impact_testimony','staff_service_record','staff_no_message','vincent_station_alibi'],
+    'scene-03-dining':['staff_key','liora_patient_witness','staff_impact_testimony','staff_service_record','staff_no_message','vincent_station_alibi'],
     'scene-05-lounge':['gideon_blackout_alibi','gideon_no_early_alibi','postponed_meeting_claim'],
     'scene-06-second-class':['vincent_body_testimony','vincent_blackout_confession','vincent_theft_motive'],
     'scene-04-medical':['liora_time_estimate','liora_medical_access','liora_time_hesitation','medical_room_door']
@@ -35,14 +35,51 @@ const GameArt = (() => {
       if(command.action==='move'&&command.target==='locomotive') selected={asset:rooms.locomotive,label:'ทางเข้าเขตหวงห้าม · คุณยังอยู่ตู้เดิม'};
       return;
     }
+    if(location && location !== state.current_location){
+      selected = null;
+    }
     location=state.current_location;
     if(command.action==='move') selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
-    else if(command.action==='interrogate' || (command.action==='examine'&&people[command.target])) selected={asset:people[command.target],label:'สนทนาและตรวจสอบบุคคล'};
+    else if(command.action==='interrogate' || (command.action==='examine'&&people[command.target])) selected={asset:people[command.target]||rooms[location],label:'สนทนาและตรวจสอบบุคคล'};
     else if(command.action==='examine'){
       const asset=evidence[command.target]||rooms[command.target];
       if(asset)selected={asset,label:evidence[command.target]?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
       else selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
     }
+    else if(command.action==='sequence'){
+      selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
+    }
+    else if(command.action==='take'){
+      const asset=evidence[command.target];
+      selected={asset:asset||rooms[location],label:asset?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
+    }
+  }
+  function setStepScene(action, target, stepLocation){
+    const loc = stepLocation || location;
+    location = loc;
+    let view = null;
+    if (action === 'move') {
+      view = { asset: rooms[loc] || rooms[target] || rooms.dining_car_staff, label: 'ภาพฉากผ่านสายตาผู้เล่น' };
+    } else if (action === 'interrogate' || people[target]) {
+      view = { asset: people[target] || rooms[loc], label: 'สนทนาและตรวจสอบบุคคล' };
+    } else if (evidence[target]) {
+      view = { asset: evidence[target], label: 'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ' };
+    } else {
+      view = { asset: rooms[loc] || rooms.lounge_car, label: 'ภาพฉากผ่านสายตาผู้เล่น' };
+    }
+    selected = view;
+    const img = document.getElementById('sceneImage');
+    if (!img || !view.asset) return;
+    const sceneLabel = document.getElementById('sceneLabel');
+    if (sceneLabel) sceneLabel.textContent = view.label;
+    if (shown === view.asset) return;
+    shown = view.asset;
+    const status = document.getElementById('artStatus');
+    if (status) { status.hidden = false; status.textContent = 'กำลังโหลดภาพ…'; }
+    img.onload = () => { if (status) status.hidden = true; };
+    img.onerror = () => { if (status) { status.hidden = false; status.textContent = 'โหลดภาพไม่สำเร็จ · ยังอ่านข้อมูลและพิมพ์เล่นต่อได้'; } };
+    img.alt = view.label;
+    img.src = source(view.asset);
   }
   function sync(state){
     if(!state)return;
@@ -72,5 +109,6 @@ const GameArt = (() => {
     img.loading='lazy';img.decoding='async';img.src=source(people[id]);
     img.onerror=()=>{img.hidden=true;};return img;
   }
-  return {onResult,sync,journalImage,journalPersonImage};
+  return {onResult,sync,journalImage,journalPersonImage,setStepScene};
 })();
+
