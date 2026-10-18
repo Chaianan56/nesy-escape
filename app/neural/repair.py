@@ -48,7 +48,7 @@ def repair_parsed_command(
         
         # ถ้าไม่มีกลไกล็อก และไม่รองรับ unlock แต่รองรับ examine
         if "unlock" not in supports and not has_lock:
-            if "examine" in supports or any(w in raw for w in ("เปิดดู", "เปิดอ่าน", "ตรวจ", "ส่อง", "ดู", "open", "read", "check", "inspect")):
+            if "examine" in supports or any(w in raw for w in ("เปิด", "เปิดดู", "เปิดอ่าน", "ตรวจ", "ส่อง", "ดู", "open", "read", "check", "inspect")):
                 updates["action"] = ActionType.EXAMINE
                 updates["code"] = None
                 updates["instrument"] = None
@@ -113,6 +113,20 @@ def repair_parsed_command(
         if resolved and resolved in objects and resolved != effective_target:
             updates["target"] = resolved
             repair_notes.append(f"Contextually resolved target '{effective_target}' to '{resolved}' in '{state.current_location}'")
+
+    # ==========================================================================
+    # กรณีที่ 6: คำสั่ง UNLOCK/USE บนประตูหรือวัตถุที่ต้องใช้กุญแจ (Key Requirement)
+    # หากผู้เล่นพกกุญแจที่ตรงกันอยู่ในกระเป๋า (state.inventory) แต่ในคำสั่งไม่ได้ระบุ instrument
+    # ทำการ Bind กุญแจดอกนั้นเป็น instrument อัตโนมัติ (Elliptic Instrument Resolution)
+    # ==========================================================================
+    if state and action in (ActionType.UNLOCK, ActionType.USE):
+        final_target = updates.get("target", target)
+        if final_target in objects:
+            req_key = objects[final_target].get("unlock_requirements", {}).get("key")
+            current_instrument = updates.get("instrument", parsed.instrument)
+            if req_key and req_key in state.inventory and not current_instrument:
+                updates["instrument"] = req_key
+                repair_notes.append(f"Auto-bound held key '{req_key}' for unlocking '{final_target}'")
 
     if not updates:
         return parsed, None
@@ -238,7 +252,17 @@ def resolve_contextual_target(
             if "watch" in oid.lower() or "clock" in oid.lower() or "นาฬิกา" in name_th:
                 candidates.append(oid)
 
-    # 5. Generic substring match
+    # 5. หมวดหมู่ประตู / ห้องล็อก (Doors: door, doors, ประตู, บานประตู, doctor_compartment_door, electrical_door, etc.)
+    elif any(d in t_clean for d in ("door", "doors", "ประตู", "บานประตู", "doctor_compartment_door", "electrical_door", "ห้องแพทย์", "ห้องพยาบาล", "ห้องระบบไฟ", "ห้องไฟฟ้า", "ห้องไฟ")) or (
+        t_clean in ("null", "none", "") and any(d in raw for d in ("ประตู", "door"))
+    ):
+        for oid, obj in room_objects.items():
+            obj_type = obj.get("type", "").lower()
+            name_th = obj.get("name_th", "").lower()
+            if obj_type == "door" or "door" in oid.lower() or "ประตู" in name_th:
+                candidates.append(oid)
+
+    # 6. Generic substring match
     elif t_clean not in ("null", "none", ""):
         for oid, obj in room_objects.items():
             name_th = obj.get("name_th", "").lower()

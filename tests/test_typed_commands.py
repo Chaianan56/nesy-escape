@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from app import main
 from app.neural.typed_commands import parse_typed_command, interpret_game
 from app.neural import gemini_client
-from app.schemas import GameState, ActionType
+from app.schemas import GameState, ActionType, ParsedCommand
 from app.sessions import sessions, COOKIE
 
 
@@ -129,3 +129,80 @@ def test_journal_does_not_wait_for_command_lock():
         worker.join(timeout=2)
         assert completed
         assert results[0].status_code == 200
+
+
+def test_unlock_door_with_carried_key_resolves_and_succeeds():
+    world = main.engine.world
+    state_with_key = GameState(current_location='luggage_van_electrical', inventory=['staff_key'])
+    # 1. Typed command "ปลดล็อกประตูห้องระบบไฟ" auto-binds instrument
+    parsed = parse_typed_command('ปลดล็อกประตูห้องระบบไฟ', state_with_key, world)
+    assert parsed is not None
+    assert parsed.action == ActionType.UNLOCK
+    assert parsed.target == 'electrical_room_door'
+    assert parsed.instrument == 'staff_key'
+    decision = main.engine.decide(parsed, state_with_key)
+    assert decision.allowed
+
+    # 2. Symbolic engine allows unlock when player carries the required key even without instrument
+    bare_cmd = ParsedCommand(action=ActionType.UNLOCK, target='electrical_room_door', raw_text='เปิดห้องระบบไฟ')
+    decision2 = main.engine.decide(bare_cmd, state_with_key)
+    assert decision2.allowed
+
+    # 3. But rejects if player does not have the key
+    state_without_key = GameState(current_location='luggage_van_electrical', inventory=[])
+    decision3 = main.engine.decide(bare_cmd, state_without_key)
+    assert not decision3.allowed
+    assert decision3.violated_rule_id == 'R010_UNLOCK_REQUIREMENTS'
+
+
+def test_medical_room_door_and_dossier_bag_interactions():
+    world = main.engine.world
+    state_med = GameState(current_location='first_class_car', inventory=['medical_key'])
+
+    for text in [
+        'เปิดห้องพยาบาล',
+        'เปิดห้องแพทย์',
+        'เปิดประตูห้องแพทย์',
+        'เปิดประตูห้องพยาบาล',
+        'ปลดล็อกห้องแพทย์',
+        'ปลดล็อกห้องพยาบาล',
+        'ไขห้องแพทย์',
+        'ไขประตูห้องแพทย์',
+        'ใช้กุญแจห้องแพทย์',
+        'ใช้กุญแจห้องแพทย์เปิดประตู',
+        'ใช้กุญแจเปิดประตู',
+        'ใช้กุญแจ',
+    ]:
+        parsed = parse_typed_command(text, state_med, world)
+        assert parsed is not None, f"Failed to parse '{text}'"
+        assert parsed.target == 'medical_room_door', f"Wrong target for '{text}': {parsed.target}"
+        assert parsed.instrument == 'medical_key', f"Missing instrument for '{text}'"
+        assert main.engine.decide(parsed, state_med).allowed, f"Decision rejected for '{text}'"
+
+    # Opening medical room without medical_key is rejected
+    state_no_key = GameState(current_location='first_class_car', inventory=[])
+    parsed_no_key = parse_typed_command('เปิดห้องพยาบาล', state_no_key, world)
+    dec = main.engine.decide(parsed_no_key, state_no_key)
+    assert not dec.allowed
+    assert dec.violated_rule_id == 'R010_UNLOCK_REQUIREMENTS'
+
+    # Dossier bag code unlocking variations
+    for text in [
+        'เปิดกระเป๋า 1923',
+        'ปลดล็อกกระเป๋า 1923',
+        'ไขกระเป๋า 1923',
+        'ใส่รหัสกระเป๋า 1923',
+        'ใส่รหัส 1923',
+        'รหัส 1923',
+    ]:
+        parsed_bag = parse_typed_command(text, state_med, world)
+        assert parsed_bag is not None, f"Failed to parse bag cmd '{text}'"
+        assert parsed_bag.target == 'dossier_bag'
+        assert parsed_bag.code == '1923'
+        assert main.engine.decide(parsed_bag, state_med).allowed
+
+    # Wrong code is rejected
+    wrong_code_cmd = parse_typed_command('เปิดกระเป๋า 9999', state_med, world)
+    assert not main.engine.decide(wrong_code_cmd, state_med).allowed
+
+

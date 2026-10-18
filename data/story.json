@@ -651,7 +651,18 @@
       ],
       "unlock_requirements": {
         "key": "medical_key"
-      }
+      },
+      "aliases": [
+        "ห้องแพทย์",
+        "ห้องพยาบาล",
+        "ประตูห้องพยาบาล",
+        "ห้องตรวจ",
+        "ประตูห้องตรวจ",
+        "medical room",
+        "doctor room",
+        "clinic",
+        "infirmary"
+      ]
     },
     "medical_key": {
       "name_th": "กุญแจห้องแพทย์",
@@ -664,7 +675,15 @@
         "requires_inventory": [
           "medical_key"
         ]
-      }
+      },
+      "aliases": [
+        "กุญแจห้องพยาบาล",
+        "กุญแจแพทย์",
+        "กุญแจหมอ",
+        "กุญแจห้องตรวจ",
+        "medical key",
+        "doctor key"
+      ]
     },
     "electrical_room_door": {
       "name_th": "ประตูห้องระบบไฟ",
@@ -677,7 +696,15 @@
       ],
       "unlock_requirements": {
         "key": "staff_key"
-      }
+      },
+      "aliases": [
+        "ห้องระบบไฟ",
+        "ห้องไฟฟ้า",
+        "ห้องไฟ",
+        "ประตูห้องไฟฟ้า",
+        "ประตูห้องไฟ",
+        "electrical room"
+      ]
     },
     "staff_key": {
       "name_th": "กุญแจห้องระบบไฟ",
@@ -687,6 +714,12 @@
       "supports": [
         "take",
         "use"
+      ],
+      "aliases": [
+        "กุญแจห้องไฟฟ้า",
+        "กุญแจห้องไฟ",
+        "กุญแจพนักงาน",
+        "staff key"
       ]
     },
     "vincent_ticket": {
