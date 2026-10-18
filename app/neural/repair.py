@@ -99,6 +99,21 @@ def repair_parsed_command(
                 updates["target"] = best_oid
                 repair_notes.append(f"Recovered missing target as '{best_oid}' from current room via N-gram matching")
 
+    # ==========================================================================
+    # กรณีที่ 5: target เป็นคำนามกว้างๆ (Generic Noun เช่น 'key', 'กุญแจ')
+    # ที่ไม่ตรงกับ ID จริง แต่ในห้องปัจจุบันมีวัตถุประเภทนั้นเพียงชิ้นเดียว
+    # ==========================================================================
+    effective_target = updates.get("target", target)
+    if (
+        effective_target not in objects
+        and state
+        and action in (ActionType.EXAMINE, ActionType.TAKE, ActionType.BURN, ActionType.UNLOCK, ActionType.USE)
+    ):
+        resolved = resolve_contextual_target(action, effective_target, state, world_data, raw_text=raw)
+        if resolved and resolved in objects and resolved != effective_target:
+            updates["target"] = resolved
+            repair_notes.append(f"Contextually resolved target '{effective_target}' to '{resolved}' in '{state.current_location}'")
+
     if not updates:
         return parsed, None
 
@@ -106,3 +121,133 @@ def repair_parsed_command(
     updates["repair_note"] = note
     repaired = parsed.model_copy(update=updates)
     return repaired, note
+
+
+def resolve_contextual_target(
+    action: Any,
+    target: Optional[str],
+    state: Optional[GameState],
+    world_data: Dict[str, Any],
+    raw_text: Optional[str] = None,
+) -> Optional[str]:
+    """แปลงคำนามกว้างๆ (Generic Noun) หรือ target ชั่วคราว ให้เป็น ID วัตถุจริงในตู้ปัจจุบัน
+
+    เงื่อนไขความปลอดภัย:
+    - ค้นหาเฉพาะในตู้ปัจจุบัน (state.current_location)
+    - ต้องมีวัตถุที่ตรงตามหมวดหมู่เพียง 'ชิ้นเดียว' (Uniqueness Constraint)
+    - หากมีหลายชิ้น หรือไม่มีเลย จะคืน target เดิมเพื่อส่งต่อให้ Symbolic Engine ตัดสิน
+    """
+    if not state:
+        return target
+
+    objects = world_data.get("objects", {})
+    suspects = world_data.get("suspects", {})
+    current_loc = state.current_location
+    t_clean = (target or "").lower().strip()
+    raw = (raw_text or "").lower()
+    act_str = action.value if hasattr(action, "value") else str(action).lower()
+
+    # หาก target เป็น ID ที่ถูกต้องและอยู่ในห้องปัจจุบันหรือกระเป๋า ไม่ต้องแปลง
+    if target and (target in objects or target in suspects):
+        if target in state.inventory:
+            return target
+        if target in objects and objects[target].get("location") == current_loc:
+            return target
+        if target in suspects and suspects[target].get("location") == current_loc:
+            return target
+        if act_str not in ("examine", "take", "use", "unlock", "interrogate"):
+            return target
+
+    # หมวดหมู่บุคคล/ผู้ต้องสงสัย (Suspects & Interrogation)
+    if act_str == "interrogate" or any(s in t_clean for s in ("staff", "attendant", "พนักงาน", "doctor", "หมอ", "vincent", "gideon")):
+        room_suspects = {sid: s for sid, s in suspects.items() if s.get("location") == current_loc}
+        suspect_candidates = []
+        # พนักงานตรวจตู้ (car_attendant / dining_staff / staff)
+        if any(w in t_clean for w in ("staff", "attendant", "พนักงาน", "dining_staff", "ตู้เสบียง")):
+            for sid, s in room_suspects.items():
+                if sid == "car_attendant" or "พนักงาน" in s.get("name_th", ""):
+                    suspect_candidates.append(sid)
+        # แพทย์ (dr_liora_venn)
+        elif any(w in t_clean for w in ("liora", "doctor", "หมอ", "แพทย์")):
+            for sid, s in room_suspects.items():
+                if sid == "dr_liora_venn" or "แพทย์" in s.get("name_th", "") or "หมอ" in s.get("name_th", ""):
+                    suspect_candidates.append(sid)
+        # วินเซนต์
+        elif any(w in t_clean for w in ("vincent", "วินเซนต์")):
+            for sid, s in room_suspects.items():
+                if sid == "vincent_gray" or "วินเซนต์" in s.get("name_th", ""):
+                    suspect_candidates.append(sid)
+        # กิเดียน
+        elif any(w in t_clean for w in ("gideon", "กิเดียน")):
+            for sid, s in room_suspects.items():
+                if sid == "gideon_hart" or "กิเดียน" in s.get("name_th", ""):
+                    suspect_candidates.append(sid)
+        # ผู้ป่วย
+        elif any(w in t_clean for w in ("patient", "ผู้ป่วย")):
+            for sid, s in room_suspects.items():
+                if sid == "patient_witness" or "ผู้ป่วย" in s.get("name_th", ""):
+                    suspect_candidates.append(sid)
+        elif len(room_suspects) == 1:
+            suspect_candidates.append(list(room_suspects.keys())[0])
+
+        if len(suspect_candidates) == 1:
+            return suspect_candidates[0]
+
+    room_objects = {oid: obj for oid, obj in objects.items() if obj.get("location") == current_loc}
+    if not room_objects:
+        return target
+
+
+    candidates = []
+
+    # 1. หมวดหมู่กุญแจ (Keys: key, keys, กุญแจ)
+    is_key = t_clean in ("key", "keys", "กุญแจ", "ลูกกุญแจ", "medical_key", "staff_key") or (
+        t_clean in ("null", "none", "", "medical_key", "staff_key") and any(k in raw for k in ("กุญแจ", "key"))
+    ) or any(k in t_clean for k in ("key", "กุญแจ"))
+    if is_key:
+        for oid, obj in room_objects.items():
+            obj_type = obj.get("type", "").lower()
+            name_th = obj.get("name_th", "").lower()
+            if obj_type == "key" or "key" in oid.lower() or "กุญแจ" in name_th:
+                candidates.append(oid)
+
+    # 2. หมวดหมู่กระเป๋า (Bags: bag, กระเป๋า)
+    elif t_clean in ("bag", "กระเป๋า", "ย่าม") or (
+        t_clean in ("null", "none", "") and any(k in raw for k in ("กระเป๋า", "bag"))
+    ):
+        for oid, obj in room_objects.items():
+            name_th = obj.get("name_th", "").lower()
+            if "bag" in oid.lower() or "กระเป๋า" in name_th:
+                candidates.append(oid)
+
+    # 3. หมวดหมู่บันทึก / สมุด / จดหมาย (Documents / Notes / Letters)
+    elif t_clean in ("note", "book", "บันทึก", "สมุด", "จดหมาย", "letter") or (
+        t_clean in ("null", "none", "") and any(k in raw for k in ("บันทึก", "สมุด", "จดหมาย", "note", "letter"))
+    ):
+        for oid, obj in room_objects.items():
+            name_th = obj.get("name_th", "").lower()
+            if any(k in oid.lower() for k in ("note", "log", "book", "letter")) or any(k in name_th for k in ("บันทึก", "สมุด", "จดหมาย")):
+                candidates.append(oid)
+
+    # 4. หมวดหมู่นาฬิกา (Watch / Clock: watch, clock, นาฬิกา)
+    elif t_clean in ("watch", "clock", "นาฬิกา") or (
+        t_clean in ("null", "none", "") and any(k in raw for k in ("นาฬิกา", "watch", "clock"))
+    ):
+        for oid, obj in room_objects.items():
+            name_th = obj.get("name_th", "").lower()
+            if "watch" in oid.lower() or "clock" in oid.lower() or "นาฬิกา" in name_th:
+                candidates.append(oid)
+
+    # 5. Generic substring match
+    elif t_clean not in ("null", "none", ""):
+        for oid, obj in room_objects.items():
+            name_th = obj.get("name_th", "").lower()
+            if t_clean in oid.lower() or t_clean in name_th:
+                candidates.append(oid)
+
+    # กฎความปลอดภัย: ต้องมีตรงเป๊ะชิ้นเดียวในห้องนี้
+    if len(candidates) == 1:
+        return candidates[0]
+
+    return target
+

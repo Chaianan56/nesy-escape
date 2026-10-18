@@ -269,6 +269,8 @@ def build_interpret_system_prompt(
                  alternatives=[f"move {loc_open}", f"examine {ev_id}"]),
         _prompt("sequence", f"ดู{ev_name}กับ{fixture_name}", confidence=0.9,
                  alternatives=[f"examine {ev_id}", f"examine {fixture_id}"]),
+        _prompt("sequence", f"เดินไปคุยกับพนักงานที่{loc_open_name}และหยิบ{ev_name}", confidence=0.95,
+                 alternatives=[f"move {loc_open}", "interrogate car_attendant", f"take {ev_id}"]),
 
         "(คำสั่งกำกวม — รู้ว่าจะทำอะไร แต่ไม่รู้ว่ากับสิ่งไหน ให้ตอบ action='ambiguous' ห้ามเลือกมาให้เอง)",
         _prompt("ambiguous", "เปิดมันหน่อย", confidence=0.5,

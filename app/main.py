@@ -51,6 +51,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith((".html", ".js", ".css")) or path in ("/", ""):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 engine = SymbolicEngine()
 MAX_SEQUENCE_STEPS = 4
 adaptation_engine = DynamicAdaptationEngine()
@@ -431,8 +443,15 @@ def _handle_command(req: CommandRequest):
     # จึงให้สิทธิ์นี้เฉพาะลิสต์สั้นแบบที่คนพิมพ์จริงในประโยคเดียว เกินกว่านั้นถือเป็นตัวเลือกธรรมดา
     if len(parsed.alternatives) > MAX_SEQUENCE_STEPS:
         parsed.sequence = False
-    parsed.alternatives = [a for a in parsed.alternatives
-                           if len(a.split()) == 2 and a.split()[0] in {v.value for v in ActionType}
+    normalized_alts = []
+    for a in parsed.alternatives:
+        parts = a.split()
+        if len(parts) == 1 and parts[0] in {v.value for v in ActionType}:
+            normalized_alts.append(f"{parts[0]} null")
+        elif len(parts) == 2:
+            normalized_alts.append(a)
+    parsed.alternatives = [a for a in normalized_alts
+                           if a.split()[0] in {v.value for v in ActionType}
                            and (parsed.sequence or engine.offerable(a.split()[1], req.state))]
 
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
@@ -441,7 +460,15 @@ def _handle_command(req: CommandRequest):
 def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse:
     parsed = parsed.model_copy(update={"action": ActionType.SEQUENCE, "sequence": False})
     actions = {a.value for a in ActionType} - {"sequence", "ambiguous", "unknown"}
-    steps = parsed.alternatives
+    normalized_steps = []
+    for step in parsed.alternatives:
+        parts = step.split()
+        if len(parts) == 1 and parts[0] in actions:
+            normalized_steps.append(f"{parts[0]} null")
+        elif len(parts) == 2:
+            normalized_steps.append(step)
+    steps = normalized_steps
+    parsed = parsed.model_copy(update={"alternatives": steps})
     # Validate the whole list before any mutation; never silently skip malformed steps.
     if not steps or len(steps) > MAX_SEQUENCE_STEPS or any(
         len(step.split()) != 2 or step.split()[0] not in actions for step in steps
@@ -451,6 +478,7 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
             allowed=False, message="คำสั่งต่อเนื่องยาวเกินไปหรือรูปแบบไม่ถูกต้อง กรุณาแบ่งเป็นคำสั่งสั้น ๆ",
             violated_rule_id="R_SEQUENCE_FORMAT"))
     messages, reasoning = [], []
+    sequence_steps = []
     for index, step in enumerate(steps):
         state = sync_clock(state)
         if state.ending_id or engine.is_out_of_time(state):
@@ -458,9 +486,18 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
         action, target = step.split()
         if action in {"accuse", "burn", "infer"}:
             return CommandResponse(parsed=parsed, new_state=state, pending_steps=steps[index:],
+                sequence_steps=sequence_steps,
                 decision=Decision(allowed=True,
                     message="\n\n".join(messages + ["ขั้นต่อไปต้องยืนยันก่อนดำเนินการ"]),
                     reasoning_chain=reasoning))
+        from app.neural.repair import resolve_contextual_target
+        resolved_target = resolve_contextual_target(action, target, state, engine.world, raw_text=parsed.raw_text)
+        repair_note = None
+        if resolved_target and resolved_target != target:
+            repair_note = f"ปรับเป้าหมายจาก '{target}' เป็น '{resolved_target}' เพื่อให้ตรงกับวัตถุที่มีอยู่ในห้อง"
+            target = resolved_target
+        elif resolved_target:
+            target = resolved_target
         command = ParsedCommand(action=ActionType(action), target=target, raw_text=step, confidence=1)
         decision = engine.decide(command, state)
         scene_playback = engine.dialogue_scene(command, state) if decision.allowed else None
@@ -470,21 +507,63 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
             state = apply_changes(state, decision.state_changes)
             if state.started_at is None:
                 state = state.model_copy(update={"started_at": time.time()})
+            sequence_steps.append({
+                "step_index": index + 1,
+                "action": action,
+                "target": target,
+                "location": state.current_location,
+                "message": decision.message,
+                "allowed": True,
+                "inventory": list(state.inventory),
+                "discovered_evidence": list(state.discovered_evidence),
+                "reasoning_chain": [r.model_dump() for r in decision.reasoning_chain],
+                "violated_rule_id": decision.violated_rule_id,
+                "repair_note": repair_note,
+            })
             if scene_playback:
                 return CommandResponse(parsed=parsed, new_state=state,
                     narrative_scene=scene_playback, pending_steps=steps[index + 1:],
+                    sequence_steps=sequence_steps,
                     decision=Decision(allowed=True, message="\n\n".join(messages), reasoning_chain=reasoning))
         elif decision.state_changes.get("ending"):
             state = state.model_copy(update={"ending_id": decision.state_changes["ending"]})
+            sequence_steps.append({
+                "step_index": index + 1,
+                "action": action,
+                "target": target,
+                "location": state.current_location,
+                "message": decision.message,
+                "allowed": False,
+                "inventory": list(state.inventory),
+                "discovered_evidence": list(state.discovered_evidence),
+                "reasoning_chain": [r.model_dump() for r in decision.reasoning_chain],
+                "violated_rule_id": decision.violated_rule_id,
+                "repair_note": repair_note,
+            })
+        else:
+            sequence_steps.append({
+                "step_index": index + 1,
+                "action": action,
+                "target": target,
+                "location": state.current_location,
+                "message": decision.message,
+                "allowed": False,
+                "inventory": list(state.inventory),
+                "discovered_evidence": list(state.discovered_evidence),
+                "reasoning_chain": [r.model_dump() for r in decision.reasoning_chain],
+                "violated_rule_id": decision.violated_rule_id,
+                "repair_note": repair_note,
+            })
         if not decision.allowed or state.ending_id:
             remaining = len(steps) - index - 1
             if remaining and not state.ending_id:
                 messages.append(f"จึงข้ามอีก {remaining} ขั้นตอนที่รออยู่")
-            return CommandResponse(parsed=parsed, new_state=state, decision=Decision(
-                allowed=decision.allowed, message="\n\n".join(messages),
-                reasoning_chain=reasoning, violated_rule_id=decision.violated_rule_id))
-    return CommandResponse(parsed=parsed, new_state=state, decision=Decision(
-        allowed=True, message="\n\n".join(messages), reasoning_chain=reasoning))
+            return CommandResponse(parsed=parsed, new_state=state, sequence_steps=sequence_steps,
+                decision=Decision(allowed=decision.allowed, message="\n\n".join(messages),
+                    reasoning_chain=reasoning, violated_rule_id=decision.violated_rule_id))
+    return CommandResponse(parsed=parsed, new_state=state, sequence_steps=sequence_steps,
+        decision=Decision(allowed=True, message="\n\n".join(messages), reasoning_chain=reasoning))
+
 
 
 def terminal_response(state: GameState, text: str = "") -> CommandResponse:

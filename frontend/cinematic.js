@@ -234,6 +234,19 @@ window.addEventListener('DOMContentLoaded', () => {
     }, true);
   }
 
+  // Smooth Mouse Wheel Vertical Scrolling for Dialogue/Chat Feed
+  function setupVerticalScroll(el) {
+    if (!el || el.__hasVerticalScroll) return;
+    el.__hasVerticalScroll = true;
+
+    // Mouse wheel vertical scrolling
+    el.addEventListener('wheel', (e) => {
+      if (e.deltaY !== 0) {
+        el.scrollTop += e.deltaY;
+      }
+    }, { passive: true });
+  }
+
   // Attach to #visibleObjects and existing .chips-scroll
   const visibleObjects = document.getElementById('visibleObjects');
   if (visibleObjects) setupHorizontalScroll(visibleObjects);
@@ -241,4 +254,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Expose globally so dynamic chip rows can use it
   window.setupHorizontalScroll = setupHorizontalScroll;
+
+  // Attach vertical scroll to #chatFeed
+  if (feed) setupVerticalScroll(feed);
+  window.setupVerticalScroll = setupVerticalScroll;
 });
+

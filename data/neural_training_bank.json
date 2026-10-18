@@ -516,6 +516,18 @@
     "confidence": 0.9
   },
   {
+    "query": "เดินไปคุยกับพนักงานที่ตู้อาหารและหยิบกุญแจ",
+    "action": "sequence",
+    "target": null,
+    "alternatives": [
+      "move dining_car_staff",
+      "interrogate car_attendant",
+      "take staff_key"
+    ],
+    "category": "sequence",
+    "confidence": 0.95
+  },
+  {
     "query": "เปิดมันออกดู",
     "action": "ambiguous",
     "target": null,

@@ -379,6 +379,366 @@ async function locked(fn) {
   return true;
 }
 
+// ============================================================
+// RPG-Style Sequential Playback Controller
+// จัดการการเล่นทีละขั้นตอน (Step-by-step playback) พร้อมซิงค์ฉากและแผนที่
+// ============================================================
+const SequencePlayback = (() => {
+  let active = false;
+  let steps = [];
+  let currentIndex = 0;
+  let currentData = null;
+  let resolvePromise = null;
+
+  function isPlaying() {
+    return active;
+  }
+
+  function play(data) {
+    if (!data.sequence_steps || data.sequence_steps.length <= 1) return Promise.resolve();
+    return new Promise((resolve) => {
+      active = true;
+      steps = data.sequence_steps;
+      currentIndex = 0;
+      currentData = data;
+      resolvePromise = resolve;
+
+      const panel = document.querySelector(".dialogue-panel");
+      if (panel) panel.classList.add("seq-active");
+
+      // ล็อกช่องพิมพ์ระหว่างเล่นทีละก้าว
+      const chatInput = document.getElementById("chatInput");
+      const sendBtn = document.getElementById("sendBtn");
+      if (chatInput) chatInput.disabled = true;
+      if (sendBtn) sendBtn.disabled = true;
+
+      // ติดตั้งตัวตรวจจับการคลิกที่กล่องบทสนทนาเพื่อไปต่อ
+      const feed = document.getElementById("chatFeed");
+      if (feed && !feed.__hasSeqAdvanceListener) {
+        feed.__hasSeqAdvanceListener = true;
+        feed.addEventListener("click", (e) => {
+          if (!active) return;
+          // ไม่ข้ามถ้ากำลังลากครอบตัวหนังสือเพื่อก๊อปปี้
+          if (window.getSelection && window.getSelection().toString().trim().length > 0) return;
+          // ไม่ข้ามถ้ากดปุ่มหรือลิงก์ภายใน
+          if (e.target.closest("button, a, input, select, summary")) return;
+          next();
+        });
+      }
+
+      // แสดง Step แรก
+      renderCurrentStep();
+    });
+  }
+
+  function renderCurrentStep() {
+    if (!active || currentIndex >= steps.length) {
+      finish();
+      return;
+    }
+
+    const step = steps[currentIndex];
+    const isLast = currentIndex === steps.length - 1;
+
+    // 1. ซิงค์ภาพฉากตามตำแหน่งและแอ็กชันของ Step ปัจจุบัน
+    if (typeof GameArt !== "undefined" && typeof GameArt.setStepScene === "function") {
+      GameArt.setStepScene(step.action, step.target, step.location);
+    }
+
+    // 2. ซิงค์ HUD และแผนที่รถไฟแบบเจาะจง
+    const locText = document.getElementById("locText");
+    if (locText && step.location) {
+      locText.textContent = locationsMap[step.location] || step.location;
+    }
+    if (step.location) {
+      document.querySelectorAll(".train-cars .car").forEach(c => {
+        c.classList.toggle("active", c.dataset.location === step.location);
+      });
+    }
+
+    // 3. แสดงการ์ด Step ลงในกล่องบทสนทนา พร้อมคำแนะนำคลิกเพื่อไปต่อ
+    const feed = document.getElementById("chatFeed");
+    if (feed) {
+      feed.querySelectorAll(".seq-step-card").forEach(c => {
+        c.classList.remove("active-step");
+        c.classList.add("history-older");
+        const oldHint = c.querySelector(".seq-advance-hint");
+        if (oldHint) oldHint.remove();
+      });
+
+      const card = document.createElement("div");
+      card.className = `msg-system seq-step-card active-step ${step.allowed ? "" : "denied-step"}`;
+
+      const actionName = VERB_TH[step.action] || step.action;
+      const targetName = (objectsMap && objectsMap[step.target]) 
+                      || (suspectsMap && suspectsMap[step.target]) 
+                      || (locationsMap && locationsMap[step.target]) 
+                      || step.target;
+
+      // XAI: Parser Mode & NeSy Meta
+      const parsed = currentData?.parsed;
+      const modeTag = parsed?.parser_mode ? `
+        <span class="parser-mode-tag ${parsed.parser_mode === 'typed' ? 'fast' : 'neural'}">
+          ${parsed.parser_mode === 'typed' ? '⚡ Fast-Path' : '🧠 Neural Few-Shot'} (${parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '<1ms'})
+        </span>` : '';
+
+      const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
+      const repairBanner = stepRepair ? `
+        <div class="nesy-repair-banner">
+          <span class="nesy-icon">⚡</span>
+          <div class="nesy-repair-content">
+            <strong>Neuro-Symbolic Constraint Repair</strong>
+            <span>${escapeHtml(stepRepair)}</span>
+          </div>
+        </div>` : '';
+
+      // XAI: Symbolic Reasoning Chain
+      const stepsChain = step.reasoning_chain || [];
+      let reasoningHtml = "";
+      if (stepsChain.length > 0) {
+        if (step.allowed) {
+          reasoningHtml = `
+            <details class="reasoning-details">
+              <summary>🔍 ดูการตรวจกฎ (${stepsChain.length} ขั้น)</summary>
+              <div class="rule-table">${renderRules(stepsChain)}</div>
+            </details>
+          `;
+        } else {
+          const failed = stepsChain.find(s => !s.passed) || { rule_id: step.violated_rule_id || "RULE_FAILED", description: step.message };
+          const passed = stepsChain.filter(s => s.passed);
+
+          reasoningHtml = `
+            <div class="fail-alert">
+              <strong>✗ ไม่ผ่านกฎ: ${escapeHtml(failed.rule_id)}</strong> — ${escapeHtml(failed.description)}
+            </div>
+            ${passed.length > 0 ? `
+              <details class="reasoning-details">
+                <summary>ดูขั้นที่ตรวจผ่านมาก่อนหน้า (${passed.length} ขั้น)</summary>
+                <div class="rule-table">${renderRules(passed)}</div>
+              </details>
+            ` : ""}
+          `;
+        }
+      }
+
+      let extraContent = "";
+      if (step.action === "interrogate" && currentData?.conversation_summaries?.length) {
+        const matching = currentData.conversation_summaries.filter(s => s.suspect_id === step.target);
+        if (matching.length) {
+          extraContent = matching.map(summary => `
+            <div class="step-testimony-box" style="margin-top:10px;padding:10px;background:#1e271d;border:1px solid #4a5944;border-radius:4px;">
+              <strong style="color:#d9b775;">📋 ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong>
+              <div style="font-size:11px;color:#a9ad9c;margin:4px 0 6px;">บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</div>
+              <ul style="margin:0;padding-left:18px;">${summary.entries.map(e => `<li><strong style="color:#e4dfcc;">${escapeHtml(e.name)}</strong>: <span style="color:#c9c5b5;">${escapeHtml(e.description)}</span></li>`).join("")}</ul>
+            </div>
+          `).join("");
+        }
+      }
+
+      const advanceHintHtml = isLast
+        ? `<div class="seq-advance-hint finish"><span>ขั้นตอนสุดท้าย · คลิกเพื่อจบ</span> <span class="blink-arrow">✓</span></div>`
+        : `<div class="seq-advance-hint"><span>คลิกเพื่อไปต่อ</span> <span class="blink-arrow">▼</span></div>`;
+
+      card.innerHTML = `
+        <div class="card-header-bar seq-step-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="seq-step-badge ${step.allowed ? "" : "denied"}">${step.allowed ? "สำเร็จ ✓" : "ไม่สำเร็จ ✗"}</span>
+            <span class="seq-step-num">ขั้นตอนที่ ${step.step_index} / ${steps.length}: ${escapeHtml(actionName)} ${escapeHtml(targetName || "")}</span>
+          </div>
+          <div class="card-meta-tags">
+            ${modeTag}
+            <span class="mode-tag">โหมด B (NeSy Engine)</span>
+          </div>
+        </div>
+        <div class="seq-step-body">${escapeHtml(step.message)}</div>
+        ${reasoningHtml}
+        ${extraContent}
+        ${advanceHintHtml}
+      `;
+      feed.appendChild(card);
+      feed.scrollTop = feed.scrollHeight;
+    }
+  }
+
+  function next() {
+    if (!active) return;
+    if (currentIndex < steps.length - 1) {
+      currentIndex++;
+      renderCurrentStep();
+    } else {
+      finish();
+    }
+  }
+
+  function skip() {
+    if (!active) return;
+    const feed = document.getElementById("chatFeed");
+    for (let i = currentIndex + 1; i < steps.length; i++) {
+      const step = steps[i];
+      const isLast = i === steps.length - 1;
+      if (feed) {
+        feed.querySelectorAll(".seq-step-card").forEach(c => {
+          c.classList.remove("active-step");
+          c.classList.add("history-older");
+          const oldHint = c.querySelector(".seq-advance-hint");
+          if (oldHint) oldHint.remove();
+        });
+        const card = document.createElement("div");
+        card.className = `msg-system seq-step-card ${step.allowed ? "" : "denied-step"}`;
+        const actionName = VERB_TH[step.action] || step.action;
+        const targetName = (objectsMap && objectsMap[step.target]) 
+                        || (suspectsMap && suspectsMap[step.target]) 
+                        || (locationsMap && locationsMap[step.target]) 
+                        || step.target;
+
+        const parsed = currentData?.parsed;
+        const modeTag = parsed?.parser_mode ? `
+          <span class="parser-mode-tag ${parsed.parser_mode === 'typed' ? 'fast' : 'neural'}">
+            ${parsed.parser_mode === 'typed' ? '⚡ Fast-Path' : '🧠 Neural Few-Shot'} (${parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '<1ms'})
+          </span>` : '';
+
+        const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
+        const repairBanner = stepRepair ? `
+          <div class="nesy-repair-banner">
+            <span class="nesy-icon">⚡</span>
+            <div class="nesy-repair-content">
+              <strong>Neuro-Symbolic Constraint Repair</strong>
+              <span>${escapeHtml(stepRepair)}</span>
+            </div>
+          </div>` : '';
+
+        const stepsChain = step.reasoning_chain || [];
+        let reasoningHtml = "";
+        if (stepsChain.length > 0) {
+          if (step.allowed) {
+            reasoningHtml = `
+              <details class="reasoning-details">
+                <summary>🔍 ดูการตรวจกฎ (${stepsChain.length} ขั้น)</summary>
+                <div class="rule-table">${renderRules(stepsChain)}</div>
+              </details>
+            `;
+          } else {
+            const failed = stepsChain.find(s => !s.passed) || { rule_id: step.violated_rule_id || "RULE_FAILED", description: step.message };
+            const passed = stepsChain.filter(s => s.passed);
+
+            reasoningHtml = `
+              <div class="fail-alert">
+                <strong>✗ ไม่ผ่านกฎ: ${escapeHtml(failed.rule_id)}</strong> — ${escapeHtml(failed.description)}
+              </div>
+              ${passed.length > 0 ? `
+                <details class="reasoning-details">
+                  <summary>ดูขั้นที่ตรวจผ่านมาก่อนหน้า (${passed.length} ขั้น)</summary>
+                  <div class="rule-table">${renderRules(passed)}</div>
+                </details>
+              ` : ""}
+            `;
+          }
+        }
+
+        let extraContent = "";
+        if (step.action === "interrogate" && currentData?.conversation_summaries?.length) {
+          const matching = currentData.conversation_summaries.filter(s => s.suspect_id === step.target);
+          if (matching.length) {
+            extraContent = matching.map(summary => `
+              <div class="step-testimony-box" style="margin-top:10px;padding:10px;background:#1e271d;border:1px solid #4a5944;border-radius:4px;">
+                <strong style="color:#d9b775;">📋 ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong>
+                <div style="font-size:11px;color:#a9ad9c;margin:4px 0 6px;">บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</div>
+                <ul style="margin:0;padding-left:18px;">${summary.entries.map(e => `<li><strong style="color:#e4dfcc;">${escapeHtml(e.name)}</strong>: <span style="color:#c9c5b5;">${escapeHtml(e.description)}</span></li>`).join("")}</ul>
+              </div>
+            `).join("");
+          }
+        }
+
+        card.innerHTML = `
+          <div class="card-header-bar seq-step-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="seq-step-badge ${step.allowed ? "" : "denied"}">${step.allowed ? "สำเร็จ ✓" : "ไม่สำเร็จ ✗"}</span>
+              <span class="seq-step-num">ขั้นตอนที่ ${step.step_index} / ${steps.length}: ${escapeHtml(actionName)} ${escapeHtml(targetName || "")}</span>
+            </div>
+            <div class="card-meta-tags">
+              ${modeTag}
+              <span class="mode-tag">โหมด B (NeSy Engine)</span>
+            </div>
+          </div>
+          <div class="seq-step-body">${escapeHtml(step.message)}</div>
+          ${reasoningHtml}
+          ${extraContent}
+        `;
+        feed.appendChild(card);
+      }
+    }
+    const lastStep = steps[steps.length - 1];
+    if (typeof GameArt !== "undefined" && typeof GameArt.setStepScene === "function" && lastStep) {
+      GameArt.setStepScene(lastStep.action, lastStep.target, lastStep.location);
+    }
+    if (feed) feed.scrollTop = feed.scrollHeight;
+    finish();
+  }
+
+  function finish() {
+    if (!active) return;
+    active = false;
+
+    const panel = document.querySelector(".dialogue-panel");
+    if (panel) panel.classList.remove("seq-active");
+
+    // ปลดคลาส active และเคลียร์คำแนะนำคลิกทั้งหมด พร้อมซ่อนขั้นตอนก่อนหน้าในหน้าหลัก
+    const feed = document.getElementById("chatFeed");
+    if (feed) {
+      const allSteps = feed.querySelectorAll(".seq-step-card");
+      allSteps.forEach((c, idx) => {
+        c.classList.remove("active-step");
+        const oldHint = c.querySelector(".seq-advance-hint");
+        if (oldHint) oldHint.remove();
+        if (idx < allSteps.length - 1) {
+          c.classList.add("history-older");
+        }
+      });
+    }
+
+    if (currentData) {
+      if (currentData.new_state) gameState = currentData.new_state;
+      if (typeof GameArt !== "undefined") GameArt.onResult(currentData);
+      if (typeof PixelUI !== "undefined") PixelUI.refresh();
+      updateLocationHUD();
+    }
+
+    const chatInput = document.getElementById("chatInput");
+    const sendBtn = document.getElementById("sendBtn");
+    if (chatInput) {
+      chatInput.disabled = false;
+      chatInput.focus();
+    }
+    if (sendBtn) sendBtn.disabled = false;
+
+    if (resolvePromise) {
+      const res = resolvePromise;
+      resolvePromise = null;
+      res();
+    }
+  }
+
+  return { play, next, skip, isPlaying };
+})();
+
+if (typeof window !== "undefined") {
+  window.SequencePlayback = SequencePlayback;
+  window.addEventListener("keydown", (e) => {
+    if (SequencePlayback && SequencePlayback.isPlaying()) {
+      if (e.key === " " || e.key === "Enter") {
+        const activeEl = document.activeElement;
+        if (!activeEl || activeEl.tagName !== "INPUT" || activeEl.disabled) {
+          e.preventDefault();
+          SequencePlayback.next();
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        SequencePlayback.skip();
+      }
+    }
+  });
+}
+
 // เส้นทางเดียวของทุกคำสั่ง คืน data ถ้าสำเร็จ คืน null ถ้าเรียกไม่ได้
 // เดิมมีสามเส้นทางแยกกัน แต่ละเส้นตรวจไม่เหมือนกัน ปุ่มคำสั่งพ่วงจึงไม่ดักเน็ตหลุด
 // และไม่ปิดหน้าจอตอนคดีปิด กล่าวหาผ่านปุ่มแล้วยังพิมพ์ต่อได้
@@ -443,21 +803,28 @@ async function submit(text, opts = {}) {
       const question = (journal.inference_questions || []).find(q => q.choices.some(c => c.target === data.parsed.target));
       if (question && !gameOver) { InferenceUI.open(question, journal.evidence); askInference = true; }
     }
-    // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
-    if (!askInference && !(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
-    renderConversationSummary(data.conversation_summaries || []);
-    if (typeof GameArt !== 'undefined') GameArt.onResult(data);
-    if (typeof PixelUI !== 'undefined') PixelUI.refresh();
-    if (data.decision.allowed && data.narrative_scene && typeof StoryScenes !== 'undefined') {
-      if (typeof NovelUI !== 'undefined') NovelUI.close();
-      StoryScenes.appendReplay(data.narrative_scene);
-      await StoryScenes.play(data.narrative_scene);
-    } else if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
+
+    // กรณีคำสั่งพ่วง (Sequence) มีหลายขั้นตอน ให้แสดงผลทีละก้าวแบบ RPG Playback
+    if (!askInference && data.sequence_steps && data.sequence_steps.length > 1) {
+      await SequencePlayback.play(data);
+    } else {
+      // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
+      if (!askInference && !(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
+      renderConversationSummary(data.conversation_summaries || []);
+      if (typeof GameArt !== 'undefined') GameArt.onResult(data);
+      if (typeof PixelUI !== 'undefined') PixelUI.refresh();
+      if (data.decision.allowed && data.narrative_scene && typeof StoryScenes !== 'undefined') {
+        if (typeof NovelUI !== 'undefined') NovelUI.close();
+        StoryScenes.appendReplay(data.narrative_scene);
+        await StoryScenes.play(data.narrative_scene);
+      } else if (typeof NovelUI !== 'undefined') NovelUI.onResult(data);
+    }
 
     return data;
   } catch (err) {
     removeLoading();
     if (gameOver) return null;
+
     renderError(err.name === 'TimeoutError'
       ? '⚠️ เซิร์ฟเวอร์ตอบช้าเกินไป ลองส่งคำสั่งอีกครั้ง'
       : `⚠️ เชื่อมต่อไม่ได้: ${err.message} กรุณาตรวจสอบสถานะ backend แล้วลองใหม่`);
@@ -729,7 +1096,6 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
         <span class="mode-tag">${modeLabel}</span>
       </div>
     </div>
-    ${repairBanner}
     <div class="story-text">${escapeHtml(decision.message)}</div>
     ${reasoningHtml}
   `;
