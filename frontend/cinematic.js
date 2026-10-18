@@ -2,6 +2,7 @@
 window.addEventListener('DOMContentLoaded', () => {
   const header = document.querySelector('.header-right');
   const clock = document.getElementById('clockWidget');
+  const profiler = document.getElementById('profilerWidget');
 
   if (header) {
     header.replaceChildren();
@@ -18,11 +19,11 @@ window.addEventListener('DOMContentLoaded', () => {
     historyButton.setAttribute('aria-haspopup', 'dialog');
     historyButton.setAttribute('data-open-history', '');
 
-    if (clock) {
-      header.append(clock, journalButton, historyButton);
-    } else {
-      header.append(journalButton, historyButton);
-    }
+    const items = [];
+    if (clock) items.push(clock);
+    if (profiler) items.push(profiler);
+    items.push(journalButton, historyButton);
+    header.append(...items);
 
     const journal = document.createElement('dialog');
     journal.id = 'casebookDialog';

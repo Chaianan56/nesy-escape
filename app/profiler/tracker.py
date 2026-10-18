@@ -116,6 +116,21 @@ class BehaviorTracker:
         self.turns.append(telemetry)
 
         # 5. คำนวณ Dimensions และ Archetype Scores
+        return self.get_profile(state, pillars_status=pillars_status)
+
+    def get_profile(
+        self,
+        state: GameState,
+        pillars_status: Optional[Dict[str, Any]] = None,
+    ) -> PlayerProfile:
+        pillars_fulfilled_map: Dict[str, bool] = {}
+        if pillars_status:
+            for suspect_id, p_info in pillars_status.items():
+                if isinstance(p_info, dict):
+                    for pillar_name, deductions in p_info.items():
+                        key = f"{suspect_id}_{pillar_name}"
+                        pillars_fulfilled_map[key] = bool(deductions)
+
         dimensions = self._calculate_dimensions(state)
         scores, primary = self._classify_archetype(dimensions, state)
 
@@ -155,6 +170,8 @@ class BehaviorTracker:
             pillars_fulfilled=pillars_fulfilled_map,
             ending_id=state.ending_id,
         )
+
+    update_profile = get_profile
 
     def _check_is_looping(self, current: Dict[str, Any]) -> bool:
         """ตรวจหาพฤติกรรมวนซ้ำ เช่น สั่งเดิมติดต่อกัน 2 ครั้งขึ้นไป หรือสลับที่เดิม"""
