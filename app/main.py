@@ -101,6 +101,7 @@ def get_current_profile(session_id: str | None = None, state: GameState | None =
 # ============================================================
 
 from app.neural.gemini_client import (
+    NeuralQuotaExceeded,
     NeuralUnavailable,
     _clients,
     get_api_status,
@@ -360,17 +361,27 @@ def _handle_command(req: CommandRequest):
     if req.state.ending_id or engine.is_out_of_time(req.state):
         return terminal_response(req.state, req.text)
     # --- ขั้นที่ 1: ตีความ ---
+    api_error_note = None
     try:
         parsed = interpret(req.text, req.state)
-    except NeuralUnavailable as e:
-        logging.getLogger(__name__).warning("interpret failed: %s", e)
-        # Keep the game playable during a Gemini outage: do not mutate state or
-        # fail the HTTP request; let the symbolic engine explain known commands.
+    except NeuralQuotaExceeded as e:
+        logging.getLogger(__name__).warning("interpret quota exceeded: %s", e)
         parsed = ParsedCommand(
             action=ActionType.UNKNOWN,
             raw_text=req.text,
             confidence=0.0,
+            parser_mode="fallback",
         )
+        api_error_note = "⚠️ **[Gemini API ติดโควตา/Rate Limit ชั่วคราว]** ระบบสลับเข้าโหมดออฟไลน์อัตโนมัติ กรุณารอสักครู่ หรือใช้คำสั่งเดี่ยว เช่น 'ไป ตู้ 3' หรือ 'ดูรอบๆ'"
+    except NeuralUnavailable as e:
+        logging.getLogger(__name__).warning("interpret failed: %s", e)
+        parsed = ParsedCommand(
+            action=ActionType.UNKNOWN,
+            raw_text=req.text,
+            confidence=0.0,
+            parser_mode="fallback",
+        )
+        api_error_note = "⚠️ **[Gemini API ขัดข้องชั่วคราว]** ระบบสลับเข้าโหมดออฟไลน์อัตโนมัติ กรุณาลองใช้คำสั่งเดี่ยว เช่น 'ไป ตู้ 3' หรือ 'ดูรอบๆ'"
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
     req.state = sync_clock(req.state)
@@ -417,6 +428,11 @@ def _handle_command(req: CommandRequest):
             update={"reasoning_chain": [repair_step] + decision.reasoning_chain}
         )
 
+    if api_error_note and not decision.allowed:
+        decision = decision.model_copy(
+            update={"message": f"{decision.message}\n\n{api_error_note}"}
+        )
+
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---
     if decision.allowed:
         new_state = apply_changes(req.state, decision.state_changes)
@@ -452,7 +468,7 @@ def _handle_command(req: CommandRequest):
                            if a.split()[0] in {v.value for v in ActionType}
                            and (parsed.sequence or engine.offerable(a.split()[1], req.state))]
 
-    return CommandResponse(parsed=parsed, decision=decision, new_state=new_state)
+    return CommandResponse(parsed=parsed, decision=decision, new_state=new_state, api_status=get_api_status())
 
 
 def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse:

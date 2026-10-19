@@ -53,6 +53,7 @@ DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
 _clients_cache: Optional[list] = None
 _active_key_index: int = 1
+_last_api_status: Optional[dict] = None
 
 
 def get_api_status() -> dict:
@@ -68,6 +69,10 @@ def get_api_status() -> dict:
             "key_label": "ไม่มี Key",
             "message": "ไม่มี GEMINI_API_KEY",
         }
+    if _last_api_status is not None:
+        st = dict(_last_api_status)
+        st["total_keys"] = total
+        return st
     return {
         "status": "ready",
         "online": True,
@@ -166,6 +171,7 @@ def interpret(
     Returns:
         ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, instrument, confidence)
     """
+    global _active_key_index, _last_api_status
     clients = _clients()
     if not clients:
         raise NeuralNotConfigured("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
@@ -219,8 +225,15 @@ def interpret(
             if not response.text:
                 raise RuntimeError("Gemini API คืนคำตอบว่าง")
             try:
-                global _active_key_index
                 _active_key_index = clients.index(client) + 1
+                _last_api_status = {
+                    "status": "ready",
+                    "online": True,
+                    "active_key": _active_key_index,
+                    "total_keys": len(clients),
+                    "key_label": f"Key {_active_key_index}",
+                    "message": "พร้อมใช้งาน",
+                }
             except Exception:
                 pass
             parsed_result = ParsedCommand.model_validate_json(response.text)
@@ -265,6 +278,16 @@ def interpret(
                 retried = True
             else:
                 break
-    error_type = NeuralQuotaExceeded if _is_quota_error(last_error) else NeuralUnavailable
+    is_quota = _is_quota_error(last_error)
+    _last_api_status = {
+        "status": "quota_exceeded" if is_quota else "error",
+        "online": False,
+        "active_key": _active_key_index,
+        "total_keys": len(clients),
+        "key_label": f"Key {_active_key_index}",
+        "message": "โควตาเต็มชั่วคราว (Rate Limit / Quota)" if is_quota else "API ขัดข้องชั่วคราว",
+        "error_detail": str(last_error)[:120],
+    }
+    error_type = NeuralQuotaExceeded if is_quota else NeuralUnavailable
     raise error_type(
         f"เรียก Gemini API ล้มเหลว: {last_error}") from last_error
