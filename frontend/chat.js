@@ -309,6 +309,18 @@ function updateClock() {
   }
 }
 
+function renderParserModeTag(parsed) {
+  if (!parsed?.parser_mode) return '';
+  if (parsed.parser_mode === 'typed') {
+    return `<span class="parser-mode-tag fast">⚡ Fast-Path (&lt;1ms)</span>`;
+  }
+  if (parsed.parser_mode === 'fallback') {
+    return `<span class="parser-mode-tag fallback">⚠️ Offline Fallback</span>`;
+  }
+  const latency = parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '~3000ms';
+  return `<span class="parser-mode-tag neural">🧠 Neural Few-Shot (${latency})</span>`;
+}
+
 function updateApiStatus(info) {
   if (!info) return;
   const statusText = document.getElementById("apiStatusText");
@@ -318,17 +330,25 @@ function updateApiStatus(info) {
   if (statusText) statusText.textContent = info.message || (info.online ? "พร้อมใช้งาน" : "ออฟไลน์");
   if (keyBadge) {
     keyBadge.textContent = info.key_label || (info.active_key ? `Key ${info.active_key}` : "Key 1");
-    if (info.online === false) {
+    keyBadge.classList.remove("key-error", "key-warning");
+    if (info.status === 'quota_exceeded') {
+      keyBadge.classList.add("key-warning");
+    } else if (info.online === false) {
       keyBadge.classList.add("key-error");
-    } else {
-      keyBadge.classList.remove("key-error");
     }
   }
   if (dot) {
-    dot.style.background = info.online !== false ? "var(--green, #68ba82)" : "#d8a18d";
+    if (info.status === 'quota_exceeded') {
+      dot.style.background = "#e58e26";
+    } else if (info.online === false) {
+      dot.style.background = "#d8a18d";
+    } else {
+      dot.style.background = "var(--green, #68ba82)";
+    }
   }
   if (widget) {
-    widget.title = `Gemini API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''}`;
+    const detail = info.error_detail ? ` • ${info.error_detail}` : '';
+    widget.title = `Gemini API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''}${detail}`;
   }
 }
 
@@ -483,10 +503,7 @@ const SequencePlayback = (() => {
 
       // XAI: Parser Mode & NeSy Meta
       const parsed = currentData?.parsed;
-      const modeTag = parsed?.parser_mode ? `
-        <span class="parser-mode-tag ${parsed.parser_mode === 'typed' ? 'fast' : 'neural'}">
-          ${parsed.parser_mode === 'typed' ? '⚡ Fast-Path' : '🧠 Neural Few-Shot'} (${parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '<1ms'})
-        </span>` : '';
+      const modeTag = renderParserModeTag(parsed);
 
       const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
       const repairBanner = stepRepair ? `
@@ -598,10 +615,7 @@ const SequencePlayback = (() => {
                         || step.target;
 
         const parsed = currentData?.parsed;
-        const modeTag = parsed?.parser_mode ? `
-          <span class="parser-mode-tag ${parsed.parser_mode === 'typed' ? 'fast' : 'neural'}">
-            ${parsed.parser_mode === 'typed' ? '⚡ Fast-Path' : '🧠 Neural Few-Shot'} (${parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '<1ms'})
-          </span>` : '';
+        const modeTag = renderParserModeTag(parsed);
 
         const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
         const repairBanner = stepRepair ? `
@@ -1063,10 +1077,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
   }
 
   const modeLabel = "โหมด B (NeSy Engine)";
-  const modeTag = parsed?.parser_mode ? `
-    <span class="parser-mode-tag ${parsed.parser_mode === 'typed' ? 'fast' : 'neural'}">
-      ${parsed.parser_mode === 'typed' ? '⚡ Fast-Path' : '🧠 Neural Few-Shot'} (${parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '<1ms'})
-    </span>` : '';
+  const modeTag = renderParserModeTag(parsed);
 
   const repairBanner = parsed?.repair_note ? `
     <div class="nesy-repair-banner">

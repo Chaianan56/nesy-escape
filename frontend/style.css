@@ -43,6 +43,16 @@
   color: #cfbcff;
   border: 1px solid rgba(180, 140, 255, 0.35);
 }
+.parser-mode-tag.fallback {
+  background: rgba(235, 120, 80, 0.15);
+  color: #ff9f75;
+  border: 1px solid rgba(235, 120, 80, 0.4);
+}
+.key-badge.key-warning {
+  background: rgba(235, 140, 40, 0.2);
+  color: #f7a844;
+  border-color: rgba(235, 140, 40, 0.4);
+}
 .nesy-repair-banner {
   display: flex;
   align-items: flex-start;
