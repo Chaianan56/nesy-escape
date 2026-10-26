@@ -1,3 +1,12 @@
+"""
+tests/test_typed_commands.py — ทดสอบตัวแยกคำสั่งเร็วแบบกำหนดรูปแบบแน่นอน (Deterministic Fast-Path Parser)
+
+หน้าที่:
+- ทดสอบคำสั่งมาตรฐาน (เช่น "ไปตู้ 4", "ดูรอบๆ", "ตรวจนาฬิกาพก", "สอบปากคำกิเดียน")
+  ว่าถูกประมวลผลผ่าน Fast-Path ทันทีโดยไม่เรียก Gemini API
+- ทดสอบการจับคู่ชื่อไทย, ชื่ออังกฤษ, คำพ้อง (Aliases), และคำสั่งที่พิมพ์ผิดเล็กน้อย
+- ทดสอบการทำงานคู่ขนานของคำสั่งที่รวดเร็ว
+"""
 from types import SimpleNamespace
 from threading import Thread
 from fastapi.testclient import TestClient

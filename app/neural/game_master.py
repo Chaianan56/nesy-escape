@@ -1,11 +1,14 @@
-"""Neural-only game adjudication. No symbolic execution, filtering, or repair.
+"""
+app/neural/game_master.py — Neural-only Game Adjudication (Pure Neural Baseline)
 
-The provider receives the same world, rule data and mechanics specification.
-It owns legality, state transitions, disclosure, deductions and endings. JSON
-shape is validated; semantically wrong but well-formed responses are retained.
-This adapter is deliberately separate from the NeSy browser routes.
+ใช้สำหรับการทดลองเปรียบเทียบในงานวิจัย (Empirical Evaluation Baseline):
+- จำลองสภาวะที่ให้ LLM ทำหน้าที่เป็น Game Master ตัดสินกฎเองทั้งหมด 100% โดยไม่มี Symbolic Layer
+- ไม่มีการใช้ Symbolic Execution, Entity Filtering, หรือ Repair Loop
+- ใช้ประเมินอัตรา Hallucination, Rule Violation, และ State Corruption ของ Pure Neural Approach
+  เทียบกับสถาปัตยกรรม Neuro-Symbolic (NeSy) ของเรา
 """
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 import hashlib

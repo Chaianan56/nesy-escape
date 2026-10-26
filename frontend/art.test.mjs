@@ -1,3 +1,8 @@
+/**
+ * frontend/art.test.mjs — ชุดทดสอบระบบจัดการภาพประกอบฉาก (GameArt Unit Tests)
+ * 
+ * ทดสอบ: การสลับภาพฉากตู้รถ, ภาพซูมวัตถุพยาน (Close-up), ภาพฉากจบ, และการแสดงผลสถานะ fallback
+ */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';

@@ -1,9 +1,22 @@
-"""Conservative offline commands; other free-form or ambiguous text goes to Neural."""
+"""
+app/neural/typed_commands.py — ตัวแยกคำสั่งแบบกำหนดรูปแบบแน่นอน (Deterministic Fast-Path Parser)
+
+ทำหน้าที่เป็น Fast-Path Parser ออฟไลน์:
+- ตรวจจับคำสั่งรูปแบบมาตรฐาน (เช่น "ไป ตู้ 4", "ดูรอบๆ", "ตรวจดูนาฬิกา", "ใช้กุญแจกับประตู")
+  และคำสั่งที่เป็นตัวเลือกตายตัวจากหน้าเว็บ
+- แปลงเป็น ParsedCommand ได้ทันทีโดยมี Latency ต่ำมาก (< 0.1 ms) และไม่กินโควตา Gemini API
+- ข้อความที่มีความคลุมเครือ, ภาษาธรรมชาติอิสระ (Free-form), หรือกำกวม จะถูกส่งต่อไปยัง Gemini API เสมอ
+"""
 import re
-from app.schemas import ActionType, ParsedCommand
+from app.schemas import ActionType, GameState, ParsedCommand
 
 
-def parse_typed_command(text, state, world):
+def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedCommand | None:
+    """แกะความหมายคำสั่งแบบตายตัว (Fast-Path) หากเข้าข่ายรูปแบบที่แน่นอน
+
+    Returns:
+        ParsedCommand หากตรงรูปแบบคำสั่งที่แน่นอน, หรือ None หากต้องส่งต่อให้ LLM ตีความ
+    """
     value = text.strip()
     def command(action, target, **extra):
         return ParsedCommand(

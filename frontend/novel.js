@@ -1,3 +1,11 @@
+/**
+ * frontend/novel.js — ระบบแสดงบทสนทนาและบทนำสไตล์ Visual Novel (NovelUI)
+ * 
+ * หน้าที่:
+ * 1. แสดงกล่องข้อความบทสนทนาแบบ Visual Novel ทีละหน้า (Pagination) เมื่อมีการสอบปากคำ
+ * 2. ควบคุมหน้าต่างบทนำรับคดี (Intro Briefing) ก่อนเริ่มเกม
+ * 3. รองรับการกด Enter หรือคลิกเพื่อเปลี่ยนหน้าอ่านต่อ
+ */
 const NovelUI = (() => {
   let pages=[], position=0, box, introResolve=null, speaker='';
   function split(text){

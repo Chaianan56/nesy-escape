@@ -1,4 +1,11 @@
-/* Render only scene pages already approved by the server. This view grants no facts. */
+/**
+ * frontend/narrative.js — ระบบฉากบรรยายและฉากเผชิญหน้า (StoryScenes)
+ * 
+ * หน้าที่:
+ * 1. แสดงหน้าต่างไดอะล็อกสำหรับฉากสำคัญในเนื้อเรื่อง (Narrative Dialog)
+ * 2. รองรับโหมด: ฉากเปิดตัว (Opening), ฉากเผชิญหน้า (Confrontation), และฉากทบทวนคดี (Reconstruction)
+ * 3. แสดงภาพประกอบเหตุการณ์พร้อมลิสต์หลักฐานเชื่อมโยง
+ */
 const StoryScenes = (() => {
   let dialog, scene, mode, position = 0, complete = null, opener, loading = false;
   const $ = id => dialog.querySelector(`#${id}`);

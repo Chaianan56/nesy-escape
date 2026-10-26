@@ -72,7 +72,7 @@ def clock() -> str:
 
 
 def timed_input(prompt):
-    """Stop waiting for input when the real game deadline expires."""
+    """หยุดรอข้อความเข้าทันทีเมื่อเวลาของคดีหมดลงตามจริง (Wall-clock Deadline)"""
     result = input_queue.Queue()
     def read():
         try:

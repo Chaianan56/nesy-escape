@@ -1,11 +1,13 @@
 /**
- * NeSy-Escape: Complete Controller & UI Manager (Alliance Modern Dashboard)
+ * frontend/chat.js — ตัวควบคุมการสื่อสารและจัดการหน้าจอหลัก (Main Game Controller & UI Manager)
  * 
- * คุณสมบัติ:
- * 1. ตัวอย่างคำสั่ง (Quick Suggestion Chips & Onboarding Hints)
- * 2. คำบรรยายห้องตอนเริ่มเกม (Auto Look Around via POST /command)
- * 4. นาฬิกาการสืบสวน (FE-3: Investigation Clock)
- * 5. ป้ายแสดงตู้รถปัจจุบัน (Location HUD Pill)
+ * หน้าที่หลัก:
+ * 1. รับและส่งคำสั่งภาษาไทยของผู้เล่นผ่าน POST /command ไปยังเซิร์ฟเวอร์
+ * 2. จัดการนาฬิกาคดี (Investigation Clock) ตรวจจับการหมดเวลาและส่งคำสั่ง /clock
+ * 3. แสดงผลคำตัดสินของกฎ (ALLOWED / DENIED) พร้อมสายธารเหตุผล (Explainable Reasoning Chain)
+ * 4. จัดการคำสั่งต่อเนื่อง (Sequence Step-by-Step Playback) และคำสั่งกำกวม (Ambiguous Choices)
+ * 5. อัปเดตสถานะการเชื่อมต่อ Gemini API (Key Status & Fallback Badge)
+ * 6. ซิงโครไนซ์สถานะเกม (GameState) กับส่วนประกอบ UI อื่นๆ (PixelUI, GameArt, NovelUI, StoryScenes)
  */
 
 // ใช้ origin เดียวกับหน้าเว็บ เพราะ FastAPI เสิร์ฟทั้ง API และไฟล์หน้าเว็บ
@@ -353,14 +355,7 @@ function updateApiStatus(info) {
 }
 
 // ============================================================
-
-
-// ============================================================
-// 4. สลับโหมดการทดลอง (Mode A vs Mode B)
-// ============================================================
-
-// ============================================================
-// 5. ตัวอย่างคำสั่ง (Quick Chips Fill)
+// 4. ตัวอย่างคำสั่ง (Quick Chips Fill)
 // ============================================================
 function fillInput(text) {
   const input = document.getElementById("chatInput");
@@ -457,6 +452,97 @@ const SequencePlayback = (() => {
     });
   }
 
+  function buildStepCard(step, isLast, isActive) {
+    const card = document.createElement("div");
+    card.className = `msg-system seq-step-card ${isActive ? "active-step " : ""}${step.allowed ? "" : "denied-step"}`;
+
+    const actionName = VERB_TH[step.action] || step.action;
+    const targetName = (objectsMap && objectsMap[step.target]) 
+                    || (suspectsMap && suspectsMap[step.target]) 
+                    || (locationsMap && locationsMap[step.target]) 
+                    || step.target;
+
+    const parsed = currentData?.parsed;
+    const modeTag = renderParserModeTag(parsed);
+
+    const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
+    const repairBanner = stepRepair ? `
+      <div class="nesy-repair-banner">
+        <span class="nesy-icon">⚡</span>
+        <div class="nesy-repair-content">
+          <strong>Neuro-Symbolic Constraint Repair</strong>
+          <span>${escapeHtml(stepRepair)}</span>
+        </div>
+      </div>` : '';
+
+    const stepsChain = step.reasoning_chain || [];
+    let reasoningHtml = "";
+    if (stepsChain.length > 0) {
+      if (step.allowed) {
+        reasoningHtml = `
+          <details class="reasoning-details">
+            <summary>🔍 ดูการตรวจกฎ (${stepsChain.length} ขั้น)</summary>
+            <div class="rule-table">${renderRules(stepsChain)}</div>
+          </details>
+        `;
+      } else {
+        const failed = stepsChain.find(s => !s.passed) || { rule_id: step.violated_rule_id || "RULE_FAILED", description: step.message };
+        const passed = stepsChain.filter(s => s.passed);
+
+        reasoningHtml = `
+          <div class="fail-alert">
+            <strong>✗ ไม่ผ่านกฎ: ${escapeHtml(failed.rule_id)}</strong> — ${escapeHtml(failed.description)}
+          </div>
+          ${passed.length > 0 ? `
+            <details class="reasoning-details">
+              <summary>ดูขั้นที่ตรวจผ่านมาก่อนหน้า (${passed.length} ขั้น)</summary>
+              <div class="rule-table">${renderRules(passed)}</div>
+            </details>
+          ` : ""}
+        `;
+      }
+    }
+
+    let extraContent = "";
+    if (step.action === "interrogate" && currentData?.conversation_summaries?.length) {
+      const matching = currentData.conversation_summaries.filter(s => s.suspect_id === step.target);
+      if (matching.length) {
+        extraContent = matching.map(summary => `
+          <div class="step-testimony-box" style="margin-top:10px;padding:10px;background:#1e271d;border:1px solid #4a5944;border-radius:4px;">
+            <strong style="color:#d9b775;">📋 ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong>
+            <div style="font-size:11px;color:#a9ad9c;margin:4px 0 6px;">บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</div>
+            <ul style="margin:0;padding-left:18px;">${summary.entries.map(e => `<li><strong style="color:#e4dfcc;">${escapeHtml(e.name)}</strong>: <span style="color:#c9c5b5;">${escapeHtml(e.description)}</span></li>`).join("")}</ul>
+          </div>
+        `).join("");
+      }
+    }
+
+    const advanceHintHtml = isActive
+      ? (isLast
+          ? `<div class="seq-advance-hint finish"><span>ขั้นตอนสุดท้าย · คลิกเพื่อจบ</span> <span class="blink-arrow">✓</span></div>`
+          : `<div class="seq-advance-hint"><span>คลิกเพื่อไปต่อ</span> <span class="blink-arrow">▼</span></div>`)
+      : "";
+
+    card.innerHTML = `
+      <div class="card-header-bar seq-step-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="seq-step-badge ${step.allowed ? "" : "denied"}">${step.allowed ? "สำเร็จ ✓" : "ไม่สำเร็จ ✗"}</span>
+          <span class="seq-step-num">ขั้นตอนที่ ${step.step_index} / ${steps.length}: ${escapeHtml(actionName)} ${escapeHtml(targetName || "")}</span>
+        </div>
+        <div class="card-meta-tags">
+          ${modeTag}
+          <span class="mode-tag">โหมด B (NeSy Engine)</span>
+        </div>
+      </div>
+      <div class="seq-step-body">${escapeHtml(step.message)}</div>
+      ${repairBanner}
+      ${reasoningHtml}
+      ${extraContent}
+      ${advanceHintHtml}
+    `;
+    return card;
+  }
+
   function renderCurrentStep() {
     if (!active || currentIndex >= steps.length) {
       finish();
@@ -492,92 +578,7 @@ const SequencePlayback = (() => {
         if (oldHint) oldHint.remove();
       });
 
-      const card = document.createElement("div");
-      card.className = `msg-system seq-step-card active-step ${step.allowed ? "" : "denied-step"}`;
-
-      const actionName = VERB_TH[step.action] || step.action;
-      const targetName = (objectsMap && objectsMap[step.target]) 
-                      || (suspectsMap && suspectsMap[step.target]) 
-                      || (locationsMap && locationsMap[step.target]) 
-                      || step.target;
-
-      // XAI: Parser Mode & NeSy Meta
-      const parsed = currentData?.parsed;
-      const modeTag = renderParserModeTag(parsed);
-
-      const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
-      const repairBanner = stepRepair ? `
-        <div class="nesy-repair-banner">
-          <span class="nesy-icon">⚡</span>
-          <div class="nesy-repair-content">
-            <strong>Neuro-Symbolic Constraint Repair</strong>
-            <span>${escapeHtml(stepRepair)}</span>
-          </div>
-        </div>` : '';
-
-      // XAI: Symbolic Reasoning Chain
-      const stepsChain = step.reasoning_chain || [];
-      let reasoningHtml = "";
-      if (stepsChain.length > 0) {
-        if (step.allowed) {
-          reasoningHtml = `
-            <details class="reasoning-details">
-              <summary>🔍 ดูการตรวจกฎ (${stepsChain.length} ขั้น)</summary>
-              <div class="rule-table">${renderRules(stepsChain)}</div>
-            </details>
-          `;
-        } else {
-          const failed = stepsChain.find(s => !s.passed) || { rule_id: step.violated_rule_id || "RULE_FAILED", description: step.message };
-          const passed = stepsChain.filter(s => s.passed);
-
-          reasoningHtml = `
-            <div class="fail-alert">
-              <strong>✗ ไม่ผ่านกฎ: ${escapeHtml(failed.rule_id)}</strong> — ${escapeHtml(failed.description)}
-            </div>
-            ${passed.length > 0 ? `
-              <details class="reasoning-details">
-                <summary>ดูขั้นที่ตรวจผ่านมาก่อนหน้า (${passed.length} ขั้น)</summary>
-                <div class="rule-table">${renderRules(passed)}</div>
-              </details>
-            ` : ""}
-          `;
-        }
-      }
-
-      let extraContent = "";
-      if (step.action === "interrogate" && currentData?.conversation_summaries?.length) {
-        const matching = currentData.conversation_summaries.filter(s => s.suspect_id === step.target);
-        if (matching.length) {
-          extraContent = matching.map(summary => `
-            <div class="step-testimony-box" style="margin-top:10px;padding:10px;background:#1e271d;border:1px solid #4a5944;border-radius:4px;">
-              <strong style="color:#d9b775;">📋 ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong>
-              <div style="font-size:11px;color:#a9ad9c;margin:4px 0 6px;">บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</div>
-              <ul style="margin:0;padding-left:18px;">${summary.entries.map(e => `<li><strong style="color:#e4dfcc;">${escapeHtml(e.name)}</strong>: <span style="color:#c9c5b5;">${escapeHtml(e.description)}</span></li>`).join("")}</ul>
-            </div>
-          `).join("");
-        }
-      }
-
-      const advanceHintHtml = isLast
-        ? `<div class="seq-advance-hint finish"><span>ขั้นตอนสุดท้าย · คลิกเพื่อจบ</span> <span class="blink-arrow">✓</span></div>`
-        : `<div class="seq-advance-hint"><span>คลิกเพื่อไปต่อ</span> <span class="blink-arrow">▼</span></div>`;
-
-      card.innerHTML = `
-        <div class="card-header-bar seq-step-header">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="seq-step-badge ${step.allowed ? "" : "denied"}">${step.allowed ? "สำเร็จ ✓" : "ไม่สำเร็จ ✗"}</span>
-            <span class="seq-step-num">ขั้นตอนที่ ${step.step_index} / ${steps.length}: ${escapeHtml(actionName)} ${escapeHtml(targetName || "")}</span>
-          </div>
-          <div class="card-meta-tags">
-            ${modeTag}
-            <span class="mode-tag">โหมด B (NeSy Engine)</span>
-          </div>
-        </div>
-        <div class="seq-step-body">${escapeHtml(step.message)}</div>
-        ${reasoningHtml}
-        ${extraContent}
-        ${advanceHintHtml}
-      `;
+      const card = buildStepCard(step, isLast, true);
       feed.appendChild(card);
       feed.scrollTop = feed.scrollHeight;
     }
@@ -606,84 +607,7 @@ const SequencePlayback = (() => {
           const oldHint = c.querySelector(".seq-advance-hint");
           if (oldHint) oldHint.remove();
         });
-        const card = document.createElement("div");
-        card.className = `msg-system seq-step-card ${step.allowed ? "" : "denied-step"}`;
-        const actionName = VERB_TH[step.action] || step.action;
-        const targetName = (objectsMap && objectsMap[step.target]) 
-                        || (suspectsMap && suspectsMap[step.target]) 
-                        || (locationsMap && locationsMap[step.target]) 
-                        || step.target;
-
-        const parsed = currentData?.parsed;
-        const modeTag = renderParserModeTag(parsed);
-
-        const stepRepair = step.repair_note || (step.reasoning_chain?.some(r => r.rule_id === "SYMBOLIC_REPAIR") ? "Neuro-Symbolic Constraint Repair: ปรับเป้าหมายให้สอดคล้องกับวัตถุที่มีอยู่ในห้อง" : null) || (isLast ? parsed?.repair_note : null);
-        const repairBanner = stepRepair ? `
-          <div class="nesy-repair-banner">
-            <span class="nesy-icon">⚡</span>
-            <div class="nesy-repair-content">
-              <strong>Neuro-Symbolic Constraint Repair</strong>
-              <span>${escapeHtml(stepRepair)}</span>
-            </div>
-          </div>` : '';
-
-        const stepsChain = step.reasoning_chain || [];
-        let reasoningHtml = "";
-        if (stepsChain.length > 0) {
-          if (step.allowed) {
-            reasoningHtml = `
-              <details class="reasoning-details">
-                <summary>🔍 ดูการตรวจกฎ (${stepsChain.length} ขั้น)</summary>
-                <div class="rule-table">${renderRules(stepsChain)}</div>
-              </details>
-            `;
-          } else {
-            const failed = stepsChain.find(s => !s.passed) || { rule_id: step.violated_rule_id || "RULE_FAILED", description: step.message };
-            const passed = stepsChain.filter(s => s.passed);
-
-            reasoningHtml = `
-              <div class="fail-alert">
-                <strong>✗ ไม่ผ่านกฎ: ${escapeHtml(failed.rule_id)}</strong> — ${escapeHtml(failed.description)}
-              </div>
-              ${passed.length > 0 ? `
-                <details class="reasoning-details">
-                  <summary>ดูขั้นที่ตรวจผ่านมาก่อนหน้า (${passed.length} ขั้น)</summary>
-                  <div class="rule-table">${renderRules(passed)}</div>
-                </details>
-              ` : ""}
-            `;
-          }
-        }
-
-        let extraContent = "";
-        if (step.action === "interrogate" && currentData?.conversation_summaries?.length) {
-          const matching = currentData.conversation_summaries.filter(s => s.suspect_id === step.target);
-          if (matching.length) {
-            extraContent = matching.map(summary => `
-              <div class="step-testimony-box" style="margin-top:10px;padding:10px;background:#1e271d;border:1px solid #4a5944;border-radius:4px;">
-                <strong style="color:#d9b775;">📋 ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong>
-                <div style="font-size:11px;color:#a9ad9c;margin:4px 0 6px;">บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</div>
-                <ul style="margin:0;padding-left:18px;">${summary.entries.map(e => `<li><strong style="color:#e4dfcc;">${escapeHtml(e.name)}</strong>: <span style="color:#c9c5b5;">${escapeHtml(e.description)}</span></li>`).join("")}</ul>
-              </div>
-            `).join("");
-          }
-        }
-
-        card.innerHTML = `
-          <div class="card-header-bar seq-step-header">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span class="seq-step-badge ${step.allowed ? "" : "denied"}">${step.allowed ? "สำเร็จ ✓" : "ไม่สำเร็จ ✗"}</span>
-              <span class="seq-step-num">ขั้นตอนที่ ${step.step_index} / ${steps.length}: ${escapeHtml(actionName)} ${escapeHtml(targetName || "")}</span>
-            </div>
-            <div class="card-meta-tags">
-              ${modeTag}
-              <span class="mode-tag">โหมด B (NeSy Engine)</span>
-            </div>
-          </div>
-          <div class="seq-step-body">${escapeHtml(step.message)}</div>
-          ${reasoningHtml}
-          ${extraContent}
-        `;
+        const card = buildStepCard(step, isLast, false);
         feed.appendChild(card);
       }
     }

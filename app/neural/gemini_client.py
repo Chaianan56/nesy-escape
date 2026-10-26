@@ -88,11 +88,11 @@ class NeuralUnavailable(RuntimeError):
 
 
 class NeuralNotConfigured(NeuralUnavailable):
-    """Missing credentials or SDK; live tests may skip."""
+    """ไม่มีการตั้งค่า API Key หรือขาดการติดตั้ง google-genai SDK"""
 
 
 class NeuralQuotaExceeded(NeuralUnavailable):
-    """All configured clients exhausted their quota."""
+    """โควตาของ API Key ทั้งหมดในระบบถูกใช้จนเต็มขีดจำกัดแล้ว"""
 
 
 def _is_quota_error(e: Exception) -> bool:

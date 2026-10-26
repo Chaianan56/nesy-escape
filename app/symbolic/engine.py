@@ -37,10 +37,10 @@ ACCUSATION_RULE = "R012_ACCUSE_ENDING_REQUIREMENTS"
 
 
 def accusation_submission(engine, cmd, state, submitted=None):
-    """Judge an accusation against the complete evidence record the player found.
+    """ตัดสินการกล่าวหากับบันทึกหลักฐานทั้งหมดที่ผู้เล่นค้นพบจริง
 
-    ``submitted`` remains accepted for older callers, but is deliberately ignored:
-    selecting a subset must not hide relevant or exculpatory evidence.
+    พารามิเตอร์ ``submitted`` คงไว้เพื่อความเข้ากันได้ย้อนหลัง (Backward Compatibility)
+    แต่ถูกละเว้นโดยเจตนา: การเลือกส่งเพียงบางส่วนต้องไม่ซ่อนหลักฐานที่เกี่ยวข้องหรือหลักฐานแก้ต่าง
     """
     decision = engine.decide(cmd, state)
     if decision.violated_rule_id != ACCUSATION_RULE:
@@ -656,11 +656,11 @@ class SymbolicEngine:
         return list(topics.values())
 
     def narrative_scene(self, scene_id: str, state: GameState, evidence_scope=None):
-        """Return authored pages supported by this knowledge scope, never their gates.
+        """คืนหน้าเนื้อเรื่องที่รองรับตามขอบเขตความรู้ปัจจุบันของผู้เล่น
 
-        The interaction layer owns when a scene may be opened (introduction,
-        an approved dialogue, or a resolved case). A recap's evidence_scope is
-        the submitted case; supplying IDs cannot create knowledge the player lacks.
+        ชั้น Interaction Layer เป็นผู้ควบคุมเงื่อนไขการเปิดฉาก (เช่น ฉากเปิดเรื่อง,
+        บทสนทนาที่ได้รับอนุญาต หรือการสรุปคดี) การส่ง evidence_scope มากรองจะช่วยให้
+        ไม่แสดงข้อมูลหรือหลักฐานที่ผู้เล่นยังไม่เคยค้นพบ
         """
         scene = self.world.get("narrative_scenes", {}).get(scene_id)
         if scene is None:
@@ -679,7 +679,7 @@ class SymbolicEngine:
         return {"id": scene_id, "title": scene["title"], "pages": pages} if pages else None
 
     def dialogue_scene(self, cmd: ParsedCommand, before_state: GameState):
-        """Use the same pre-action node as the spoken text and its exact grants."""
+        """ดึงฉากบทสนทนาที่ผูกกับ dialogue node ก่อนการกระทำจริง"""
         if cmd.action != ActionType.INTERROGATE or not self.decide(cmd, before_state).allowed:
             return None
         node = _dialogue_node(cmd.target, cmd.topic, before_state, self.world)
@@ -688,7 +688,7 @@ class SymbolicEngine:
         return self.narrative_scene(node["scene_id"], before_state)
 
     def narrative_followups(self, state: GameState) -> List[dict]:
-        """Earned, unread scene topics, including people in another train car."""
+        """ประเด็นบทสนทนาที่ปลดล็อกแล้วแต่ยังไม่ได้อ่าน รวมถึงบุคคลที่อยู่ตู้รถอื่น"""
         if state.ending_id or self.is_out_of_time(state):
             return []
         followups = []
@@ -705,6 +705,7 @@ class SymbolicEngine:
         return followups
 
     def inference_questions(self, state: GameState) -> List[dict]:
+        """รายการประเด็นคำถามกระดานอนุมานคดี (Inference Questions) ที่ปลดล็อกตามเงื่อนไขปัจจุบัน"""
         if state.ending_id or self.is_out_of_time(state):
             return []
         return [{"id": q["id"], "prompt": q.get("prompt", q.get("question", "")),

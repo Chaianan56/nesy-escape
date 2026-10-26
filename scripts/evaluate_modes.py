@@ -1,9 +1,13 @@
-"""Controlled adjudicator comparison and structured-command neural-only play.
+"""
+scripts/evaluate_modes.py — สคริปต์เปรียบเทียบการตัดสินระหว่าง Symbolic และ Pure Neural Baseline
 
-No API calls occur unless --mode neural is explicitly selected. Expected outcomes
-come from the reviewed corpus, never from executing the symbolic comparator.
+วัตถุประสงค์ในงานวิจัย:
+- ทดสอบเปรียบเทียบคำตัดสิน (Adjudication Comparison) บน Corpus คดีที่ผ่านการตรวจทานแล้ว
+- วัดผลความถูกต้อง (Accuracy), Rule Faithfulness, และความเที่ยงตรงของการตัดสิน
+- รองรับการรันเฉพาะ Symbolic (ออฟไลน์ 100%) หรือ Pure Neural ผ่าน Gemini API
 """
 from __future__ import annotations
+
 
 import argparse
 from collections import Counter

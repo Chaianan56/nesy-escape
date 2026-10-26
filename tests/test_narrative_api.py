@@ -1,7 +1,10 @@
-"""HTTP scene access follows the server-owned game and the submitted case.
+"""
+tests/test_narrative_api.py — ทดสอบการเปิดฉากบรรยายและสิทธิการเข้าถึงผ่าน API (Narrative Presentation API)
 
-The parser is replaced with structured commands: these tests exercise session
-ownership and presentation timing, without calling a model or judging prose.
+หน้าที่:
+- ทดสอบว่าการเปิดฉาก (Opening Scene), ฉากเผชิญหน้า (Confrontation), และฉากทบทวนคดี (Reconstruction)
+  แสดงผลตามสถานะความรู้และหลักฐานที่ค้นพบจริงบนเซิร์ฟเวอร์
+- ทดสอบการตัดรอบเวลา (Timing) และการจัดการ Session ในการเข้าถึงฉากบรรยาย
 """
 import json
 from pathlib import Path

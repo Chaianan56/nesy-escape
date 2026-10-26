@@ -1,4 +1,10 @@
-"""Narrative presentation follows earned knowledge and the case actually submitted."""
+"""
+tests/test_narrative_scenes.py — ทดสอบการแสดงผลหน้าเรื่องราวและภาพประกอบตามความรู้ที่ผู้เล่นค้นพบ
+
+หน้าที่:
+- ทดสอบว่าหน้าเนื้อเรื่อง (pages) จะแสดงเฉพาะข้อมูลที่ผู้เล่นมีหลักฐานรองรับ (Evidence Scope)
+- ตรวจสอบว่าผู้เล่นไม่สามารถอ่านเนื้อหาหรือเห็นภาพประกอบที่ข้ามขั้นตอนของคดีได้
+"""
 import copy
 import json
 from pathlib import Path

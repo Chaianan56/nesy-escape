@@ -1,3 +1,9 @@
+/**
+ * frontend/history.test.mjs — ชุดทดสอบระบบประวัติการสืบสวนและการแสดงผลบันทึก (History Logs & Tabs Unit Tests)
+ * 
+ * ทดสอบ: การสลับแท็บประวัติ (ทั้งหมด, พยานหลักฐาน, ปากคำ, สรุปสำนวน), การเพิ่มรายการประวัติ, 
+ * ปุ่มเลื่อนดูรายการล่าสุด (Jump to latest), และการเชื่อมต่อ DOM ภายในหน้าเว็บ
+ */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

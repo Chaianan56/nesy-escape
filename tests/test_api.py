@@ -508,7 +508,8 @@ def test_confirmed_sequence_accusation_uses_discovered_evidence(fake_llm):
 
 
 @pytest.mark.parametrize('steps', [[], ['move first_class_car', 'bogus x'],
-    ['move first_class_car', 'sequence x'], ['examine pocket_watch'] * 9])
+    ['move first_class_car', 'sequence x'], ['examine pocket_watch'] * 9,
+    ['move first_class_car', 'bad step three parts'], ['move first_class_car', '   ']])
 def test_invalid_sequence_does_not_partially_execute(fake_llm, steps):
     fake_llm(ActionType.SEQUENCE, alternatives=steps)
     body = post('ทำต่อ', GameState()).json()

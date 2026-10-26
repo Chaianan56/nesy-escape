@@ -1,4 +1,11 @@
-// Move the original log so messages, rule disclosures and action handlers stay intact.
+/**
+ * frontend/history.js — ระบบบันทึกประวัติการสืบสวนย้อนหลัง (Investigation History)
+ * 
+ * หน้าที่:
+ * 1. ย้าย DOM ของข้อความสนทนา (chatFeed) เข้าสู่หน้าต่างประวัติแบบเต็ม (History Dialog)
+ * 2. ซ่อนข้อความเก่าในหน้าจอหลักเพื่อความสะอาดตา โดยคงข้อความล่าสุดไว้บนหน้าจอ
+ * 3. จัดการตำแหน่ง Scroll และคืนตำแหน่งเมื่อปิดหน้าต่างประวัติ
+ */
 window.addEventListener('DOMContentLoaded', () => {
   const dialog = document.getElementById('historyDialog');
   const feed = document.getElementById('chatFeed');

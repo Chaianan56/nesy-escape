@@ -134,44 +134,45 @@ class KNNExampleRetriever:
             except Exception:
                 pass
 
+    @staticmethod
+    def _has_sequence_hint(q_lower: str) -> bool:
+        """ตรวจสอบว่ามีคำบ่งชี้คำสั่งต่อเนื่อง (Sequence) ในข้อความหรือไม่"""
+        return (
+            any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย", "จากนั้น", "เสร็จแล้ว"))
+            or bool(re.search(r"\b(and|then|after that|afterwards|followed by)\b", q_lower))
+        )
+
+    def _score_example_relevance(self, q_lower: str, has_sequence_hint: bool, ex: Dict[str, Any]) -> float:
+        """คำนวณคะแนนความเกี่ยวข้องระหว่าง query กับตัวอย่าง ex ใน Memory Bank"""
+        target_text = ex.get("query", "").lower()
+        base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
+
+        # ให้ Priority Boost หากประเภทคำสั่งสอดคล้องกับโครงสร้างประโยค
+        boost = 1.0
+        if has_sequence_hint and ex.get("action") == "sequence":
+            boost += 0.35
+        elif not has_sequence_hint and ex.get("action") == "sequence":
+            boost -= 0.15
+
+        # ถ้ามีคำสำคัญตรงกันเป๊ะ เพิ่มน้ำหนักพิเศษ (ครอบคลุมทั้งไทยและอังกฤษ)
+        for word in ("เผา", "ทำลาย", "จับ", "กล่าวหา", "ปลดล็อก", "รหัส", "สรุป", "ถาม", "คุย"):
+            if word in q_lower and word in target_text:
+                boost += 0.2
+        for word in ("burn", "destroy", "arrest", "accuse", "unlock", "code", "infer", "ask", "talk", "examine", "inspect", "check", "look", "move", "go", "take", "grab", "open"):
+            pattern = r"\b" + re.escape(word) + r"\b"
+            if re.search(pattern, q_lower) and re.search(pattern, target_text):
+                boost += 0.2
+
+        return base_score * boost
+
     def retrieve(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """ค้นหาตัวอย่างที่มีความคล้ายคลึงทางภาษากับ query สูงสุด Top-K ด้วย TF-IDF N-gram Similarity"""
         if not query or not self.examples:
             return self.examples[:k]
 
         q_lower = query.lower().strip()
-        scored: List[Tuple[float, Dict[str, Any]]] = []
-
-        # สกัดลักษณะพิเศษของคำถาม เช่น มีคำว่า 'แล้ว', 'และ', 'and', 'then' (บ่งบอก sequence) หรือคำนอกเกม
-        has_sequence_hint = (
-            any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย", "จากนั้น", "เสร็จแล้ว"))
-            or bool(re.search(r"\b(and|then|after that|afterwards|followed by)\b", q_lower))
-        )
-
-        for ex in self.examples:
-            target_text = ex.get("query", "").lower()
-            base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
-
-            # ให้ Priority Boost หากประเภทคำสั่งสอดคล้องกับโครงสร้างประโยค
-            boost = 1.0
-            if has_sequence_hint and ex.get("action") == "sequence":
-                boost += 0.35
-            if not has_sequence_hint and ex.get("action") == "sequence":
-                boost -= 0.15
-
-            # ถ้ามีคำสำคัญตรงกันเป๊ะ เพิ่มน้ำหนักพิเศษ (ครอบคลุมทั้งไทยและอังกฤษ)
-            for word in ("เผา", "ทำลาย", "จับ", "กล่าวหา", "ปลดล็อก", "รหัส", "สรุป", "ถาม", "คุย"):
-                if word in q_lower and word in target_text:
-                    boost += 0.2
-            for word in ("burn", "destroy", "arrest", "accuse", "unlock", "code", "infer", "ask", "talk", "examine", "inspect", "check", "look", "move", "go", "take", "grab", "open"):
-                pattern = r"\b" + re.escape(word) + r"\b"
-                if re.search(pattern, q_lower) and re.search(pattern, target_text):
-                    boost += 0.2
-
-            final_score = base_score * boost
-            scored.append((final_score, ex))
-
-        # เรียงลำดับจากคะแนนมากไปน้อย
+        has_sequence_hint = self._has_sequence_hint(q_lower)
+        scored = [(self._score_example_relevance(q_lower, has_sequence_hint, ex), ex) for ex in self.examples]
         scored.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored[:k]]
 
@@ -186,35 +187,13 @@ class KNNExampleRetriever:
             return self.examples[:k]
 
         q_lower = query.lower().strip()
-        has_sequence_hint = (
-            any(w in q_lower for w in ("แล้ว", "และ", "ก่อนแล้วค่อย", "ต่อด้วย", "จากนั้น", "เสร็จแล้ว"))
-            or bool(re.search(r"\b(and|then|after that|afterwards|followed by)\b", q_lower))
-        )
+        has_sequence_hint = self._has_sequence_hint(q_lower)
 
         # 1. ให้คะแนนความเกี่ยวข้อง (Relevance) ของทุกตัวอย่าง
-        candidate_scores: List[Tuple[float, Dict[str, Any]]] = []
-        for ex in self.examples:
-            target_text = ex.get("query", "").lower()
-            base_score = calculate_ngram_similarity(q_lower, target_text, idf_weights=self.idf_weights)
-
-            boost = 1.0
-            if has_sequence_hint and ex.get("action") == "sequence":
-                boost += 0.35
-            if not has_sequence_hint and ex.get("action") == "sequence":
-                boost -= 0.15
-
-            for word in ("เผา", "ทำลาย", "จับ", "กล่าวหา", "ปลดล็อก", "รหัส", "สรุป", "ถาม", "คุย"):
-                if word in q_lower and word in target_text:
-                    boost += 0.2
-            for word in ("burn", "destroy", "arrest", "accuse", "unlock", "code", "infer", "ask", "talk", "examine", "inspect", "check", "look", "move", "go", "take", "grab", "open"):
-                pattern = r"\b" + re.escape(word) + r"\b"
-                if re.search(pattern, q_lower) and re.search(pattern, target_text):
-                    boost += 0.2
-
-            final_rel = base_score * boost
-            candidate_scores.append((final_rel, ex))
-
-        # เรียงตาม Relevance และเลือก Pool ผู้สมัครที่ดีที่สุด Top-M
+        candidate_scores = [
+            (self._score_example_relevance(q_lower, has_sequence_hint, ex), ex)
+            for ex in self.examples
+        ]
         candidate_scores.sort(key=lambda x: x[0], reverse=True)
         pool = candidate_scores[: max(k * 4, 20)]
 

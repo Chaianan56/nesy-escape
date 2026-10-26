@@ -1,4 +1,11 @@
-/* A player proposes a claim and chooses its support; the server adjudicates it. */
+/**
+ * frontend/inference.js — ระบบทบทวนข้อสรุปและข้อเสนอคดี (InferenceUI)
+ * 
+ * หน้าที่:
+ * 1. แสดงหน้าต่างให้ผู้เล่นเสนอข้อสรุป (Claim) ในประเด็นสำคัญของคดี
+ * 2. ให้ผู้เล่นเลือกหลักฐานประกอบ (Supporting Evidence) ที่ตนค้นพบแล้ว
+ * 3. ส่งคำสั่ง infer ไปให้ Symbolic Engine ตัดสินความถูกต้อง
+ */
 const InferenceUI = (() => {
   let dialog, question, evidence = [], busy = false, opener;
   const chosen = new Set();
