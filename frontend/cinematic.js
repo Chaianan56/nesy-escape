@@ -1,4 +1,12 @@
-// Reuse the existing game controls and journal; only change their presentation.
+/**
+ * frontend/cinematic.js — ระบบตกแต่งการแสดงผลแบบ Cinematic Noir UI
+ * 
+ * หน้าที่:
+ * 1. ปรับปรุงการจัดวางองค์ประกอบบนหน้าเว็บให้เป็นรูปแบบภาพยนตร์สืบสวน (Cinematic)
+ * 2. จัดการหน้าต่างสมุดคดี (Casebook Dialog) และกล่องบทสนทนาทับบนภาพฉาก
+ * 3. ควบคุมการซ่อน/แสดงกล่องบทสนทนาเพื่อดูภาพฉากแบบเต็มตา
+ * 4. รองรับการเลื่อนแถบชิปคำสั่งแนวนอนด้วยล้อเมาส์และลากเมาส์ (Drag Scroll)
+ */
 window.addEventListener('DOMContentLoaded', () => {
   const header = document.querySelector('.header-right');
   const clock = document.getElementById('clockWidget');

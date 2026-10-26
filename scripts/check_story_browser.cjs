@@ -1,6 +1,14 @@
-/* Local browser regression: requires Playwright and a running game server.
-   NODE_PATH may point at an existing Playwright installation. No model calls:
-   all commands below use exact local-parser forms. */
+/**
+ * scripts/check_story_browser.cjs — สคริปต์ทดสอบ UI Regression บนเบราว์เซอร์จริงด้วย Playwright
+ * 
+ * คุณสมบัติ:
+ * 1. เปิดหน้าเว็บเกมผ่าน Chromium และจำลองการเล่นตาม Walkthrough โดยอัตโนมัติ
+ * 2. ทดสอบการแสดงผลหน้าต่างบทนำ (Intro), การเปิดปิดฉากบรรยาย (Narrative Dialog), และสมุดคดี
+ * 3. ตรวจสอบการส่งคำสั่ง POST /command ผ่านช่องพิมพ์ และการตอบสนองของ UI
+ * 4. บันทึกภาพหน้าจอ (Screenshots) ในแต่ละจุดสำคัญลงใน tmp/browser-story-check/
+ * 
+ * หมายเหตุ: ต้องติดตั้ง Playwright และเปิดเซิร์ฟเวอร์เกมทิ้งไว้ก่อนรัน
+ */
 const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

@@ -1,4 +1,11 @@
-"""Offline tests for an uncorrected neural adjudicator, never live API calls."""
+"""
+tests/test_neural_baseline.py — ทดสอบระบบ Pure Neural Adjudicator Baseline แบบออฟไลน์ 100%
+
+หน้าที่:
+- จำลองการตัดสินของโมเดล Neural Game Master โดยไม่มี Symbolic Engine
+- ตรวจสอบโครงสร้างคำตอบ (NeuralGameOutput), การให้เหตุผล, และการจัดการข้อผิดพลาด
+- รันแบบออฟไลน์ 100% โดยจำลอง ProviderReply ไม่ยิงเครือข่ายภายนอก
+"""
 import json
 from pathlib import Path
 

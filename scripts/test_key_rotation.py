@@ -1,9 +1,17 @@
+"""
+scripts/test_key_rotation.py — สคริปต์ทดสอบระบบสลับ API Key สำรองอัตโนมัติ (Multi-Key Rotation & Fallback)
+
+วัตถุประสงค์:
+- ตรวจสอบว่าระบบสามารถอ่านรายการคีย์หลายตัวจาก GEMINI_API_KEY ในไฟล์ .env ได้
+- จำลองสถานการณ์เมื่อ Key แรกติด Quota Limit (429 RESOURCE_EXHAUSTED)
+- ยืนยันว่าระบบสลับไปใช้ Key สำรองถัดไปได้แบบอัตโนมัติโดยไม่ทำให้เกมหยุดชะงัก
+"""
 import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Ensure UTF-8 output
+# บังคับใช้การแสดงผลภาษาไทย UTF-8 บนเทอร์มินัล
 sys.stdout.reconfigure(encoding='utf-8')
 
 ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
@@ -14,6 +22,7 @@ from app.neural import gemini_client
 from app.schemas import GameState
 
 def run_test():
+    """จำลองการยิงคำขอและสลับ API Key เมื่อเกิดสถานะ RESOURCE_EXHAUSTED"""
     clients = gemini_client._clients()
     print(f"=== เริ่มการทดสอบระบบสลับ API Key ===")
     print(f"จำนวน API Key ที่ตรวจพบใน .env: {len(clients)} คีย์\n")

@@ -1,4 +1,11 @@
-"""Launch the local presentation without touching hosted games or existing servers."""
+"""
+scripts/start_demo.py — สคริปต์เปิดเซิร์ฟเวอร์นำเสนอผลงาน (Local Presentation Demo Launcher)
+
+คุณสมบัติ:
+- สแกนหาพอร์ตว่างในย่าน 8770-8780 โดยไม่ชนกับเซิร์ฟเวอร์หลักที่กำลังทำงานอยู่
+- เปิดเบราว์เซอร์ให้อัตโนมัติไปยังหน้าเล่นเกม
+- ใช้สำหรับเปิดรัน Demo นำเสนอโปรเจกต์ได้อย่างราบรื่น
+"""
 import argparse
 from pathlib import Path
 import socket

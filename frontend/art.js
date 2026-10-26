@@ -1,4 +1,12 @@
-/* Images illustrate server-approved actions; they never move the player or grant evidence. */
+/**
+ * frontend/art.js — ตัวจัดการภาพประกอบฉากและหลักฐาน (GameArt)
+ * 
+ * หน้าที่:
+ * 1. แสดงผลภาพฉากห้องบนรถไฟ (Train Room Scenes) และภาพบุคคล (Suspect Portraits)
+ * 2. แสดงภาพโคลสอัพวัตถุพยาน (Evidence Detail) ในสมุดคดี
+ * 3. แสดงภาพบทสรุปฉากจบ (Ending Illustrations)
+ * ภาพมีหน้าที่ประกอบการเล่นเท่านั้น ไม่ส่งผลต่อการตัดสินกฎของเกม
+ */
 const GameArt = (() => {
   const rooms = {
     locomotive:'scene-01-locomotive', luggage_van_electrical:'scene-02-electrical',

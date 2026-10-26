@@ -1,4 +1,10 @@
-﻿import {test} from 'node:test';
+/**
+ * frontend/novel.test.mjs — ชุดทดสอบระบบอินเทอร์เฟซแบบนิยายภาพ (Visual Novel UI Unit Tests)
+ * 
+ * ทดสอบ: การกดปุ่ม Enter เพื่อเปิดบทสนทนาหน้าถัดไป, ป้ายชื่อผู้พูด, 
+ * การตัดบทสนทนาเมื่อคำสั่งถูกปฏิเสธ (denied commands), และการทำงานร่วมกับฟอร์มคำสั่ง
+ */
+import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';

@@ -1,4 +1,11 @@
-"""State transitions that distinguish earned knowledge from a player's assertion."""
+"""
+tests/test_investigation_contract.py — ทดสอบสัญญาสถานะการสืบสวน (Investigation State Contract)
+
+หน้าที่:
+- ตรวจสอบความถูกต้องของการเปลี่ยนสถานะ (State Transitions) เมื่อผู้เล่นค้นพบหลักฐานหรือสอบปากคำ
+- ป้องกันการอ้างหลักฐานที่ยังไม่เคยค้นพบจริง (Distinguish Earned Knowledge from Assertion)
+- ตรวจสอบว่าคำให้การจะปลดล็อกตามลำดับ node และหลักฐานที่จำเป็นเท่านั้น
+"""
 import copy
 import json
 from pathlib import Path

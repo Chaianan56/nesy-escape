@@ -123,16 +123,18 @@ class Decision(BaseModel):
 
 
 class CommandRequest(BaseModel):
+    """คำร้องขอส่งคำสั่งจากฝั่งผู้เล่น/หน้าบ้าน"""
     text: str
     submitted_evidence: Optional[List[str]] = Field(None, max_length=64)
-    # Compatibility only: HTTP handlers always replace this with server state.
+    # เพื่อความเข้ากันได้ย้อนหลัง: HTTP Handler ของเซิร์ฟเวอร์จะใช้สถานะจากเซสชันเป็นหลัก
     state: GameState = Field(default_factory=GameState)
 
 
 class CommandResponse(BaseModel):
+    """ผลลัพธ์ตอบกลับคำสั่งส่งกลับไปยังฝั่งผู้เล่น/หน้าบ้าน"""
     narrative_scene: Optional[Dict[str, Any]] = None
     conversation_summaries: List[Dict[str, Any]] = Field(default_factory=list)
-    pending_steps: List[str] = Field(default_factory=list, description="Steps awaiting player confirmation; not executed")
+    pending_steps: List[str] = Field(default_factory=list, description="ขั้นตอนที่รอการยืนยันจากผู้เล่นก่อนดำเนินการ")
     parsed: ParsedCommand
     decision: Decision
     new_state: GameState
@@ -141,6 +143,3 @@ class CommandResponse(BaseModel):
     sequence_steps: Optional[List[Dict[str, Any]]] = Field(
         None, description="รายการขั้นตอนและผลลัพธ์ของแต่ละ step กรณีที่ command เป็น sequence"
     )
-
-
-

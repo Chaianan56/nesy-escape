@@ -1,4 +1,12 @@
-/* Game HUD and Interactive Detective Journal / Archive. Scene artwork is managed by GameArt. */
+/**
+ * frontend/pixel.js — แดชบอร์ดสืบสวนและสมุดบันทึกคดีแบบโต้ตอบ (PixelUI)
+ * 
+ * หน้าที่:
+ * 1. แสดงผลแผนผังขบวนรถไฟ 6 ตู้ (Train Route HUD)
+ * 2. จัดการสมุดคดี (Detective Journal): แท็บหลักฐาน, บัญชีพยาน, เอกสารสำคัญ, ประเด็นสงสัย
+ * 3. แสดงผลตัวอ่านเอกสารในเกม (In-game Document Reader)
+ * 4. แสดงผลเรดาร์ชาร์ตและสถิติโปรไฟล์พฤติกรรมผู้เล่น (Profiler Details & Radar Chart)
+ */
 const PixelUI = (() => {
   const $ = id => document.getElementById(id);
 

@@ -1,9 +1,22 @@
-"""Fail early on malformed rule references instead of failing during play."""
+"""
+app/symbolic/validation.py — ระบบตรวจสอบความถูกต้องของข้อมูลโลกและกฎ (World & Rule Validator)
+
+ทำหน้าที่ตรวจสอบความถูกต้อง (Static Invariant Checking) ตั้งแต่เริ่มต้นระบบ (Fail-Fast):
+1. ตรวจสอบว่า Entity ID ทั้งหมด (locations, objects, suspects) ไม่ซ้ำซ้อนกันข้ามหมวดหมู่
+2. ตรวจสอบการอ้างอิงความสัมพันธ์ (Foreign Key References) ระหว่างหลักฐาน, บุคคล, และสถานที่
+3. ตรวจจับวงรอบวัฏจักร (Cycle Detection) ในลำดับการเชื่อมโยงข้อสรุป (Deduction DAG)
+4. ตรวจสอบความถูกต้องของสัญญากฎ (Rules) และฟังก์ชันตรวจสอบ (Checkers)
+"""
 import math
 import re
 
 
-def validate_world(rules, world, checkers, actions):
+def validate_world(rules: list, world: dict, checkers: dict, actions: set):
+    """ตรวจสอบความถูกต้องของกฎและข้อมูลโลกทั้งหมดตามโครงสร้าง NeSy Contract
+
+    Raises:
+        ValueError: หากพบความผิดปกติในโครงสร้างข้อมูลเกม
+    """
     def require(ok, message):
         if not ok:
             raise ValueError("Invalid game data: " + message)
