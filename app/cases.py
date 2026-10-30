@@ -34,6 +34,8 @@ AVAILABLE_CASES: List[str] = [
 CASE_METADATA: Dict[str, dict] = {
     "case_01_gideon": {
         "id": "case_01_gideon",
+        "case_num": "01",
+        "letter": "A",
         "title": "The Burnt Dossier",
         "title_th": "แฟ้มลับและเถ้าถ่าน",
         "culprit": "gideon_hart",
@@ -43,6 +45,8 @@ CASE_METADATA: Dict[str, dict] = {
     },
     "case_02_vincent": {
         "id": "case_02_vincent",
+        "case_num": "02",
+        "letter": "B",
         "title": "The Strike in the Dark",
         "title_th": "คมมีดในความมืด",
         "culprit": "vincent_gray",
@@ -52,6 +56,8 @@ CASE_METADATA: Dict[str, dict] = {
     },
     "case_03_liora": {
         "id": "case_03_liora",
+        "case_num": "03",
+        "letter": "C",
         "title": "The Doctor's Retribution",
         "title_th": "ยาพิษและรอยแค้น",
         "culprit": "dr_liora_venn",
