@@ -100,14 +100,14 @@
   {
     "query": "ดูศพแคสเซียน รีด",
     "action": "examine",
-    "target": "cassian_body",
+    "target": "cassian_reed",
     "category": "examine",
     "confidence": 0.95
   },
   {
     "query": "สำรวจร่างผู้ตาย",
     "action": "examine",
-    "target": "cassian_body",
+    "target": "cassian_reed",
     "category": "examine",
     "confidence": 0.95
   },
@@ -761,5 +761,47 @@
     "target": null,
     "category": "unknown",
     "confidence": 0.0
+  },
+  {
+    "query": "look cassian",
+    "action": "examine",
+    "target": "cassian_reed",
+    "category": "examine",
+    "confidence": 0.95
+  },
+  {
+    "query": "look at cassian",
+    "action": "examine",
+    "target": "cassian_reed",
+    "category": "examine",
+    "confidence": 0.95
+  },
+  {
+    "query": "examine cassian",
+    "action": "examine",
+    "target": "cassian_reed",
+    "category": "examine",
+    "confidence": 0.95
+  },
+  {
+    "query": "ดู แคสเซียน",
+    "action": "examine",
+    "target": "cassian_reed",
+    "category": "examine",
+    "confidence": 0.95
+  },
+  {
+    "query": "ตรวจ แคสเซียน",
+    "action": "examine",
+    "target": "cassian_reed",
+    "category": "examine",
+    "confidence": 0.95
+  },
+  {
+    "query": "ตรวจศพ",
+    "action": "examine",
+    "target": "cassian_reed",
+    "category": "examine",
+    "confidence": 0.95
   }
 ]
