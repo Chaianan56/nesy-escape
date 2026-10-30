@@ -63,3 +63,20 @@ test('restricted entrance preserves location; missing image has readable fallbac
   assert.match(nodes.artStatus.textContent,/ยังอ่านข้อมูล/);
   nodes.sceneImage.onload();assert.equal(nodes.artStatus.hidden,true);
 });
+
+test('resetToRoom restores sceneImage back to current room', () => {
+  const { art, nodes } = setup();
+  const state = { current_location: 'first_class_car' };
+  art.onResult({ new_state: state, parsed: { action: 'move', target: 'first_class_car' }, decision: { allowed: true } });
+  art.sync(state);
+  const roomImage = nodes.sceneImage.src;
+
+  // ตรวจนาฬิกา ภาพเปลี่ยนเป็น detail-pocket-watch
+  art.onResult({ new_state: state, parsed: { action: 'examine', target: 'pocket_watch' }, decision: { allowed: true } });
+  art.sync(state);
+  assert.match(nodes.sceneImage.src, /detail-pocket-watch.png$/);
+
+  // เรียก resetToRoom ภาพต้องกลับมาเป็นภาพห้องตู้ 4 ทันที
+  art.resetToRoom();
+  assert.equal(nodes.sceneImage.src, roomImage);
+});

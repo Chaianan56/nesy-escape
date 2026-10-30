@@ -565,3 +565,30 @@ for (const ending of ['cold_arrival', 'true_ending']) {
     assert.equal(c.el('sendBtnText').textContent, 'จบเกม');
   });
 }
+
+test('ตรวจสิ่งของแล้วมีปุ่มและ Enter กลับมาหน้าเดิมอัตโนมัติ (Item Examination Return Flow)', async () => {
+  const sent = [];
+  const c = loadChat(async (url, options) => {
+    const body = JSON.parse(options.body || '{}');
+    sent.push(body.text);
+    return reply({ allowed: true, state: { current_location: 'first_class_car' } });
+  });
+
+  // 1. ตรวจสอบสิ่งของ (pocket_watch)
+  c.read('renderSystem({ allowed: true, message: "นาฬิกาพกหยุดเดินที่ 23:15" }, { action: "examine", target: "pocket_watch" })');
+  
+  // เช็คว่ามีการสร้างกล่อง item-return-panel และบันทึก __lastExaminedItem
+  const lastCard = c.el('chatFeed').children.at(-1);
+  assert.ok(lastCard.innerHTML.includes('item-return-panel'));
+  assert.ok(lastCard.innerHTML.includes('btn-return-room'));
+  assert.equal(c.read('window.__lastExaminedItem'), 'pocket_watch');
+
+  // 2. เมื่อผู้เล่นอ่านจบแล้วกด Enter (ช่องพิมพ์ว่างเปล่า) ต้องยิงกลับมาหน้าเดิม (ดูรอบๆ) ทันที
+  c.el('chatInput').value = '';
+  await c.sandbox.sendMessage(ev);
+  assert.equal(sent.at(-1), 'ดูรอบๆ');
+
+  // 3. เมื่อระบบแสดงห้องปัจจุบัน (isRoomLook: true) ต้องเคลียร์สถานะ __lastExaminedItem
+  c.read('renderSystem({ allowed: true, message: "ตู้ 4: ตู้โดยสารชั้นหนึ่ง..." }, { action: "examine", target: "first_class_car" }, true)');
+  assert.equal(c.read('window.__lastExaminedItem'), null);
+});

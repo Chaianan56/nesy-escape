@@ -57,12 +57,29 @@ const GameArt = (() => {
       selected = null;
     }
     location=state.current_location;
-    if(command.action==='move') selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
-    else if(command.action==='interrogate' || (command.action==='examine'&&people[command.target])) selected={asset:people[command.target]||rooms[location],label:'สนทนาและตรวจสอบบุคคล'};
+    const artFrame = typeof document !== 'undefined' && document.querySelector ? document.querySelector('.scene-art') : null;
+    if(command.action==='move') {
+      selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
+      if (artFrame && artFrame.classList) artFrame.classList.remove('is-evidence-view');
+    }
+    else if(command.action==='interrogate' || (command.action==='examine'&&people[command.target])) {
+      selected={asset:people[command.target]||rooms[location],label:'สนทนาและตรวจสอบบุคคล'};
+      if (artFrame && artFrame.classList) artFrame.classList.remove('is-evidence-view');
+    }
     else if(command.action==='examine'){
       const asset=resolveEvidenceAsset(command.target, state)||rooms[command.target];
-      if(asset)selected={asset,label:evidence[command.target]?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
-      else selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
+      if(asset) {
+        selected={asset,label:evidence[command.target]?'ภาพประกอบหลักฐาน · รายละเอียดอยู่ในข้อความ':'ภาพฉากผ่านสายตาผู้เล่น'};
+        if (evidence[command.target] && artFrame && artFrame.classList) {
+          artFrame.classList.add('is-evidence-view');
+        } else if (artFrame && artFrame.classList) {
+          artFrame.classList.remove('is-evidence-view');
+        }
+      }
+      else {
+        selected={asset:rooms[location],label:'ภาพฉากผ่านสายตาผู้เล่น'};
+        if (artFrame && artFrame.classList) artFrame.classList.remove('is-evidence-view');
+      }
     }
     else if(command.action==='unlock'){
       const asset=resolveEvidenceAsset(command.target, state)||evidence[command.target]||rooms[location];
@@ -133,6 +150,35 @@ const GameArt = (() => {
     img.loading='lazy';img.decoding='async';img.src=source(people[id]);
     img.onerror=()=>{img.hidden=true;};return img;
   }
-  return {onResult,sync,journalImage,journalPersonImage,setStepScene};
+  function resetToRoom(){
+    selected = null;
+    const cur = location || (typeof gameState !== 'undefined' ? gameState?.current_location : null) || 'first_class_car';
+    const img = typeof document !== 'undefined' && document.getElementById ? document.getElementById('sceneImage') : null;
+    const sceneLabel = typeof document !== 'undefined' && document.getElementById ? document.getElementById('sceneLabel') : null;
+    const artFrame = typeof document !== 'undefined' && document.querySelector ? document.querySelector('.scene-art') : null;
+    if (artFrame && artFrame.classList) artFrame.classList.remove('is-evidence-view');
+    if (sceneLabel) sceneLabel.textContent = 'ภาพฉากผ่านสายตาผู้เล่น';
+    if (img && rooms[cur]) {
+      shown = rooms[cur];
+      img.src = source(rooms[cur]);
+      img.alt = 'ภาพฉากผ่านสายตาผู้เล่น';
+    }
+  }
+  return {onResult,sync,journalImage,journalPersonImage,setStepScene,resetToRoom};
 })();
 
+
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const artFrame = document.querySelector('.scene-art');
+    if (artFrame) {
+      artFrame.addEventListener('click', () => {
+        if (artFrame.classList.contains('is-evidence-view')) {
+          if (typeof window !== 'undefined' && typeof window.returnToRoom === 'function') {
+            window.returnToRoom();
+          }
+        }
+      });
+    }
+  });
+}
