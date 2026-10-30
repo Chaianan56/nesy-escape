@@ -290,7 +290,6 @@ def journal(session: Session = Depends(session_for)):
                     "here": sus.get("location") == state.current_location,
                     "location": sus.get("location"),
                     "accusable": sus.get("accusable", True),
-                    "topics": engine.dialogue_options(sid, state) if not state.ending_id else [],
                     "interrogated": sid in state.interrogated_suspects,
                     "encountered": bool(
                         state.ending_id
@@ -305,7 +304,16 @@ def journal(session: Session = Depends(session_for)):
                         or sus.get("location") in state.visited_locations
                         or sid in state.interrogated_suspects
                         or any(d.startswith(sid) for d in state.dialogue_history)
-                    )}
+                    ),
+                    "topics": engine.dialogue_options(sid, state) if (
+                        not state.ending_id and bool(
+                            state.ending_id
+                            or sus.get("location") == state.current_location
+                            or sus.get("location") in state.visited_locations
+                            or sid in state.interrogated_suspects
+                            or any(d.startswith(sid) for d in state.dialogue_history)
+                        )
+                    ) else []}
                    for sid, sus in w["suspects"].items()],
         "pillars": {sid: engine.pillar_status(sid, case) for sid, person in w["suspects"].items() if person.get("accusable", True)} if state.ending_id else {},
         "inference_questions": engine.inference_questions(state) if not state.ending_id else [],
@@ -367,7 +375,6 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     session.state = result.new_state
     session_id = result.new_state.session_id or "default"
     tracker = get_tracker(session_id, eng=engine)
-    recent_violation_count = sum(1 for turn in tracker.turns[-3:] if not turn.allowed)
     pillars_status = {sid: engine.pillar_status(sid, result.new_state) for sid in engine.world["suspects"]}
     profile = tracker.record_turn(
         raw_input=req.text,
@@ -376,6 +383,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
         state=result.new_state,
         pillars_status=pillars_status,
     )
+    recent_violation_count = sum(1 for turn in tracker.turns[-3:] if not turn.allowed)
     is_looping = tracker.turns[-1].is_looping if tracker.turns else False
     result.decision, adaptive_note = adaptation_engine.adapt(
         decision=result.decision,
@@ -389,6 +397,8 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     )
     if adaptive_note and tracker.turns:
         tracker.turns[-1].adaptive_note = adaptive_note
+        if "Scaffolding" in adaptive_note:
+            tracker.scaffolding_triggers += 1
     latest_profiles[session_id] = profile.model_dump()
     result.profile = latest_profiles[session_id]
     if result.new_state.ending_id:
