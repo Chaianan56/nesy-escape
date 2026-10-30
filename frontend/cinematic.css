@@ -7,6 +7,7 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .wordmark>span{color:var(--gold);font-size:25px;letter-spacing:5px}.wordmark small{color:#b9ab91;letter-spacing:3px}
 .masthead{margin:0 24px;max-width:none;width:auto}
 .header-right{gap:12px;display:flex;align-items:center}.utility-button,.header-right .history-open{border:1px solid #776446;background:transparent;color:var(--gold);padding:11px 18px;font-size:13.5px}
+.header-right .edition{border:1px solid #776446;background:transparent;color:var(--gold);padding:11px 16px;font-size:13.5px;display:inline-flex;align-items:center;letter-spacing:1px;white-space:nowrap;font-family:inherit;font-weight:600;box-sizing:border-box}
 .header-right .clock-pill{border:1px solid #776446;background:transparent;color:var(--gold);padding:11px 16px;font-size:13.5px;font-family:monospace;letter-spacing:1px;display:inline-flex;align-items:center;gap:7px;border-radius:0}
 .header-right .clock-pill .clock-icon{font-size:14px;color:var(--gold)}
 .header-right .clock-pill.warning{color:#eed29c;border-color:#eed29c}
