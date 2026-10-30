@@ -66,11 +66,13 @@ test('parallel case timeline logic differentiates routes', () => {
     let title = '';
 
     if (caseId === 'case_02_vincent') {
-      isConfirmed = evidenceSet.has('wall_clock') || evidenceSet.has('vincent_blood');
+      isConfirmed = evidenceSet.has('wall_clock') && (evidenceSet.has('liora_time_estimate') || evidenceSet.has('vincent_blood'));
       if (isConfirmed) title = 'ช่วงเวลาเกิดเหตุรุนแรง: 21:15 – 21:18 (ช่วงไฟดับ)';
+      else if (evidenceSet.has('wall_clock')) title = 'ช่วงเวลาเกิดเหตุ: คาดว่าเป็นช่วงไฟดับ (รอผลชันสูตร)';
     } else if (caseId === 'case_03_liora') {
-      isConfirmed = evidenceSet.has('pocket_watch') || evidenceSet.has('liora_time_estimate');
+      isConfirmed = evidenceSet.has('pocket_watch') && (evidenceSet.has('liora_time_estimate') || evidenceSet.has('second_teacup'));
       if (isConfirmed) title = 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:25 (วางยาพิษอำพราง)';
+      else if (evidenceSet.has('pocket_watch')) title = 'ช่วงเวลาเกิดเหตุ: เข็มนาฬิกาหยุด 20:25 (รอตรวจสารพิษ)';
     } else {
       isConfirmed = evidenceSet.has('pocket_watch');
       if (isConfirmed) title = 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:26';
@@ -83,79 +85,103 @@ test('parallel case timeline logic differentiates routes', () => {
   assert.equal(resA.isConfirmed, true);
   assert.equal(resA.title, 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:26');
 
-  // In Route B, pocket_watch does NOT confirm murder window; wall_clock does (21:15 - 21:18)
+  // In Route B, pocket_watch does NOT confirm murder window; wall_clock alone is pending autopsy; clock + blood confirms
   const resBWithoutClock = evaluateTimeBanner('case_02_vincent', ['pocket_watch']);
   assert.equal(resBWithoutClock.isConfirmed, false);
-  const resBWithClock = evaluateTimeBanner('case_02_vincent', ['wall_clock']);
-  assert.equal(resBWithClock.isConfirmed, true);
-  assert.equal(resBWithClock.title, 'ช่วงเวลาเกิดเหตุรุนแรง: 21:15 – 21:18 (ช่วงไฟดับ)');
+  const resBClockOnly = evaluateTimeBanner('case_02_vincent', ['wall_clock']);
+  assert.equal(resBClockOnly.isConfirmed, false);
+  assert.equal(resBClockOnly.title, 'ช่วงเวลาเกิดเหตุ: คาดว่าเป็นช่วงไฟดับ (รอผลชันสูตร)');
+  const resBWithClockAndBlood = evaluateTimeBanner('case_02_vincent', ['wall_clock', 'vincent_blood']);
+  assert.equal(resBWithClockAndBlood.isConfirmed, true);
+  assert.equal(resBWithClockAndBlood.title, 'ช่วงเวลาเกิดเหตุรุนแรง: 21:15 – 21:18 (ช่วงไฟดับ)');
 
-  // In Route C, pocket_watch or liora_time_estimate confirms poison window (20:20 - 20:25)
-  const resC = evaluateTimeBanner('case_03_liora', ['pocket_watch']);
-  assert.equal(resC.isConfirmed, true);
-  assert.equal(resC.title, 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:25 (วางยาพิษอำพราง)');
+  // In Route C, watch alone waits for poison check; watch + second_teacup confirms poison window (20:20 - 20:25)
+  const resCWatchOnly = evaluateTimeBanner('case_03_liora', ['pocket_watch']);
+  assert.equal(resCWatchOnly.isConfirmed, false);
+  assert.equal(resCWatchOnly.title, 'ช่วงเวลาเกิดเหตุ: เข็มนาฬิกาหยุด 20:25 (รอตรวจสารพิษ)');
+  const resCConfirmed = evaluateTimeBanner('case_03_liora', ['pocket_watch', 'second_teacup']);
+  assert.equal(resCConfirmed.isConfirmed, true);
+  assert.equal(resCConfirmed.title, 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:25 (วางยาพิษอำพราง)');
 });
 
 test('timeline suspect cards start as pending and do not spoil conclusions on turn 1', () => {
   function evaluateSuspectStamps(caseId, evidenceIds = [], deductions = []) {
     const evidenceSet = new Set(evidenceIds);
-    const deductionSet = new Set(deductions);
+    const deductionSet = new Set(deductions.map(d => typeof d === 'string' ? d : d.id));
     const hasWatch = evidenceSet.has('pocket_watch');
     const hasWallClock = evidenceSet.has('wall_clock');
-    const hasVincentBlood = evidenceSet.has('vincent_blood');
-    const hasVincentCutters = evidenceSet.has('wire_cutters') || evidenceSet.has('cut_copper_wire');
+    const hasSoot = evidenceSet.has('red_soot');
+    const hasStaffImpact = evidenceSet.has('staff_impact_testimony');
+    const hasTunnelSched = evidenceSet.has('tunnel_schedule');
+    const hasGideonAlibi = evidenceSet.has('gideon_blackout_alibi');
     const hasVincentConfession = evidenceSet.has('vincent_blackout_confession');
+    const hasVincentCutters = evidenceSet.has('wire_cutters') || evidenceSet.has('cut_copper_wire');
     const hasVincentTicket = evidenceSet.has('vincent_ticket');
     const hasVincentStation = evidenceSet.has('vincent_station_alibi');
+    const hasVincentBlood = evidenceSet.has('vincent_blood');
     const hasLioraLog = evidenceSet.has('liora_patient_log');
     const hasPatientWitness = evidenceSet.has('liora_patient_witness');
     const hasTeaTrace = evidenceSet.has('tea_lozenge_trace');
+    const hasLioraEstimate = evidenceSet.has('liora_time_estimate');
 
-    let isTimeConfirmed = false;
-    if (caseId === 'case_02_vincent') {
-      isTimeConfirmed = hasWallClock || hasVincentBlood || deductionSet.has('D01_BLACKOUT_MURDER_WINDOW');
-    } else if (caseId === 'case_03_liora') {
-      isTimeConfirmed = hasWatch || deductionSet.has('D01_POISON_DEATH_WINDOW');
-    } else {
-      isTimeConfirmed = hasWatch || deductionSet.has('D01_TRUE_MURDER_WINDOW');
-    }
+    const hasCase01MurderWindow = (hasWatch && (hasSoot || hasStaffImpact || hasTunnelSched)) || deductionSet.has('D01_TRUE_MURDER_WINDOW');
+    const hasCase01VincentCleared = (hasVincentStation && hasVincentTicket) || deductionSet.has('D08_VINCENT_CLEARED');
+    const hasCase01LioraCleared = (hasLioraLog && hasPatientWitness) || deductionSet.has('D09_LIORA_CLEARED');
+    const hasCase01GideonContradicted = (hasWatch || deductionSet.has('D02_BLACKOUT_ALIBI_IRRELEVANT')) && hasGideonAlibi;
+
+    const hasCase02MurderWindow = (hasWallClock && (hasLioraEstimate || hasVincentBlood)) || deductionSet.has('D01_BLACKOUT_MURDER_WINDOW');
+    const hasCase02VincentContradicted = (hasVincentBlood && (evidenceSet.has('letter_opener') || hasVincentCutters)) || deductionSet.has('D04_VINCENT_BLOOD_SPATTER');
+    const hasCase02GideonVerified = hasGideonAlibi && (hasCase02MurderWindow || deductionSet.has('D05_GIDEON_ALIBI_SOLID'));
+    const hasCase02LioraCleared = hasPatientWitness || deductionSet.has('D06_LIORA_CLEARED');
+
+    const hasCase03MurderWindow = (hasWatch && (hasLioraEstimate || evidenceSet.has('second_teacup'))) || deductionSet.has('D01_POISON_DEATH_WINDOW');
+    const hasCase03PoisonTrace = (hasTeaTrace && hasLioraLog) || deductionSet.has('D03_LIORA_POISON_TRACE');
+    const hasCase03LioraAlibiBroken = (hasPatientWitness && hasTunnelSched) || deductionSet.has('D04_LIORA_ALIBI_BROKEN');
+    const hasCase03VincentCleared = (hasVincentTicket && (hasCase03MurderWindow || hasCase03PoisonTrace)) || deductionSet.has('D05_VINCENT_CLEARED');
+    const hasCase03GideonCleared = (hasGideonAlibi && (hasCase03MurderWindow || hasCase03PoisonTrace)) || deductionSet.has('D06_GIDEON_CLEARED');
+    const hasCase03LioraContradicted = hasCase03PoisonTrace || hasCase03LioraAlibiBroken;
 
     let gideon = 'รอตรวจสอบ';
     let vincent = 'รอตรวจสอบ';
     let liora = 'รอตรวจสอบ';
 
     if (caseId === 'case_02_vincent') {
-      if (isTimeConfirmed) gideon = 'ยืนยันแล้ว';
-      if (hasVincentBlood || deductionSet.has('D04_VINCENT_BLOOD_SPATTER') || (hasVincentCutters && isTimeConfirmed)) {
+      if (hasCase02GideonVerified) gideon = 'ยืนยันแล้ว';
+      if (hasCase02VincentContradicted) {
         vincent = 'หักล้างแล้ว';
-      } else if (hasVincentCutters || hasVincentConfession) {
+      } else if (hasVincentCutters || hasVincentConfession || hasVincentBlood) {
         vincent = 'ต้องสงสัย';
       }
-      if (isTimeConfirmed) liora = 'ยืนยันแล้ว';
+      if (hasCase02LioraCleared) liora = 'ยืนยันแล้ว';
     } else if (caseId === 'case_03_liora') {
-      if (isTimeConfirmed || hasTeaTrace || deductionSet.has('D01_POISON_DEATH_WINDOW')) gideon = 'ยืนยันแล้ว';
-      if (deductionSet.has('D05_VINCENT_CLEARED') || deductionSet.has('D01_POISON_DEATH_WINDOW') || hasTeaTrace) {
+      if (hasCase03GideonCleared) gideon = 'ยืนยันแล้ว';
+      else if (evidenceSet.has('burnt_folder_c') || evidenceSet.has('dossier_missing_file_c')) gideon = 'ต้องสงสัย';
+
+      if (hasCase03VincentCleared) {
         vincent = 'พ้นข้อหาฆาตกรรม';
       } else if (hasVincentBlood || hasVincentCutters || hasVincentConfession) {
         vincent = 'ต้องสงสัย';
       }
-      if (deductionSet.has('D03_LIORA_POISON_TRACE') || deductionSet.has('D04_LIORA_ALIBI_BROKEN') || hasTeaTrace) {
+
+      if (hasCase03LioraContradicted) {
         liora = 'หักล้างแล้ว';
+      } else if (hasTeaTrace || hasLioraLog || hasPatientWitness) {
+        liora = 'ต้องสงสัย';
       }
     } else {
-      if (hasWatch || deductionSet.has('D02_BLACKOUT_ALIBI_IRRELEVANT')) gideon = 'หักล้างแล้ว';
-      if ((hasVincentTicket && hasVincentStation) || deductionSet.has('D08_VINCENT_CLEARED')) {
+      if (hasCase01GideonContradicted) gideon = 'หักล้างแล้ว';
+      if (hasCase01VincentCleared) {
         vincent = 'ยืนยันแล้ว';
       } else if (hasVincentConfession || hasVincentCutters || hasVincentBlood) {
         vincent = 'ต้องสงสัย';
       }
-      if ((hasLioraLog && hasPatientWitness) || deductionSet.has('D09_LIORA_CLEARED')) liora = 'ยืนยันแล้ว';
+      if (hasCase01LioraCleared) liora = 'ยืนยันแล้ว';
     }
 
     return { gideon, vincent, liora };
   }
 
-  // Turn 1: No evidence discovered yet
+  // Turn 1: No evidence discovered yet -> All 3 cases must have ALL suspects as pending
   const t1Case01 = evaluateSuspectStamps('case_01_gideon', []);
   assert.equal(t1Case01.gideon, 'รอตรวจสอบ');
   assert.equal(t1Case01.vincent, 'รอตรวจสอบ');
@@ -171,17 +197,45 @@ test('timeline suspect cards start as pending and do not spoil conclusions on tu
   assert.equal(t1Case03.vincent, 'รอตรวจสอบ');
   assert.equal(t1Case03.liora, 'รอตรวจสอบ');
 
-  // Progressive Clue Discovery in Case 02: wall_clock confirms time
-  const t2Case02 = evaluateSuspectStamps('case_02_vincent', ['wall_clock', 'vincent_blood']);
-  assert.equal(t2Case02.gideon, 'ยืนยันแล้ว');
-  assert.equal(t2Case02.liora, 'ยืนยันแล้ว');
-  assert.equal(t2Case02.vincent, 'หักล้างแล้ว');
+  // Progressive Clue Discovery in Case 02:
+  // Step A: wall_clock alone does NOT clear Liora or Gideon
+  const t2Case02StepA = evaluateSuspectStamps('case_02_vincent', ['wall_clock']);
+  assert.equal(t2Case02StepA.gideon, 'รอตรวจสอบ');
+  assert.equal(t2Case02StepA.liora, 'รอตรวจสอบ');
+  assert.equal(t2Case02StepA.vincent, 'รอตรวจสอบ');
 
-  // Progressive Clue Discovery in Case 03: tea trace confirms poison
-  const t2Case03 = evaluateSuspectStamps('case_03_liora', ['tea_lozenge_trace']);
-  assert.equal(t2Case03.gideon, 'ยืนยันแล้ว');
-  assert.equal(t2Case03.vincent, 'พ้นข้อหาฆาตกรรม');
-  assert.equal(t2Case03.liora, 'หักล้างแล้ว');
+  // Step B: vincent_blood alone only raises suspicion on Vincent
+  const t2Case02StepB = evaluateSuspectStamps('case_02_vincent', ['wall_clock', 'vincent_blood']);
+  assert.equal(t2Case02StepB.vincent, 'ต้องสงสัย');
+  assert.equal(t2Case02StepB.liora, 'รอตรวจสอบ');
+
+  // Step C: Full evidence verified
+  const t2Case02Full = evaluateSuspectStamps('case_02_vincent', [
+    'wall_clock', 'vincent_blood', 'letter_opener', 'gideon_blackout_alibi', 'liora_patient_witness'
+  ]);
+  assert.equal(t2Case02Full.gideon, 'ยืนยันแล้ว');
+  assert.equal(t2Case02Full.liora, 'ยืนยันแล้ว');
+  assert.equal(t2Case02Full.vincent, 'หักล้างแล้ว');
+
+  // Progressive Clue Discovery in Case 03:
+  // Step A: tea trace alone ONLY marks Liora as suspected, does NOT solve the case!
+  const t2Case03StepA = evaluateSuspectStamps('case_03_liora', ['tea_lozenge_trace']);
+  assert.equal(t2Case03StepA.liora, 'ต้องสงสัย');
+  assert.equal(t2Case03StepA.gideon, 'รอตรวจสอบ');
+  assert.equal(t2Case03StepA.vincent, 'รอตรวจสอบ');
+
+  // Step B: Connecting tea trace to medical log contradicts Liora
+  const t2Case03StepB = evaluateSuspectStamps('case_03_liora', ['tea_lozenge_trace', 'liora_patient_log']);
+  assert.equal(t2Case03StepB.liora, 'หักล้างแล้ว');
+  assert.equal(t2Case03StepB.vincent, 'รอตรวจสอบ');
+
+  // Step C: Adding vincent_ticket and gideon_blackout_alibi verifies the others
+  const t2Case03Full = evaluateSuspectStamps('case_03_liora', [
+    'tea_lozenge_trace', 'liora_patient_log', 'vincent_ticket', 'gideon_blackout_alibi'
+  ]);
+  assert.equal(t2Case03Full.liora, 'หักล้างแล้ว');
+  assert.equal(t2Case03Full.vincent, 'พ้นข้อหาฆาตกรรม');
+  assert.equal(t2Case03Full.gideon, 'ยืนยันแล้ว');
 });
 
 test('people tab renders silhouette ??? for unencountered characters', () => {

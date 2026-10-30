@@ -524,14 +524,25 @@ const PixelUI = (() => {
       box.className = 'suspect-board-preview';
 
       if (person) {
+        const isPersonEncountered = Boolean(
+          person.encountered !== undefined
+            ? person.encountered
+            : (person.discovered !== undefined
+              ? person.discovered
+              : (person.here || (gameState?.visited_locations && gameState.visited_locations.includes(person.location)) || person.interrogated))
+        );
         const metaRow = document.createElement('div');
         metaRow.className = 'suspect-board-meta';
         const locSpan = document.createElement('span');
-        const locLabel = (locationsMap && locationsMap[person.location]) || person.location || 'บนขบวนรถไฟ';
+        const locLabel = isPersonEncountered
+          ? ((locationsMap && locationsMap[person.location]) || person.location || 'บนขบวนรถไฟ')
+          : 'ยังไม่พบตัว (ต้องสำรวจ)';
         locSpan.textContent = `📍 ตำแหน่ง: ${locLabel}`;
         const statusSpan = document.createElement('span');
-        statusSpan.className = person.interrogated ? 'badge allowed' : 'badge';
-        statusSpan.textContent = person.interrogated ? '✓ สอบปากคำแล้ว' : 'ยังไม่ได้สอบปากคำ';
+        statusSpan.className = isPersonEncountered && person.interrogated ? 'badge allowed' : 'badge';
+        statusSpan.textContent = isPersonEncountered
+          ? (person.interrogated ? '✓ สอบปากคำแล้ว' : 'ยังไม่ได้สอบปากคำ')
+          : 'รอการพบตัว';
         metaRow.append(locSpan, statusSpan);
         box.append(metaRow);
       }
@@ -830,12 +841,20 @@ const PixelUI = (() => {
       return;
     }
 
+    const encounteredCount = data.people.filter(p => Boolean(
+      p.encountered !== undefined
+        ? p.encountered
+        : (p.discovered !== undefined
+          ? p.discovered
+          : (p.here || (gameState?.visited_locations && gameState.visited_locations.includes(p.location)) || p.interrogated))
+    )).length;
+
     const header = document.createElement('div');
     header.className = 'archive-tab-header';
     header.innerHTML = `
       <div class="archive-headline">
         <strong>บุคคลบนขบวนรถไฟ</strong>
-        <small>${data.people.length} คน</small>
+        <small>พบแล้ว ${encounteredCount} / ${data.people.length} คน</small>
       </div>
     `;
     wrap.append(header);
@@ -939,7 +958,7 @@ const PixelUI = (() => {
 
     const caseId = data.case_id || 'case_01_gideon';
     const evidenceSet = new Set((data.evidence || []).map(e => e.id));
-    const deductionSet = new Set(data.deductions || []);
+    const deductionSet = new Set((data.deductions || []).map(d => typeof d === 'string' ? d : d.id));
 
     const hasWatch = evidenceSet.has('pocket_watch');
     const hasWallClock = evidenceSet.has('wall_clock');
@@ -962,6 +981,25 @@ const PixelUI = (() => {
     const hasTeaTrace = evidenceSet.has('tea_lozenge_trace');
     const hasLioraEstimate = evidenceSet.has('liora_time_estimate');
 
+    // สรุปตรรกะคดีตามหลักฐานและข้อสรุปที่ค้นพบจริง
+    const hasCase01MurderWindow = (hasWatch && (hasSoot || hasStaffImpact || hasTunnelSched)) || deductionSet.has('D01_TRUE_MURDER_WINDOW');
+    const hasCase01VincentCleared = (hasVincentStation && hasVincentTicket) || deductionSet.has('D08_VINCENT_CLEARED');
+    const hasCase01LioraCleared = (hasLioraLog && hasPatientWitness) || deductionSet.has('D09_LIORA_CLEARED');
+    const hasCase01GideonContradicted = (hasWatch || deductionSet.has('D02_BLACKOUT_ALIBI_IRRELEVANT')) && hasGideonAlibi;
+
+    const hasCase02MurderWindow = (hasWallClock && (hasLioraEstimate || hasVincentBlood)) || deductionSet.has('D01_BLACKOUT_MURDER_WINDOW');
+    const hasCase02VincentSabotage = (hasVincentCutters && evidenceSet.has('cut_copper_wire')) || deductionSet.has('D02_VINCENT_SABOTAGE');
+    const hasCase02VincentContradicted = (hasVincentBlood && (evidenceSet.has('letter_opener') || hasVincentCutters)) || deductionSet.has('D04_VINCENT_BLOOD_SPATTER');
+    const hasCase02GideonVerified = hasGideonAlibi && (hasCase02MurderWindow || deductionSet.has('D05_GIDEON_ALIBI_SOLID'));
+    const hasCase02LioraCleared = hasPatientWitness || deductionSet.has('D06_LIORA_CLEARED');
+
+    const hasCase03MurderWindow = (hasWatch && (hasLioraEstimate || evidenceSet.has('second_teacup'))) || deductionSet.has('D01_POISON_DEATH_WINDOW');
+    const hasCase03PoisonTrace = (hasTeaTrace && hasLioraLog) || deductionSet.has('D03_LIORA_POISON_TRACE');
+    const hasCase03LioraAlibiBroken = (hasPatientWitness && hasTunnelSched) || deductionSet.has('D04_LIORA_ALIBI_BROKEN');
+    const hasCase03VincentCleared = (hasVincentTicket && (hasCase03MurderWindow || hasCase03PoisonTrace)) || deductionSet.has('D05_VINCENT_CLEARED');
+    const hasCase03GideonCleared = (hasGideonAlibi && (hasCase03MurderWindow || hasCase03PoisonTrace)) || deductionSet.has('D06_GIDEON_CLEARED');
+    const hasCase03LioraContradicted = hasCase03PoisonTrace || hasCase03LioraAlibiBroken;
+
     const container = document.createElement('div');
     container.className = 'timeline-container';
 
@@ -983,16 +1021,22 @@ const PixelUI = (() => {
     let bannerDesc = 'ยังไม่พบวัตถุหรือบันทึกเวลาเกิดเหตุโดยตรง ให้ตรวจค้นสิ่งของในห้องตู้ 4 เพื่อหาร่องรอยนาฬิกาหรือเวลาที่แม่นยำ';
 
     if (caseId === 'case_02_vincent') {
-      isTimeConfirmed = hasWallClock || hasVincentBlood || deductionSet.has('D01_BLACKOUT_MURDER_WINDOW');
+      isTimeConfirmed = hasCase02MurderWindow;
       if (isTimeConfirmed) {
         bannerTitle = 'ช่วงเวลาเกิดเหตุรุนแรง: 21:15 – 21:18 (ช่วงไฟดับ)';
-        bannerDesc = 'นาฬิกาไฟฟ้าบนผนังห้องตู้ 4 หยุดที่ 21:15 ศพยังมีอุณหภูมิอุ่น เลือดสดเพิ่งเริ่มแข็งตัวพร้อมรอยแผลต่อสู้ ยืนยันว่าแคสเซียนถูกแทงเสียชีวิตระหว่างไฟดับ';
+        bannerDesc = 'นาฬิกาไฟฟ้าบนผนังห้องตู้ 4 หยุดที่ 21:15 เลือดสดเพิ่งเริ่มแข็งตัวพร้อมรอยแผลต่อสู้ ยืนยันว่าแคสเซียนถูกแทงเสียชีวิตระหว่างไฟดับ';
+      } else if (hasWallClock) {
+        bannerTitle = 'ช่วงเวลาเกิดเหตุ: คาดว่าเป็นช่วงไฟดับ (รอผลชันสูตร)';
+        bannerDesc = 'นาฬิกาไฟฟ้าบนผนังห้องตู้ 4 หยุดเดินที่ 21:15 รอผลการตรวจสภาพศพหรือเวลาตายเพื่อยืนยันช่วงเวลาเกิดเหตุ';
       }
     } else if (caseId === 'case_03_liora') {
-      isTimeConfirmed = hasWatch || hasLioraEstimate || deductionSet.has('D01_POISON_DEATH_WINDOW');
+      isTimeConfirmed = hasCase03MurderWindow;
       if (isTimeConfirmed) {
         bannerTitle = 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:25 (วางยาพิษอำพราง)';
         bannerDesc = 'นาฬิกาพกหยุดที่ 20:25 เมื่อพิษออกฤทธิ์เฉียบพลัน ริมฝีปากเขียวคล้ำ รูม่านตาขยาย แผลมีดแทงไม่มีการตกเลือดในเนื้อเยื่อ (แผลอำพรางหลังเสียชีวิต!)';
+      } else if (hasWatch) {
+        bannerTitle = 'ช่วงเวลาเกิดเหตุ: เข็มนาฬิกาหยุด 20:25 (รอตรวจสารพิษ)';
+        bannerDesc = 'นาฬิกาพกหยุดเดินที่ 20:25 ในอุโมงค์ รอผลตรวจสภาพศพและสารพิษเพื่อยืนยันสาเหตุและช่วงเวลาเสียชีวิตที่แท้จริง';
       }
     } else {
       isTimeConfirmed = hasWatch || deductionSet.has('D01_TRUE_MURDER_WINDOW');
@@ -1023,27 +1067,27 @@ const PixelUI = (() => {
         <div class="timeline-event-node">
           <span class="timeline-node-time">20:15–20:30</span>
           <span class="timeline-node-title">รถไฟวิ่งในอุโมงค์ · ห้องตู้ 4</span>
-          <div class="timeline-node-sub">${hasGideonAlibi || hasWatch || deductionSet.has('D01_BLACKOUT_MURDER_WINDOW') ? 'แคสเซียนยังมีชีวิต กิเดียนมาพบเรื่องคดีก่อนเดินกลับตู้เลานจ์' : 'มีรายงานการพบปะพูดคุยในตู้โดยสาร (รอตรวจสอบ)'}</div>
+          <div class="timeline-node-sub">${hasGideonAlibi ? 'แคสเซียนยังมีชีวิต กิเดียนมาพบเรื่องคดีก่อนเดินกลับตู้เลานจ์' : 'มีรายงานการพบปะพูดคุยในตู้โดยสาร (รอตรวจสอบ)'}</div>
         </div>
         <div class="timeline-event-node">
           <span class="timeline-node-time">20:45</span>
           <span class="timeline-node-title">สถานีฮัลเบิร์ด (ออกขบวน)</span>
-          <div class="timeline-node-sub">วินเซนต์ขึ้นรถไฟที่ตู้ 6 · นรินทร์ เวล ขึ้นรถไฟพบกิเดียนที่เลานจ์</div>
+          <div class="timeline-node-sub">${hasVincentTicket ? 'วินเซนต์ขึ้นรถไฟที่ตู้ 6 (มีตั๋วระบุสถานีฮัลเบิร์ด) · นรินทร์ เวล ขึ้นรถไฟพบกิเดียนที่เลานจ์' : 'สถานีฮัลเบิร์ด (ออกขบวน) · นรินทร์ เวล ขึ้นรถไฟพบกิเดียนที่เลานจ์'}</div>
         </div>
         <div class="timeline-event-node">
           <span class="timeline-node-time">21:05–21:14</span>
           <span class="timeline-node-title">ตู้สัมภาระ (ระบบไฟ)</span>
-          <div class="timeline-node-sub">${hasVincentCutters ? '✓ พบรอยคีมตัดสายไฟหลักในตู้สัมภาระ' : 'ระบบไฟฟ้าในตู้สัมภาระ (รอตรวจสอบสาเหตุความขัดข้อง)'}</div>
+          <div class="timeline-node-sub">${hasCase02VincentSabotage ? '✓ พบรอยคีมตัดสายไฟหลักในตู้สัมภาระ' : 'ระบบไฟฟ้าในตู้สัมภาระ (รอตรวจสอบสาเหตุความขัดข้อง)'}</div>
         </div>
-        <div class="timeline-event-node ${hasWallClock || hasVincentBlood ? 'critical-node' : ''}">
+        <div class="timeline-event-node ${hasCase02MurderWindow ? 'critical-node' : ''}">
           <span class="timeline-node-time">21:15–21:18</span>
           <span class="timeline-node-title">ไฟบนขบวนดับวูบ · ห้องตู้ 4</span>
-          <div class="timeline-node-sub">${hasWallClock || hasVincentBlood ? '⚡ 21:16 แคสเซียนถูกแทงเสียชีวิตในความมืด' : 'ไฟฟ้าดับ 3 นาที เกิดเหตุรุนแรงในห้องพัก (ยังไม่ยืนยันช่วงเวลาตาย)'}</div>
+          <div class="timeline-node-sub">${hasCase02MurderWindow ? '⚡ 21:16 แคสเซียนถูกแทงเสียชีวิตในความมืด' : 'ไฟฟ้าดับ 3 นาที เกิดเหตุรุนแรงในห้องพัก (ยังไม่ยืนยันช่วงเวลาตาย)'}</div>
         </div>
         <div class="timeline-event-node">
           <span class="timeline-node-time">21:20</span>
           <span class="timeline-node-title">ไฟติด · พบศพแคสเซียน รีด</span>
-          <div class="timeline-node-sub">${hasWallClock || hasVincentBlood ? 'ไฟติด · พบศพแคสเซียน รีด (ศพยังอุ่น เลือดเพิ่งแข็งตัว)' : 'ไฟติด · พบศพแคสเซียน รีด ในห้องพักตู้ 4'}</div>
+          <div class="timeline-node-sub">${hasCase02MurderWindow ? 'ไฟติด · พบศพแคสเซียน รีด (ศพยังอุ่น เลือดเพิ่งแข็งตัว)' : 'ไฟติด · พบศพแคสเซียน รีด ในห้องพักตู้ 4'}</div>
         </div>
         <div class="timeline-event-node active-node">
           <span class="timeline-node-time">21:30</span>
@@ -1056,12 +1100,12 @@ const PixelUI = (() => {
         <div class="timeline-event-node">
           <span class="timeline-node-time">20:00–20:10</span>
           <span class="timeline-node-title">ห้องตู้ 4 (ก่อนเข้าอุโมงค์)</span>
-          <div class="timeline-node-sub">${hasTeaTrace ? '✓ เสิร์ฟชาร้อนผสมสารพิษอัลคาลอยด์ให้แคสเซียน' : 'ห้องตู้ 4 (ก่อนเข้าอุโมงค์) · มีการนำเครื่องดื่มไปให้ผู้ตาย (รอตรวจสอบ)'}</div>
+          <div class="timeline-node-sub">${hasCase03PoisonTrace ? '✓ เสิร์ฟชาร้อนผสมสารพิษอัลคาลอยด์ให้แคสเซียน' : (hasTeaTrace ? 'พบร่องรอยคราบชาปริศนาในห้องตู้ 4 (รอตรวจสอบ)' : 'ห้องตู้ 4 (ก่อนเข้าอุโมงค์) · มีการนำเครื่องดื่มไปให้ผู้ตาย (รอตรวจสอบ)')}</div>
         </div>
-        <div class="timeline-event-node ${hasWatch ? 'critical-node' : ''}">
+        <div class="timeline-event-node ${hasCase03MurderWindow ? 'critical-node' : ''}">
           <span class="timeline-node-time">20:20–20:25</span>
           <span class="timeline-node-title">รถไฟวิ่งผ่านอุโมงค์ · ห้องตู้ 4</span>
-          <div class="timeline-node-sub">${hasWatch || hasLioraEstimate ? '⚡ ยาพิษออกฤทธิ์ กลไกนาฬิกาพกหยุดที่ 20:25 · มีร่องรอยการอำพรางบาดแผล' : 'รถไฟวิ่งผ่านอุโมงค์ · ห้องตู้ 4 (รอผลการตรวจพิสูจน์ร่องรอยบาดแผลและเวลา)'}</div>
+          <div class="timeline-node-sub">${hasCase03MurderWindow ? '⚡ ยาพิษออกฤทธิ์ กลไกนาฬิกาพกหยุดที่ 20:25 · มีร่องรอยการอำพรางบาดแผล' : 'รถไฟวิ่งผ่านอุโมงค์ · ห้องตู้ 4 (รอผลการตรวจพิสูจน์ร่องรอยบาดแผลและเวลา)'}</div>
         </div>
         <div class="timeline-event-node">
           <span class="timeline-node-time">20:30–20:45</span>
@@ -1071,17 +1115,17 @@ const PixelUI = (() => {
         <div class="timeline-event-node">
           <span class="timeline-node-time">20:45</span>
           <span class="timeline-node-title">สถานีฮัลเบิร์ด (ออกขบวน)</span>
-          <div class="timeline-node-sub">นรินทร์ เวล ก้าวขึ้นรถไฟ พบกิเดียนที่ตู้เลานจ์</div>
+          <div class="timeline-node-sub">${hasVincentTicket ? 'วินเซนต์ขึ้นรถไฟที่ตู้ 6 · นรินทร์ เวล ก้าวขึ้นรถไฟ พบกิเดียนที่ตู้เลานจ์' : 'นรินทร์ เวล ก้าวขึ้นรถไฟ พบกิเดียนที่ตู้เลานจ์'}</div>
         </div>
         <div class="timeline-event-node">
           <span class="timeline-node-time">21:15–21:18</span>
           <span class="timeline-node-title">ไฟบนขบวนดับวูบ</span>
-          <div class="timeline-node-sub">${hasVincentConfession || hasVincentCutters ? 'วินเซนต์ตัดไฟเพื่อขโมยเอกสาร และสะดุดศพในความมืด' : 'ไฟบนขบวนดับวูบลงชั่วขณะ (ยังไม่ทราบสาเหตุ)'}</div>
+          <div class="timeline-node-sub">${hasVincentConfession ? 'วินเซนต์ตัดไฟเพื่อขโมยเอกสาร และสะดุดศพในความมืด' : (hasVincentCutters ? 'พบรอยตัดสายไฟหลักในตู้สัมภาระ (ยังไม่ทราบสาเหตุ)' : 'ไฟบนขบวนดับวูบลงชั่วขณะ (ยังไม่ทราบสาเหตุ)')}</div>
         </div>
         <div class="timeline-event-node">
           <span class="timeline-node-time">21:20</span>
           <span class="timeline-node-title">พบศพ & รายงานชันสูตร</span>
-          <div class="timeline-node-sub">${deductionSet.has('D03_LIORA_POISON_TRACE') || deductionSet.has('D04_LIORA_ALIBI_BROKEN') ? 'พบศพ · รายงานชันสูตรขัดแย้งกับหลักฐานสารพิษ' : 'พบศพแคสเซียน รีด · ดร. ลิโอรา เข้าตรวจสอบสภาพศพเบื้องต้น'}</div>
+          <div class="timeline-node-sub">${hasCase03LioraContradicted ? 'พบศพ · รายงานชันสูตรขัดแย้งกับหลักฐานสารพิษ' : 'พบศพแคสเซียน รีด · ดร. ลิโอรา เข้าตรวจสอบสภาพศพเบื้องต้น'}</div>
         </div>
         <div class="timeline-event-node active-node">
           <span class="timeline-node-time">21:30</span>
@@ -1094,7 +1138,7 @@ const PixelUI = (() => {
         <div class="timeline-event-node">
           <span class="timeline-node-time">20:10–20:35</span>
           <span class="timeline-node-title">สถานีฮัลเบิร์ด (ชานชาลา)</span>
-          <div class="timeline-node-sub">${hasVincentStation && hasVincentTicket ? '✓ วินเซนต์อยู่ที่เคาน์เตอร์สถานี มีใบรับรองยืนยัน' : 'วินเซนต์อ้างว่าอยู่ที่สถานีฮัลเบิร์ด (รอตรวจสอบ)'}</div>
+          <div class="timeline-node-sub">${hasCase01VincentCleared ? '✓ วินเซนต์อยู่ที่เคาน์เตอร์สถานี มีใบรับรองยืนยัน' : 'วินเซนต์อ้างว่าอยู่ที่สถานีฮัลเบิร์ด (รอตรวจสอบ)'}</div>
         </div>
         <div class="timeline-event-node ${hasWatch ? 'critical-node' : ''}">
           <span class="timeline-node-time">20:20–20:26</span>
@@ -1138,24 +1182,30 @@ const PixelUI = (() => {
 
     if (caseId === 'case_02_vincent') {
       gideonAlibiText = '“ผมคุยกับคุณในตู้เลานจ์ตั้งแต่สถานีฮัลเบิร์ดจนกระทั่งเกิดเรื่อง”';
-      if (isTimeConfirmed) {
+      if (hasCase02GideonVerified) {
         gideonStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
         gideonFindings = 'พ้นข้อหาฆาตกรรม! เมื่อยืนยันว่าเหตุเกิดช่วงไฟดับ 21:15–21:18 น. นรินทร์นั่งคุยกับกิเดียนในตู้เลานจ์ตลอดช่วงดังกล่าว กิเดียนจึงมีพยานที่อยู่สมบูรณ์';
+      } else if (hasGideonAlibi) {
+        gideonStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
+        gideonFindings = 'กิเดียนให้การว่าคุยกับคุณในตู้เลานจ์ตลอดช่วงเกิดเหตุ รอการพิสูจน์ช่วงเวลาเกิดเหตุที่แน่นอน';
       } else {
         gideonStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
-        gideonFindings = 'กิเดียนอ้างว่าอยู่กับคุณในตู้เลานจ์ตั้งแต่สถานีฮัลเบิร์ด รอการยืนยันช่วงเวลาเกิดเหตุที่แท้จริง';
+        gideonFindings = 'กิเดียนนั่งอยู่ในตู้เลานจ์ รอการสอบปากคำและตรวจสอบช่วงเวลาเกิดเหตุที่แท้จริง';
       }
     } else if (caseId === 'case_03_liora') {
       gideonAlibiText = '“ผมไม่ได้แตะต้องมีดเปิดจดหมาย และไม่ได้ไปห้องแคสเซียนหลังขึ้นรถไฟ”';
-      if (isTimeConfirmed || hasTeaTrace || deductionSet.has('D01_POISON_DEATH_WINDOW') || deductionSet.has('D03_LIORA_POISON_TRACE')) {
+      if (hasCase03GideonCleared) {
         gideonStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
-        gideonFindings = 'พ้นข้อหาฆาตกรรม! แม้กิเดียนจะต้องการทำลายเอกสารเบลล์เวเธอร์ แต่แคสเซียนเสียชีวิตจากยาพิษก่อนแล้ว และบาดแผลจากมีดไม่ได้เป็นสาเหตุการตาย';
+        gideonFindings = 'พ้นข้อหาฆาตกรรม! เมื่อพิสูจน์ได้ว่าแคสเซียนเสียชีวิตจากสารพิษตั้งแต่ช่วงอุโมงค์ (20:25) บาดแผลจากมีดเป็นเพียงการจัดฉากอำพรางในภายหลัง';
+      } else if (hasBurntC || hasDossierC) {
+        gideonStampHtml = '<span class="dossier-stamp stamp-suspect">ต้องสงสัย / SUSPECTED</span>';
+        gideonFindings = 'พบร่องรอยเอกสารที่ถูกเผาและแรงจูงใจเรื่องแฟ้มคดี รอผลพิสูจน์สาเหตุการตายที่แท้จริงและอาวุธ';
       } else {
         gideonStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
         gideonFindings = 'กิเดียนอ้างว่าไม่ได้แตะต้องมีดและไม่ได้เข้าใกล้ผู้ตาย รอผลพิสูจน์สาเหตุการตายที่แท้จริงและอาวุธ';
       }
     } else {
-      if (hasWatch || deductionSet.has('D02_BLACKOUT_ALIBI_IRRELEVANT')) {
+      if (hasCase01GideonContradicted) {
         gideonStampHtml = '<span class="dossier-stamp stamp-contradiction">หักล้างแล้ว / CONTRADICTION</span>';
         gideonFindings = 'คำอ้างช่วงไฟดับ (21:15) ไร้ผล! เหตุฆาตกรรมเกิดช่วง 20:20–20:26 ซึ่งกิเดียนยอมรับว่าอยู่คนเดียวและไม่มีพยานยืนยันที่อยู่';
         if (hasStaffNoMsg) {
@@ -1164,6 +1214,9 @@ const PixelUI = (() => {
         if (hasBurntC && hasDossierC) {
           gideonFindings += '<br><strong style="color:#ee6b54;">[พบแรงจูงใจ / MOTIVE]</strong> เศษเอกสารที่เผามีลายเซ็น G.H. เพื่อทำลายความรับผิดในคดีเบลล์เวเธอร์';
         }
+      } else if (hasGideonAlibi) {
+        gideonStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
+        gideonFindings = 'กิเดียนอ้างว่าอยู่กับคุณตอนไฟดับ 21:15 กำลังรอหลักฐานยืนยันว่าช่วงเกิดเหตุที่แท้จริงเกิดขึ้นเมื่อใด';
       }
     }
 
@@ -1189,33 +1242,33 @@ const PixelUI = (() => {
 
     if (caseId === 'case_02_vincent') {
       vincentAlibiText = '“ผมเข้าไปในห้องตอนไฟดับจริง แต่แคสเซียนถูกฆ่าอยู่ก่อนแล้ว ผมแค่สะดุดศพ”';
-      if (hasVincentBlood || deductionSet.has('D04_VINCENT_BLOOD_SPATTER') || (hasVincentCutters && isTimeConfirmed)) {
+      if (hasCase02VincentContradicted) {
         vincentStampHtml = '<span class="dossier-stamp stamp-contradiction">หักล้างแล้ว / CONTRADICTION</span>';
-        vincentFindings = 'คำให้การถูกหักล้างสิ้นเชิง! คราบเลือดบนเสื้อโค้ตเป็นรอยกระเซ็นแรงสูง (Arterial Spatter) จากการดึงมีด ไม่ใช่รอยสะดุดสัมผัส และร่องฟันคีมตัดสายไฟตรงกับตู้ไฟสัมภาระ';
+        vincentFindings = 'คำให้การถูกหักล้างสิ้นเชิง! คราบเลือดบนเสื้อโค้ตเป็นรอยกระเซ็นแรงสูง (Arterial Spatter) จากการจ้วงแทง ไม่ใช่รอยสะดุดสัมผัส และร่องฟันคีมตัดสายไฟตรงกับตู้ไฟสัมภาระ';
         if (hasMaraJob || deductionSet.has('D03_VINCENT_MOTIVE')) {
           vincentFindings += '<br><strong style="color:#ee6b54;">[พบแรงจูงใจ / MOTIVE]</strong> พบบันทึกจ้างงานชิงเอกสารจากมารา วอสส์ แลกกับเงินรางวัลก้อนโต';
         }
-      } else if (hasVincentCutters || hasVincentConfession) {
+      } else if (hasVincentCutters || hasVincentConfession || hasVincentBlood) {
         vincentStampHtml = '<span class="dossier-stamp stamp-suspect">ต้องสงสัย / SUSPECTED</span>';
-        vincentFindings = 'ยอมรับว่าตัดไฟและแอบเข้าห้องตู้ 4 รอผลตรวจพิสูจน์คราบเลือดและรอยเครื่องมือบนสายไฟ';
+        vincentFindings = 'ยอมรับว่าตัดไฟหรือพบคราบเลือดและเครื่องมือ รอผลตรวจพิสูจน์รอยกระเซ็นของเลือดและอาวุธมีด';
       } else {
         vincentStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
         vincentFindings = 'วินเซนต์นั่งเงียบอยู่ตู้ 6 มีพิรุธและท่าทางวิตกกังวล รอผลตรวจพิสูจน์คราบเลือดและเครื่องมือ';
       }
     } else if (caseId === 'case_03_liora') {
       vincentAlibiText = '“ผมแค่ตัดไฟจะขโมยกระเป๋าแต่สะดุดศพในความมืด เลือดเลยเปื้อนเสื้อ”';
-      if (deductionSet.has('D05_VINCENT_CLEARED') || deductionSet.has('D01_POISON_DEATH_WINDOW') || deductionSet.has('D03_LIORA_POISON_TRACE') || hasTeaTrace) {
+      if (hasCase03VincentCleared) {
         vincentStampHtml = '<span class="dossier-stamp stamp-verified">พ้นข้อหาฆาตกรรม / EXCULPATED</span>';
-        vincentFindings = 'วินเซนต์เป็นเพียงแพะรับบาป! คราบเลือดบนเสื้อเกิดขึ้นขณะแคสเซียนเป็นศพแล้ว ร่องรอยพิสูจน์ได้ว่าเขาไม่ได้มีส่วนเกี่ยวข้องกับยาพิษ';
+        vincentFindings = 'วินเซนต์เป็นเพียงแพะรับบาป! ตั๋วรถไฟยืนยันว่าเขาขึ้นที่ฮัลเบิร์ด (20:45) หลังแคสเซียนเสียชีวิตจากยาพิษไปแล้ว (20:25) คราบเลือดเกิดจากการสะดุดศพในความมืด';
       } else if (hasVincentBlood || hasVincentCutters || hasVincentConfession) {
         vincentStampHtml = '<span class="dossier-stamp stamp-suspect">ต้องสงสัย / SUSPECTED</span>';
-        vincentFindings = 'ตกเป็นผู้ต้องสงสัยอันดับหนึ่งเพราะคราบเลือดและคีมตัดไฟ รอหลักฐานพิสูจน์สาเหตุการตายที่แท้จริง';
+        vincentFindings = 'ตกเป็นผู้ต้องสงสัยอันดับหนึ่งเพราะคราบเลือดและคีมตัดไฟ รอหลักฐานพิสูจน์สาเหตุการตายที่แท้จริงและเวลาที่ขึ้นรถไฟ';
       } else {
         vincentStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
         vincentFindings = 'วินเซนต์ถูกเพ่งเล็งเรื่องคราบเลือดและเหตุไฟดับ รอหลักฐานพิสูจน์สาเหตุการตายและลำดับเวลา';
       }
     } else {
-      if ((hasVincentTicket && hasVincentStation) || deductionSet.has('D08_VINCENT_CLEARED')) {
+      if (hasCase01VincentCleared) {
         vincentStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
         vincentFindings = 'พ้นข้อหาฆาตกรรม! ตั๋วรถไฟและใบรับรองของนายสถานียืนยันว่าเขาอยู่ที่เคาน์เตอร์สถานีฮัลเบิร์ดช่วง 20:10–20:35 จึงไม่อาจอยู่ในห้องเกิดเหตุช่วง 20:20–20:26 ได้';
         if (hasVincentConfession) {
@@ -1249,29 +1302,35 @@ const PixelUI = (() => {
 
     if (caseId === 'case_02_vincent') {
       lioraAlibiText = '“ฉันชันสูตรศพทันทีที่ไฟติด อุณหภูมิร่างกายและสภาพแผลยืนยันเวลาตายช่วงไฟดับ”';
-      if (isTimeConfirmed) {
+      if (hasCase02LioraCleared) {
         lioraStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
-        lioraFindings = 'พ้นข้อหาฆาตกรรม! ผลการตรวจชันสูตรทางนิติเวชของหมอลิโอราตรงกับหลักฐานสภาพศพในที่เกิดเหตุ แคสเซียนเพิ่งเสียชีวิตระหว่างไฟดับ 21:16 น.';
+        lioraFindings = 'พ้นข้อหาฆาตกรรม! พยานผู้ป่วยในตู้ 3 ยืนยันว่า ดร. ลิโอรา อยู่ดูแลคนไข้ตลอดช่วงไฟดับ และผลการตรวจชันสูตรตรงกับสภาพศพจริง';
       } else {
         lioraStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
-        lioraFindings = 'ดร. ลิโอรา ให้การเบื้องต้นเกี่ยวกับสภาพศพ รอการตรวจสอบความสอดคล้องกับพยานหลักฐานในที่เกิดเหตุ';
+        lioraFindings = 'ดร. ลิโอรา ให้การเบื้องต้นเกี่ยวกับสภาพศพ รอการตรวจสอบพยานที่อยู่ของผู้ป่วยในตู้ 3 เพื่อยืนยันว่าเธอไม่ได้อยู่ในห้องเกิดเหตุ';
       }
     } else if (caseId === 'case_03_liora') {
       lioraAlibiText = '“ฉันอยู่ดูแลผู้ป่วยตั้งแต่สองทุ่ม และผู้ตายเพิ่งถูกแทงตายตอนไฟดับสามทุ่มสิบห้า”';
-      if (deductionSet.has('D03_LIORA_POISON_TRACE') || deductionSet.has('D04_LIORA_ALIBI_BROKEN') || deductionSet.has('D02_LIORA_MOTIVE') || hasTeaTrace) {
+      if (hasCase03LioraContradicted) {
         lioraStampHtml = '<span class="dossier-stamp stamp-contradiction">หักล้างแล้ว / CONTRADICTION</span>';
         lioraFindings = 'การอำพรางทางการแพทย์ถูกเปิดโปง! แผลแทงไม่มีการตอบสนองของสิ่งมีชีวิต (Post-mortem) ในถ้วยชามีสารพิษ และตรวจพบการปลอมแปลงบันทึกการรักษา';
         if (hasPatientWitness) {
           lioraFindings += '<br><strong style="color:#ee6b54;">[พยานหักล้าง]</strong> ผู้ป่วยตู้ 3 ยืนยันว่าหมอลิโอราเพิ่งมาถึงตอน 20:30 น. หลังเหตุการณ์ในอุโมงค์จบลงแล้ว';
         }
+      } else if (hasTeaTrace || hasLioraLog || hasPatientWitness) {
+        lioraStampHtml = '<span class="dossier-stamp stamp-suspect">ต้องสงสัย / SUSPECTED</span>';
+        lioraFindings = 'พบพิรุธในสมุดบันทึกหรือพยานคนไข้ รอหลักฐานเชื่อมโยงสารพิษและเวลาเข้าเวรเพื่อหักล้างคำให้การอย่างสมบูรณ์';
       } else {
         lioraStampHtml = '<span class="dossier-stamp stamp-pending">รอตรวจสอบ</span>';
         lioraFindings = 'ดร. ลิโอรา อ้างว่าดูแลผู้ป่วยตลอดช่วงเวลาเกิดเหตุและชันสูตรว่าตายจากแผลแทง รอตรวจสอบสมุดบันทึกและพยานคนไข้';
       }
     } else {
-      if ((hasLioraLog && hasPatientWitness) || deductionSet.has('D09_LIORA_CLEARED')) {
+      if (hasCase01LioraCleared) {
         lioraStampHtml = '<span class="dossier-stamp stamp-verified">ยืนยันแล้ว / VERIFIED</span>';
         lioraFindings = 'พ้นข้อหาฆาตกรรม! สมุดบันทึกการรักษาในห้องแพทย์และคำให้การของผู้ป่วยตู้ 3 สอดคล้องกัน ยืนยันว่าเธออยู่ดูแลคนไข้ตลอดช่วงที่รถไฟวิ่งในอุโมงค์ (20:20–20:26)';
+      } else if (evidenceSet.has('secret_file') || evidenceSet.has('liora_time_hesitation')) {
+        lioraStampHtml = '<span class="dossier-stamp stamp-suspect">ต้องสงสัย / SUSPECTED</span>';
+        lioraFindings = 'พบแฟ้มคดีเก่าของครอบครัวและท่าทีลังเล จำเป็นต้องตรวจสอบพยานคนไข้เพื่อยืนยันที่อยู่';
       }
     }
 
@@ -1410,23 +1469,25 @@ const PixelUI = (() => {
         });
 
         if (peopleHere.length && sampleButtonsCount < 2) {
-          const person = peopleHere[0];
-          const personName = person.name.split(' (')[0];
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'object-button quick-talk-btn';
-          if (person.topics && person.topics.length) {
-            const topic = person.topics[0];
-            btn.title = `ตัวอย่างคำสั่ง: ถาม ${personName} เรื่อง${topic.label}`;
-            btn.textContent = `🗣 ${personName} · ${topic.label}`;
-            btn.onclick = () => fillInput(`สอบปากคำ ${personName} เรื่อง ${topic.label}`);
-          } else {
-            btn.title = `ตัวอย่างคำสั่ง: สอบปากคำ ${personName}`;
-            btn.textContent = `🗣 สอบปากคำ ${personName}`;
-            btn.onclick = () => fillInput(`สอบปากคำ ${personName}`);
+          for (let pi = 0; pi < peopleHere.length && sampleButtonsCount < 2; pi++) {
+            const person = peopleHere[pi];
+            const personName = person.name.split(' (')[0];
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'object-button quick-talk-btn';
+            if (person.topics && person.topics.length) {
+              const topic = person.topics[0];
+              btn.title = `ตัวอย่างคำสั่ง: ถาม ${personName} เรื่อง${topic.label}`;
+              btn.textContent = `🗣 ${personName} · ${topic.label}`;
+              btn.onclick = () => fillInput(`สอบปากคำ ${personName} เรื่อง ${topic.label}`);
+            } else {
+              btn.title = `ตัวอย่างคำสั่ง: สอบปากคำ ${personName}`;
+              btn.textContent = `🗣 สอบปากคำ ${personName}`;
+              btn.onclick = () => fillInput(`สอบปากคำ ${personName}`);
+            }
+            visible.append(btn);
+            sampleButtonsCount++;
           }
-          visible.append(btn);
-          sampleButtonsCount++;
         }
 
         if (!visible.children.length) {

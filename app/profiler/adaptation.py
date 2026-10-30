@@ -367,10 +367,10 @@ class DynamicAdaptationEngine:
             ]
             if unvisited_locs:
                 lid, loc = unvisited_locs[0]
-                loc_name = loc.get("name_th", lid)
+                loc_clean = loc.get("name_th", lid).split(" (")[0]
                 return {
                     "command": f"ไปที่ {lid}",
-                    "label": f"Profiler แนะนำ: ไป {loc_name}",
+                    "label": f"Profiler แนะนำ: เดินไป {loc_clean}",
                 }
 
         return {

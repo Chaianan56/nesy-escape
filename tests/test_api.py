@@ -619,21 +619,26 @@ def test_presentation_route_works_without_remote_ai(monkeypatch):
 
 
 def test_journal_people_encounter_status():
-    """ทดสอบว่า /journal ส่งสถานะ encountered และ discovered ของตัวละครตามตำแหน่งและการสืบสวนจริง"""
+    """ทดสอบว่า /journal ส่งสถานะ encountered และ discovered ของตัวละครตามตำแหน่งและการสืบสวนจริง และซ่อน topics จนกว่าจะพบตัว"""
     # 1. เริ่มเกมที่ lounge_car: กิเดียนอยู่ในตู้เดียวกัน ต้อง encountered=True ส่วนคนอื่นตู้ที่ยังไม่เคยไปต้อง False
     res_start = state_post('/journal', GameState(current_location='lounge_car', visited_locations=['lounge_car'])).json()
     people_map = {p['id']: p for p in res_start['people']}
     assert people_map['gideon_hart']['encountered'] is True
     assert people_map['dr_liora_venn']['encountered'] is False
     assert people_map['vincent_gray']['encountered'] is False
+    # ตรวจสอบว่า topics ของคนที่ไม่เคยพบต้องถูกซ่อนเป็น []
+    assert len(people_map['gideon_hart']['topics']) > 0
+    assert people_map['dr_liora_venn']['topics'] == []
+    assert people_map['vincent_gray']['topics'] == []
 
-    # 2. เมื่อผู้เล่นเดินทางไปถึงตู้ first_class_car: ลิโอราต้อง encountered=True
+    # 2. เมื่อผู้เล่นเดินทางไปถึงตู้ first_class_car: ลิโอราต้อง encountered=True และปลดล็อก topics
     res_visited = state_post('/journal', GameState(
         current_location='first_class_car',
         visited_locations=['lounge_car', 'first_class_car']
     )).json()
     people_visited = {p['id']: p for p in res_visited['people']}
     assert people_visited['dr_liora_venn']['encountered'] is True
+    assert len(people_visited['dr_liora_venn']['topics']) > 0
     assert people_visited['vincent_gray']['encountered'] is False
 
     # 3. เมื่อเคยสอบปากคำวินเซนต์: วินเซนต์ต้อง encountered=True แม้อยู่ตู้เดิม
@@ -648,3 +653,31 @@ def test_journal_people_encounter_status():
     # 4. เมื่อคดีปิด (Ending): ทุกคนต้อง encountered=True เพื่อสรุปคดี
     res_closed = state_post('/journal', GameState(ending_id='cold_arrival')).json()
     assert all(p['encountered'] is True for p in res_closed['people'])
+
+
+def test_command_scaffolding_triggers_and_assistance_chip_flow(fake_llm):
+    """ทดสอบการสะสม scaffolding triggers ผ่าน /command จนเกิด Assistance Chip ในโปรไฟล์จริง"""
+    # จำลองผู้เล่นสั่งคำสั่งผิดกฎเรื่องตำแหน่ง (ข้ามตู้) ซ้ำๆ
+    fake_llm(ActionType.EXAMINE, target="pocket_watch")
+    r1 = client.post("/command", json={"text": "ตรวจนาฬิกาพก"}).json()
+    assert not r1["decision"]["allowed"]
+    assert r1["profile"]["assistance_chip"] is None
+
+    fake_llm(ActionType.EXAMINE, target="pocket_watch")
+    r2 = client.post("/command", json={"text": "ตรวจนาฬิกาพก"}).json()
+    assert not r2["decision"]["allowed"]
+    # เทิร์นที่ 2 ผิดซ้ำ -> Level 1 scaffolding nudge ในข้อความ
+    assert "ข้อสังเกตของผู้สืบสวน" in r2["decision"]["message"]
+
+    fake_llm(ActionType.EXAMINE, target="pocket_watch")
+    r3 = client.post("/command", json={"text": "ตรวจนาฬิกาพก"}).json()
+    assert not r3["decision"]["allowed"]
+    # เทิร์นที่ 3 ผิดซ้ำต่อเนื่อง -> Level 2 scaffolding: ได้รับ assistance chip
+    assert "คำแนะนำสืบสวนเจาะจงของ Profiler" in r3["decision"]["message"]
+    assert r3["profile"]["assistance_chip"] is not None
+    assert "Profiler แนะนำ" in r3["profile"]["assistance_chip"]["label"]
+
+    # และเมื่อดึง /journal ข้อมูลชิปต้องส่งผ่านไปยังแดชบอร์ด
+    j = client.post("/journal", json={}).json()
+    assert j["profile"]["assistance_chip"] is not None
+
