@@ -274,6 +274,8 @@ def journal(session: Session = Depends(session_for)):
     w = engine.world
     case = state.model_copy(update={"discovered_evidence": session.submitted_evidence}) if session.submitted_evidence is not None else state
     return {
+        "case_id": session.case_id,
+        "case_info": CASE_METADATA.get(session.case_id, {}),
         "evidence": [evidence_entry(w, eid) for eid in state.discovered_evidence if eid in w["objects"]],
         "inventory": [{"id": oid, "name": w["objects"][oid]["name_th"],
                        "description": w["objects"][oid].get("description", "")}

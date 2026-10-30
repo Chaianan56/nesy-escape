@@ -131,10 +131,11 @@ def test_case_02_solve_true_ending():
 
 
 def test_case_02_scapegoat_ending():
-    """ทดสอบว่าใน Case 02 หากกล่าวหากิเดียนโดยไม่มีหลักฐานแก้ต่าง จะได้ฉากจบ the_scapegoat"""
+    """ทดสอบว่าใน Case 02 หากกล่าวหากิเดียนโดยมีเพียงหลักฐานแวดล้อมแต่ไม่มีหลักฐานแก้ต่าง จะได้ฉากจบ the_scapegoat"""
     eng = get_engine("case_02_vincent")
     state = GameState(case_id="case_02_vincent", discovered_evidence=[
-        "wall_clock",
+        "burnt_folder_c",
+        "file_c_initials",
     ])
     cmd = ParsedCommand(action=ActionType.ACCUSE, target="gideon_hart", raw_text="กล่าวหากิเดียน")
     decision = eng.decide(cmd, state)
@@ -164,11 +165,26 @@ def test_case_03_solve_true_ending():
 
 
 def test_case_03_scapegoat_ending():
-    """ทดสอบว่าใน Case 03 หากกล่าวหาวินเซนต์ จะได้ฉากจบ the_scapegoat (วินเซนต์ตกเป็นแพะ)"""
+    """ทดสอบว่าใน Case 03 หากกล่าวหาวินเซนต์ด้วยหลักฐานตัดไฟ จะได้ฉากจบ the_scapegoat (วินเซนต์ตกเป็นแพะ)"""
     eng = get_engine("case_03_liora")
     state = GameState(case_id="case_03_liora", discovered_evidence=[
         "cut_copper_wire",
+        "wire_cutters",
+        "vincent_blood",
     ])
     cmd = ParsedCommand(action=ActionType.ACCUSE, target="vincent_gray", raw_text="กล่าวหาวินเซนต์")
     decision = eng.decide(cmd, state)
     assert decision.state_changes.get("ending") == "the_scapegoat"
+
+
+def test_all_cases_block_turn1_accusation():
+    """ทดสอบว่าทุกคดี (Case 01, Case 02, Case 03) ปฏิเสธการกล่าวหาพล่อยๆ ในเทิร์นแรกเมื่อไม่มีหลักฐาน"""
+    for case_id in AVAILABLE_CASES:
+        eng = get_engine(case_id)
+        empty_state = GameState(case_id=case_id, discovered_evidence=[])
+        for target in ("gideon_hart", "vincent_gray", "dr_liora_venn"):
+            cmd = ParsedCommand(action=ActionType.ACCUSE, target=target, raw_text=f"กล่าวหา {target}")
+            dec = eng.decide(cmd, empty_state)
+            assert dec.allowed is False, f"{case_id} allowed accusing {target} with zero evidence!"
+            assert dec.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
+
