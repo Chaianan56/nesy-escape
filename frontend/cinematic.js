@@ -120,9 +120,11 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (e) => {
     if (e.target.closest('#hideDialogueBtn, #toggleDialogueBtn, .dialogue-hide-btn')) {
       e.preventDefault();
+      e.stopPropagation();
       hideDialogueBox();
     } else if (e.target.closest('#showDialogueBtn, .show-dialogue-floating-btn')) {
       e.preventDefault();
+      e.stopPropagation();
       showDialogueBox();
     }
   });
