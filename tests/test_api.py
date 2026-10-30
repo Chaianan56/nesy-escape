@@ -616,3 +616,35 @@ def test_presentation_route_works_without_remote_ai(monkeypatch):
     assert result['new_state']['ending_id'] == 'the_scapegoat'
     assert client.post('/journal').json()['submitted_evidence'] == result['new_state']['discovered_evidence']
     assert client.post('/journal').json()['case_closed']
+
+
+def test_journal_people_encounter_status():
+    """ทดสอบว่า /journal ส่งสถานะ encountered และ discovered ของตัวละครตามตำแหน่งและการสืบสวนจริง"""
+    # 1. เริ่มเกมที่ lounge_car: กิเดียนอยู่ในตู้เดียวกัน ต้อง encountered=True ส่วนคนอื่นตู้ที่ยังไม่เคยไปต้อง False
+    res_start = state_post('/journal', GameState(current_location='lounge_car', visited_locations=['lounge_car'])).json()
+    people_map = {p['id']: p for p in res_start['people']}
+    assert people_map['gideon_hart']['encountered'] is True
+    assert people_map['dr_liora_venn']['encountered'] is False
+    assert people_map['vincent_gray']['encountered'] is False
+
+    # 2. เมื่อผู้เล่นเดินทางไปถึงตู้ first_class_car: ลิโอราต้อง encountered=True
+    res_visited = state_post('/journal', GameState(
+        current_location='first_class_car',
+        visited_locations=['lounge_car', 'first_class_car']
+    )).json()
+    people_visited = {p['id']: p for p in res_visited['people']}
+    assert people_visited['dr_liora_venn']['encountered'] is True
+    assert people_visited['vincent_gray']['encountered'] is False
+
+    # 3. เมื่อเคยสอบปากคำวินเซนต์: วินเซนต์ต้อง encountered=True แม้อยู่ตู้เดิม
+    res_interrogated = state_post('/journal', GameState(
+        current_location='lounge_car',
+        visited_locations=['lounge_car'],
+        interrogated_suspects=['vincent_gray']
+    )).json()
+    people_int = {p['id']: p for p in res_interrogated['people']}
+    assert people_int['vincent_gray']['encountered'] is True
+
+    # 4. เมื่อคดีปิด (Ending): ทุกคนต้อง encountered=True เพื่อสรุปคดี
+    res_closed = state_post('/journal', GameState(ending_id='cold_arrival')).json()
+    assert all(p['encountered'] is True for p in res_closed['people'])
