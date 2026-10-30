@@ -166,19 +166,3 @@ const GameArt = (() => {
   }
   return {onResult,sync,journalImage,journalPersonImage,setStepScene,resetToRoom};
 })();
-
-
-if (typeof document !== 'undefined' && document.addEventListener) {
-  document.addEventListener('DOMContentLoaded', () => {
-    const artFrame = document.querySelector('.scene-art');
-    if (artFrame) {
-      artFrame.addEventListener('click', () => {
-        if (artFrame.classList.contains('is-evidence-view')) {
-          if (typeof window !== 'undefined' && typeof window.returnToRoom === 'function') {
-            window.returnToRoom();
-          }
-        }
-      });
-    }
-  });
-}

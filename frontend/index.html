@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Nocturne Express — คดีบนรถไฟ</title>
-    <link rel="stylesheet" href="style.css?v=20261031-route6">
+    <link rel="stylesheet" href="style.css?v=20261031-route7">
 
-    <link rel="stylesheet" href="art.css?v=20261031-route6">
-    <link rel="stylesheet" href="novel.css?v=20261031-route6">
-    <link rel="stylesheet" href="accusation.css?v=20261031-route6">
-    <link rel="stylesheet" href="cinematic.css?v=20261031-route6">
-    <link rel="stylesheet" href="narrative.css?v=20261031-route6">
+    <link rel="stylesheet" href="art.css?v=20261031-route7">
+    <link rel="stylesheet" href="novel.css?v=20261031-route7">
+    <link rel="stylesheet" href="accusation.css?v=20261031-route7">
+    <link rel="stylesheet" href="cinematic.css?v=20261031-route7">
+    <link rel="stylesheet" href="narrative.css?v=20261031-route7">
     <style>
     /* Direct Art-Deco styles for Dialogue Toggle & API Status */
     .dialogue-panel.is-hidden { display: none !important; }
@@ -266,7 +266,7 @@
                 <section class="dialogue-panel panel">
                     <div class="section-bar">
                         <span id="dialogueSectionTitle">คำตอบล่าสุด</span>
-                        <button type="button" id="hideDialogueBtn" class="dialogue-hide-btn" onclick="hideDialogue()" title="ซ่อนบทสนทนาเพื่อมองภาพ">ซ่อนบทสนทนา ▾</button>
+                        <button type="button" id="hideDialogueBtn" class="dialogue-hide-btn" onclick="hideDialogue(event)" title="ซ่อนบทสนทนาเพื่อมองภาพ">ซ่อนบทสนทนา ▾</button>
                     </div>
                     <div id="latestChatHost">
                         <div id="chatFeed" class="chat-feed" role="log" aria-label="บทสนทนาและผลการสืบสวน" aria-live="polite"></div>
@@ -371,7 +371,8 @@
         </div>
     </dialog>
     <script>
-    window.hideDialogue = function() {
+    window.hideDialogue = function(event) {
+      if (event && event.stopPropagation) event.stopPropagation();
       const panel = document.querySelector('.dialogue-panel');
       const showBtn = document.getElementById('showDialogueBtn');
       if (panel) {
@@ -386,7 +387,8 @@
       }
     };
 
-    window.showDialogue = function() {
+    window.showDialogue = function(event) {
+      if (event && event.stopPropagation) event.stopPropagation();
       const panel = document.querySelector('.dialogue-panel');
       const showBtn = document.getElementById('showDialogueBtn');
       if (panel) {
@@ -401,7 +403,7 @@
       }
     };
     </script>
-    <script src="history.js?v=20261031-route6"></script><script src="novel.js?v=20261031-route6"></script><script src="narrative.js?v=20261031-route6"></script><script src="chat.js?v=20261031-route6"></script><script src="art.js?v=20261031-route6"></script><script src="inference.js?v=20261031-route6"></script><script src="pixel.js?v=20261031-route6"></script>
-    <script src="cinematic.js?v=20261031-route6"></script>
+    <script src="history.js?v=20261031-route7"></script><script src="novel.js?v=20261031-route7"></script><script src="narrative.js?v=20261031-route7"></script><script src="chat.js?v=20261031-route7"></script><script src="art.js?v=20261031-route7"></script><script src="inference.js?v=20261031-route7"></script><script src="pixel.js?v=20261031-route7"></script>
+    <script src="cinematic.js?v=20261031-route7"></script>
 </body>
 </html>
