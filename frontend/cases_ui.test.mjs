@@ -3,13 +3,16 @@ import assert from 'node:assert/strict';
 
 test('updateCaseEdition formats route indicators correctly for dev awareness', () => {
   const el = { textContent: '', title: '' };
+  const mono = { title: '' };
   globalThis.document = {
     getElementById(id) {
       if (id === 'caseEdition') return el;
+      if (id === 'monogramRestart') return mono;
       return null;
     },
     querySelector(sel) {
       if (sel === '.edition') return el;
+      if (sel === '.monogram') return mono;
       return null;
     }
   };
@@ -22,26 +25,34 @@ test('updateCaseEdition formats route indicators correctly for dev awareness', (
 
   function updateCaseEdition(caseId) {
     const target = globalThis.document.getElementById('caseEdition') || globalThis.document.querySelector('.edition');
-    if (!target) return;
     const info = mapping[caseId] || { letter: 'A', label: 'Route A' };
-    target.textContent = `แฟ้มคดี  /  01 [${info.letter}]`;
-    target.title = `Active Route: ${info.label} (${caseId || 'default'})`;
+    if (target) {
+      target.textContent = `แฟ้มคดี  /  01 [${info.letter}]`;
+      target.title = `Active Route: ${info.label} (${caseId || 'default'})`;
+    }
+    const monogram = globalThis.document.getElementById('monogramRestart') || globalThis.document.querySelector('.monogram');
+    if (monogram) {
+      monogram.title = `เริ่มคดีใหม่ (กลับหน้าแรก) • แฟ้มคดี  /  01 [${info.letter}] (${info.label})`;
+    }
   }
 
   // Case 01 -> Route A
   updateCaseEdition('case_01_gideon');
   assert.equal(el.textContent, 'แฟ้มคดี  /  01 [A]');
   assert.ok(el.title.includes('Route A'));
+  assert.ok(mono.title.includes('01 [A]'));
 
   // Case 02 -> Route B (คงเลข 01 เปลี่ยนเฉพาะอักษร [B])
   updateCaseEdition('case_02_vincent');
   assert.equal(el.textContent, 'แฟ้มคดี  /  01 [B]');
   assert.ok(el.title.includes('Route B'));
+  assert.ok(mono.title.includes('01 [B]'));
 
   // Case 03 -> Route C (คงเลข 01 เปลี่ยนเฉพาะอักษร [C])
   updateCaseEdition('case_03_liora');
   assert.equal(el.textContent, 'แฟ้มคดี  /  01 [C]');
   assert.ok(el.title.includes('Route C'));
+  assert.ok(mono.title.includes('01 [C]'));
 
   // Fallback
   updateCaseEdition('unknown_case');

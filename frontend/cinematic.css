@@ -6,8 +6,9 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .wordmark{position:absolute;left:50%;transform:translateX(-50%);align-items:center;white-space:nowrap}
 .wordmark>span{color:var(--gold);font-size:25px;letter-spacing:5px}.wordmark small{color:#b9ab91;letter-spacing:3px}
 .masthead{margin:0 24px;max-width:none;width:auto}
-.header-left{display:flex;align-items:center;gap:18px;z-index:2}
-.header-left .edition,.edition{border:1px solid #776446;background:rgba(15,23,32,0.85);color:var(--gold);padding:9px 15px;font-size:13px;display:inline-flex;align-items:center;letter-spacing:1px;white-space:nowrap;font-family:inherit;font-weight:600;box-sizing:border-box;border-radius:2px;box-shadow:0 2px 6px rgba(0,0,0,0.4)}
+.header-left{display:inline-flex;align-items:center;position:relative;z-index:10;padding-right:8px}
+.header-left .edition,.edition{position:absolute;left:56px;top:50%;transform:translateY(-50%) translateX(-8px);border:1px solid #776446;background:rgba(10,16,24,0.96);color:var(--gold);padding:6px 14px;font-size:12px;display:inline-flex;align-items:center;letter-spacing:1px;white-space:nowrap;font-family:inherit;font-weight:600;box-sizing:border-box;border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,0.7),0 0 10px rgba(217,183,117,0.15);opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.22s cubic-bezier(0.16,1,0.3,1),transform 0.22s cubic-bezier(0.16,1,0.3,1),visibility 0.22s}
+.header-left:hover .edition,.monogram:hover + .edition,.monogram:focus-visible + .edition,.header-left .edition:hover{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0);pointer-events:auto}
 .header-right{gap:12px;display:flex;align-items:center}.utility-button,.header-right .history-open{border:1px solid #776446;background:transparent;color:var(--gold);padding:11px 18px;font-size:13.5px}
 .header-right .clock-pill{border:1px solid #776446;background:transparent;color:var(--gold);padding:11px 16px;font-size:13.5px;font-family:monospace;letter-spacing:1px;display:inline-flex;align-items:center;gap:7px;border-radius:0}
 .header-right .clock-pill .clock-icon{font-size:14px;color:var(--gold)}
