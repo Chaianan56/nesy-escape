@@ -35,6 +35,21 @@ let deadlineReached = false;
 let clockFailures = 0;
 let clockAnchor = null;
 let clockElapsed = 0;
+// อัปเดตป้ายบอกคดีและ Dev Route Indicator บน Header
+function updateCaseEdition(caseId) {
+  const el = document.getElementById("caseEdition") || document.querySelector(".edition");
+  if (!el) return;
+  const mapping = {
+    "case_01_gideon": { num: "01", letter: "A", label: "Route A: The Burnt Dossier" },
+    "case_02_vincent": { num: "02", letter: "B", label: "Route B: The Strike in the Dark" },
+    "case_03_liora": { num: "03", letter: "C", label: "Route C: The Doctor's Retribution" }
+  };
+  const info = mapping[caseId] || { num: "01", letter: "A", label: "Route A" };
+  el.textContent = `แฟ้มคดี  /  ${info.num} [${info.letter}]`;
+  el.title = `Active Route: ${info.label} (${caseId || "default"})`;
+}
+if (typeof window !== "undefined") window.updateCaseEdition = updateCaseEdition;
+
 let latestProfile = null;
 
 function updateProfilerHUD(profile) {
@@ -171,6 +186,7 @@ async function initGame() {
     gameState = sceneData.initial_state;
     if (sceneData.api_status) updateApiStatus(sceneData.api_status);
     if (sceneData.profile) updateProfilerHUD(sceneData.profile);
+    if (sceneData.case_id) updateCaseEdition(sceneData.case_id);
     serverSessionId = gameState.session_id || null;
     timeLimitSeconds = sceneData.time_limit_seconds || 5400;
     if (sessionMonitorTimer !== null) clearInterval(sessionMonitorTimer);
