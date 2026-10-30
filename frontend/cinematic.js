@@ -11,8 +11,16 @@ window.addEventListener('DOMContentLoaded', () => {
   const header = document.querySelector('.header-right');
   const clock = document.getElementById('clockWidget');
   const profiler = document.getElementById('profilerWidget');
+  let edition = document.getElementById('caseEdition') || document.querySelector('.edition');
 
   if (header) {
+    if (!edition) {
+      edition = document.createElement('span');
+      edition.id = 'caseEdition';
+      edition.className = 'edition';
+      edition.textContent = 'แฟ้มคดี  /  01 [A]';
+      edition.title = 'รหัสแฟ้มคดีและเส้นทางการสืบสวน';
+    }
     header.replaceChildren();
     const journalButton = document.createElement('button');
     journalButton.type = 'button';
@@ -28,10 +36,14 @@ window.addEventListener('DOMContentLoaded', () => {
     historyButton.setAttribute('data-open-history', '');
 
     const items = [];
+    if (edition) items.push(edition);
     if (clock) items.push(clock);
     if (profiler) items.push(profiler);
     items.push(journalButton, historyButton);
     header.append(...items);
+    if (typeof window.updateCaseEdition === 'function') {
+      window.updateCaseEdition();
+    }
 
     const journal = document.createElement('dialog');
     journal.id = 'casebookDialog';

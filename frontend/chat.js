@@ -36,7 +36,10 @@ let clockFailures = 0;
 let clockAnchor = null;
 let clockElapsed = 0;
 // อัปเดตป้ายบอกคดีและ Dev Route Indicator บน Header
+let currentCaseId = null;
 function updateCaseEdition(caseId) {
+  if (caseId) currentCaseId = caseId;
+  const targetId = currentCaseId || caseId || (typeof gameState !== "undefined" && gameState?.case_id) || "case_01_gideon";
   const el = document.getElementById("caseEdition") || document.querySelector(".edition");
   if (!el) return;
   const mapping = {
@@ -44,9 +47,9 @@ function updateCaseEdition(caseId) {
     "case_02_vincent": { num: "02", letter: "B", label: "Route B: The Strike in the Dark" },
     "case_03_liora": { num: "03", letter: "C", label: "Route C: The Doctor's Retribution" }
   };
-  const info = mapping[caseId] || { num: "01", letter: "A", label: "Route A" };
+  const info = mapping[targetId] || { num: "01", letter: "A", label: "Route A" };
   el.textContent = `แฟ้มคดี  /  ${info.num} [${info.letter}]`;
-  el.title = `Active Route: ${info.label} (${caseId || "default"})`;
+  el.title = `Active Route: ${info.label} (${targetId})`;
 }
 if (typeof window !== "undefined") window.updateCaseEdition = updateCaseEdition;
 
