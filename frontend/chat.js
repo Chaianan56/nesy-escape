@@ -43,12 +43,12 @@ function updateCaseEdition(caseId) {
   const el = document.getElementById("caseEdition") || document.querySelector(".edition");
   if (!el) return;
   const mapping = {
-    "case_01_gideon": { num: "01", letter: "A", label: "Route A: The Burnt Dossier" },
-    "case_02_vincent": { num: "02", letter: "B", label: "Route B: The Strike in the Dark" },
-    "case_03_liora": { num: "03", letter: "C", label: "Route C: The Doctor's Retribution" }
+    "case_01_gideon": { letter: "A", label: "Route A: The Burnt Dossier" },
+    "case_02_vincent": { letter: "B", label: "Route B: The Strike in the Dark" },
+    "case_03_liora": { letter: "C", label: "Route C: The Doctor's Retribution" }
   };
-  const info = mapping[targetId] || { num: "01", letter: "A", label: "Route A" };
-  el.textContent = `แฟ้มคดี  /  ${info.num} [${info.letter}]`;
+  const info = mapping[targetId] || { letter: "A", label: "Route A" };
+  el.textContent = `แฟ้มคดี  /  01 [${info.letter}]`;
   el.title = `Active Route: ${info.label} (${targetId})`;
 }
 if (typeof window !== "undefined") window.updateCaseEdition = updateCaseEdition;

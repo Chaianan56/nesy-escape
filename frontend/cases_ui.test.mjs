@@ -15,16 +15,16 @@ test('updateCaseEdition formats route indicators correctly for dev awareness', (
   };
 
   const mapping = {
-    'case_01_gideon': { num: '01', letter: 'A', label: 'Route A: The Burnt Dossier' },
-    'case_02_vincent': { num: '02', letter: 'B', label: 'Route B: The Strike in the Dark' },
-    'case_03_liora': { num: '03', letter: 'C', label: "Route C: The Doctor's Retribution" }
+    'case_01_gideon': { letter: 'A', label: 'Route A: The Burnt Dossier' },
+    'case_02_vincent': { letter: 'B', label: 'Route B: The Strike in the Dark' },
+    'case_03_liora': { letter: 'C', label: "Route C: The Doctor's Retribution" }
   };
 
   function updateCaseEdition(caseId) {
     const target = globalThis.document.getElementById('caseEdition') || globalThis.document.querySelector('.edition');
     if (!target) return;
-    const info = mapping[caseId] || { num: '01', letter: 'A', label: 'Route A' };
-    target.textContent = `แฟ้มคดี  /  ${info.num} [${info.letter}]`;
+    const info = mapping[caseId] || { letter: 'A', label: 'Route A' };
+    target.textContent = `แฟ้มคดี  /  01 [${info.letter}]`;
     target.title = `Active Route: ${info.label} (${caseId || 'default'})`;
   }
 
@@ -33,14 +33,14 @@ test('updateCaseEdition formats route indicators correctly for dev awareness', (
   assert.equal(el.textContent, 'แฟ้มคดี  /  01 [A]');
   assert.ok(el.title.includes('Route A'));
 
-  // Case 02 -> Route B
+  // Case 02 -> Route B (คงเลข 01 เปลี่ยนเฉพาะอักษร [B])
   updateCaseEdition('case_02_vincent');
-  assert.equal(el.textContent, 'แฟ้มคดี  /  02 [B]');
+  assert.equal(el.textContent, 'แฟ้มคดี  /  01 [B]');
   assert.ok(el.title.includes('Route B'));
 
-  // Case 03 -> Route C
+  // Case 03 -> Route C (คงเลข 01 เปลี่ยนเฉพาะอักษร [C])
   updateCaseEdition('case_03_liora');
-  assert.equal(el.textContent, 'แฟ้มคดี  /  03 [C]');
+  assert.equal(el.textContent, 'แฟ้มคดี  /  01 [C]');
   assert.ok(el.title.includes('Route C'));
 
   // Fallback
