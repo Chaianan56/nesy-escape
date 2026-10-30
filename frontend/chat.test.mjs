@@ -566,7 +566,7 @@ for (const ending of ['cold_arrival', 'true_ending']) {
   });
 }
 
-test('ตรวจสิ่งของแล้วมีปุ่มและ Enter กลับมาหน้าเดิมอัตโนมัติ (Item Examination Return Flow)', async () => {
+test('ตรวจสิ่งของแล้วมีข้อความคลิกเพื่อไปต่อ และกดคลิก/Enter กลับมาหน้าเดิม (Item Examination Return Flow)', async () => {
   const sent = [];
   const c = loadChat(async (url, options) => {
     const body = JSON.parse(options.body || '{}');
@@ -577,13 +577,12 @@ test('ตรวจสิ่งของแล้วมีปุ่มและ E
   // 1. ตรวจสอบสิ่งของ (pocket_watch)
   c.read('renderSystem({ allowed: true, message: "นาฬิกาพกหยุดเดินที่ 23:15" }, { action: "examine", target: "pocket_watch" })');
   
-  // เช็คว่ามีการสร้างกล่อง item-return-panel และบันทึก __lastExaminedItem
+  // เช็คว่ามีการแสดงคลิกเพื่อไปต่อ และบันทึก __lastExaminedItem
   const lastCard = c.el('chatFeed').children.at(-1);
-  assert.ok(lastCard.innerHTML.includes('item-return-panel'));
-  assert.ok(lastCard.innerHTML.includes('btn-return-room'));
+  assert.ok(lastCard.innerHTML.includes('คลิกเพื่อไปต่อ'));
   assert.equal(c.read('window.__lastExaminedItem'), 'pocket_watch');
 
-  // 2. เมื่อผู้เล่นอ่านจบแล้วกด Enter (ช่องพิมพ์ว่างเปล่า) ต้องยิงกลับมาหน้าเดิม (ดูรอบๆ) ทันที
+  // 2. เมื่อผู้เล่นอ่านจบแล้วกดคลิกหรือ Enter (ช่องพิมพ์ว่างเปล่า) ต้องยิงกลับมาหน้าเดิม (ดูรอบๆ) ทันที
   c.el('chatInput').value = '';
   await c.sandbox.sendMessage(ev);
   assert.equal(sent.at(-1), 'ดูรอบๆ');
