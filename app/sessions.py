@@ -7,6 +7,7 @@ app/sessions.py — ระบบจัดการเซสชันผู้เ
 - รองรับ Read-only Snapshot สำหรับ Endpoint ที่อ่านอย่างเดียว (/journal, /hint, /pillars)
   เพื่อไม่ให้คำสั่งที่รอ LLM ประมวลผลไปบล็อกการเปิดสมุดคดีของผู้เล่น
 - ล้างเซสชันที่หมดอายุ (TTL 24 ชม.) อัตโนมัติ
+- รองรับการผูกคดีคู่ขนาน (Parallel Cases) ประจำเซสชัน
 """
 from dataclasses import dataclass, field
 from threading import Lock
@@ -27,6 +28,7 @@ MAX_SESSIONS = 1000  # เพดานจำนวนเซสชันพร้
 class Session:
     """โครงสร้างข้อมูลจัดเก็บสถานะของผู้เล่นแต่ละคนในหน่วยความจำ"""
     state: GameState = field(default_factory=new_game_state)
+    case_id: str = "case_01_gideon"
     submitted_evidence: Optional[List[str]] = None
     inference_attempts: List[dict] = field(default_factory=list)
     touched: float = field(default_factory=time.monotonic)
@@ -64,8 +66,22 @@ def session_for(request: Request, response: Response):
             if len(sessions) >= MAX_SESSIONS:
                 raise HTTPException(503, "มีเกมใช้งานเต็ม กรุณาลองใหม่ภายหลัง")
             token = secrets.token_urlsafe(32)
-            session = sessions[token] = Session()
-            session.state = session.state.model_copy(update={"session_id": token})
+
+            from app.cases import get_random_case_id, should_randomize, load_case_data, AVAILABLE_CASES
+            requested_case = request.query_params.get("case_id")
+            if requested_case and requested_case in AVAILABLE_CASES:
+                chosen_case = requested_case
+            elif should_randomize():
+                chosen_case = get_random_case_id()
+            else:
+                chosen_case = "case_01_gideon"
+
+            case_world = load_case_data(chosen_case)
+            session = sessions[token] = Session(
+                case_id=chosen_case,
+                state=new_game_state(case_world, case_id=chosen_case)
+            )
+            session.state = session.state.model_copy(update={"session_id": token, "case_id": chosen_case})
             response.set_cookie(
                 COOKIE,
                 token,
@@ -81,6 +97,7 @@ def session_for(request: Request, response: Response):
     if request.url.path in ("/journal", "/hint", "/pillars"):
         snapshot = Session(
             state=session.state.model_copy(deep=True),
+            case_id=session.case_id,
             submitted_evidence=(
                 list(session.submitted_evidence)
                 if session.submitted_evidence is not None

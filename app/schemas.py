@@ -93,6 +93,7 @@ class GameState(BaseModel):
     ending_id: Optional[str] = Field(None, description="id ฉากจบ ถ้าไม่ใช่ None แปลว่าคดีปิดแล้ว")
     failed_accusations: int = Field(0, description="จำนวนครั้งที่กล่าวหาแล้วหลักฐานไม่พอ ครบเพดานคดีปิด")
     session_id: Optional[str] = Field(None, description="รหัส session สำหรับผูกบันทึก telemetry")
+    case_id: Optional[str] = Field("case_01_gideon", description="รหัสเส้นทางคดีที่กำลังเล่นอยู่ (Parallel Cases)")
 
 
 # ============================================================
@@ -143,3 +144,9 @@ class CommandResponse(BaseModel):
     sequence_steps: Optional[List[Dict[str, Any]]] = Field(
         None, description="รายการขั้นตอนและผลลัพธ์ของแต่ละ step กรณีที่ command เป็น sequence"
     )
+
+
+class NewGameRequest(BaseModel):
+    """คำร้องขอเริ่มคดีใหม่ รองรับการสุ่มคดีหรือเจาะจงเส้นทางคดี"""
+    case_id: Optional[str] = Field(None, description="รหัสคดีที่ต้องการเล่น เช่น 'case_01_gideon', 'case_02_vincent', 'case_03_liora' หรือ 'random'")
+    random: bool = Field(False, description="ต้องการให้ระบบสุ่มคดีอัตโนมัติหรือไม่")
