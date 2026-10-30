@@ -11,6 +11,7 @@ main.py — Interaction Layer / ท่อเชื่อมระบบ
 """
 
 from pathlib import Path
+from typing import Optional, Dict, List, Any
 import logging
 import time
 
@@ -30,6 +31,7 @@ from app.schemas import (
     GameState,
     ParsedCommand,
     ReasoningStep,
+    NewGameRequest,
 )
 from app.case_notes import evidence_entry, case_questions, conversation_summaries
 from app.game_clock import sync_clock
@@ -39,6 +41,15 @@ from app.symbolic.engine import SymbolicEngine, apply_changes, accusation_submis
 from app.profiler.tracker import BehaviorTracker
 from app.profiler.adaptation import DynamicAdaptationEngine
 from app.profiler.telemetry import save_session_telemetry, load_all_session_summaries
+from app.cases import (
+    AVAILABLE_CASES,
+    CASE_METADATA,
+    get_available_cases,
+    get_engine,
+    get_random_case_id,
+    load_case_data,
+    should_randomize,
+)
 
 
 app = FastAPI(title="NeSy-Escape API", version="0.1")
@@ -69,14 +80,27 @@ trackers: dict[str, BehaviorTracker] = {}
 latest_profiles: dict[str, dict] = {}
 
 
-def get_tracker(session_id: str | None = None) -> BehaviorTracker:
+def engine_for_session(session: Session) -> SymbolicEngine:
+    """ดึง SymbolicEngine ที่ถูกต้องสำหรับคดีของเซสชันนี้"""
+    cid = getattr(session.state, "case_id", None) or getattr(session, "case_id", "case_01_gideon")
+    return get_engine(cid)
+
+
+def engine_for_state(state: GameState) -> SymbolicEngine:
+    """ดึง SymbolicEngine ที่ถูกต้องสำหรับ GameState นี้"""
+    cid = getattr(state, "case_id", None) or "case_01_gideon"
+    return get_engine(cid)
+
+
+def get_tracker(session_id: str | None = None, eng: SymbolicEngine | None = None) -> BehaviorTracker:
     """ดึงหรือสร้างตัวติดตามพฤติกรรมผู้เล่น (BehaviorTracker) ประจำเซสชัน"""
     sid = session_id or "default"
+    active_engine = eng or engine
     if sid not in trackers:
         trackers[sid] = BehaviorTracker(
             session_id=sid,
-            total_locations=len(engine.world.get("locations", {})),
-            total_evidence=sum(1 for v in engine.world.get("objects", {}).values() if v.get("type") == "evidence"),
+            total_locations=len(active_engine.world.get("locations", {})),
+            total_evidence=sum(1 for v in active_engine.world.get("objects", {}).values() if v.get("type") == "evidence"),
         )
     return trackers[sid]
 
@@ -145,17 +169,23 @@ def health(probe: bool = False):
     return info
 
 
+@app.get("/cases")
+def list_cases():
+    """คืนรายการคดีคู่ขนานทั้งหมดที่มีในระบบ"""
+    return {"cases": get_available_cases()}
+
+
 @app.get("/scene")
 def scene(session: Session = Depends(session_for)):
-    """ให้ frontend อ่านสถานะเกมและทะเบียนที่ผู้เล่นมีสิทธิ์เห็น
-
-    Neural อ่าน story.json โดยตรง ส่วน endpoint นี้กรองวัตถุที่ยังไม่พบ
-    """
+    """ให้ frontend อ่านสถานะเกมและทะเบียนที่ผู้เล่นมีสิทธิ์เห็น"""
+    engine = engine_for_session(session)
     w = engine.world
     session.state = sync_clock(session.state)
     if engine.is_out_of_time(session.state):
-        session.state = terminal_response(session.state).new_state
+        session.state = terminal_response(session.state, engine=engine).new_state
     return {
+        "case_id": session.case_id,
+        "case_info": CASE_METADATA.get(session.case_id, {}),
         "title": w.get("title"),
         "briefing": w.get("briefing"),
         "opening_scene": engine.narrative_scene("boarding", session.state)
@@ -178,27 +208,54 @@ def scene(session: Session = Depends(session_for)):
 
 @app.post("/pillars")
 def pillars(session: Session = Depends(session_for)):
-    """ความคืบหน้าสี่เสาหลักของผู้ต้องสงสัยทุกคน — ใช้วาดแถบความคืบหน้าใน frontend
-
-    เป็นการอ่านสถานะเท่านั้น ไม่เกี่ยวกับการตัดสิน
-    """
+    """ความคืบหน้าสี่เสาหลักของผู้ต้องสงสัยทุกคน — ใช้วาดแถบความคืบหน้าใน frontend"""
     if not session.state.ending_id:
         return {}
+    engine = engine_for_session(session)
     state = session.state.model_copy(update={"discovered_evidence": session.submitted_evidence}) if session.submitted_evidence is not None else session.state
     return {sid: engine.pillar_status(sid, state) for sid, person in engine.world["suspects"].items() if person.get("accusable", True)}
 
 
 @app.post("/new-game")
-def new_game(session: Session = Depends(session_for)):
-    """เริ่มเล่นคดีใหม่: รีเซ็ตสถานะเกม ประวัติการอนุมาน และข้อมูลโปรไฟล์ผู้เล่นทั้งหมด"""
+def new_game(
+    req: Optional[NewGameRequest] = None,
+    case_id: Optional[str] = None,
+    session: Session = Depends(session_for),
+):
+    """เริ่มเล่นคดีใหม่: สุ่มคดีหรือเลือกคดีที่กำหนด รีเซ็ตสถานะเกม ประวัติการอนุมาน และข้อมูลโปรไฟล์ผู้เล่น"""
     session_id = session.state.session_id
-    session.state = new_game_state(engine.world).model_copy(update={"session_id": session_id})
+    chosen_case = None
+    if req and req.case_id:
+        chosen_case = req.case_id
+    elif case_id:
+        chosen_case = case_id
+
+    if chosen_case == "random" or (req and req.random):
+        chosen_case = get_random_case_id(exclude=session.case_id)
+    elif not chosen_case:
+        if should_randomize():
+            chosen_case = get_random_case_id(exclude=session.case_id)
+        else:
+            chosen_case = getattr(session, "case_id", "case_01_gideon") or "case_01_gideon"
+
+    if chosen_case not in AVAILABLE_CASES:
+        chosen_case = "case_01_gideon"
+
+    session.case_id = chosen_case
+    case_engine = get_engine(chosen_case)
+    session.state = new_game_state(case_engine.world, case_id=chosen_case).model_copy(
+        update={"session_id": session_id, "case_id": chosen_case}
+    )
     if session_id:
         trackers.pop(session_id, None)
         latest_profiles.pop(session_id, None)
     session.submitted_evidence = None
     session.inference_attempts.clear()
-    return {"new_state": session.state.model_dump()}
+    return {
+        "new_state": session.state.model_dump(),
+        "case_id": chosen_case,
+        "case_info": CASE_METADATA.get(chosen_case, {}),
+    }
 
 
 @app.post("/start")
@@ -213,6 +270,7 @@ def start_game(session: Session = Depends(session_for)):
 def journal(session: Session = Depends(session_for)):
     """ดึงข้อมูลสมุดคดีของผู้เล่น: แสดงเฉพาะหลักฐานและข้อมูลที่ค้นพบแล้ว ไม่เฉลยข้อมูลลับ"""
     state = session.state
+    engine = engine_for_session(session)
     w = engine.world
     case = state.model_copy(update={"discovered_evidence": session.submitted_evidence}) if session.submitted_evidence is not None else state
     return {
@@ -284,14 +342,15 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     5. อัปเดตสถานะเกม (GameState) และส่งผลลัพธ์กลับสู่หน้าเว็บ
     """
     # ละเว้น snapshot จาก client เพื่อป้องกันการแทรกแซงสถานะ: ยึดสถานะบนเซิร์ฟเวอร์เป็นหลักเสมอ
+    engine = engine_for_session(session)
     req.state = session.state.model_copy(deep=True)
-    result = _handle_command(req)
+    result = _handle_command(req, engine=engine)
     if result.decision.allowed and result.parsed.action == ActionType.INTERROGATE:
         result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
     session.state = result.new_state
     session_id = result.new_state.session_id or "default"
-    tracker = get_tracker(session_id)
+    tracker = get_tracker(session_id, eng=engine)
     recent_violation_count = sum(1 for turn in tracker.turns[-3:] if not turn.allowed)
     pillars_status = {sid: engine.pillar_status(sid, result.new_state) for sid in engine.world["suspects"]}
     profile = tracker.record_turn(
@@ -333,6 +392,7 @@ def reconstruction(session: Session = Depends(session_for)):
     """ดึงฉากทบทวนคดี (Case Reconstruction): เปิดให้อ่านเมื่อไขคดีสำเร็จด้วย True Ending"""
     if session.state.ending_id != "true_ending" or session.submitted_evidence is None:
         return {"scene": None}
+    engine = engine_for_session(session)
     return {"scene": engine.narrative_scene("case_reconstruction", session.state,
                                            evidence_scope=session.submitted_evidence)}
 
@@ -340,6 +400,7 @@ def reconstruction(session: Session = Depends(session_for)):
 @app.get("/study-export")
 def study_export(session: Session = Depends(session_for)):
     """ส่งออกบันทึกข้อมูลการเล่นของเซสชันปัจจุบันสำหรับเก็บสถิติ"""
+    engine = engine_for_session(session)
     return {"story_version": engine.world.get("content_version", engine.world.get("scene_id")),
             "mode": "nesy", "ending": session.state.ending_id,
             "elapsed_seconds": session.state.elapsed_seconds,
@@ -367,12 +428,12 @@ def export_research_data():
     return {"count": len(load_all_session_summaries()), "sessions": load_all_session_summaries()}
 
 
-def _handle_command(req: CommandRequest):
+def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
     """ข้อความไทยหนึ่งประโยค -> คำตัดสินหนึ่งครั้ง -> สถานะใหม่หนึ่งก้อน"""
-
+    active_engine = engine or engine_for_state(req.state)
     req.state = sync_clock(req.state)
-    if req.state.ending_id or engine.is_out_of_time(req.state):
-        return terminal_response(req.state, req.text)
+    if req.state.ending_id or active_engine.is_out_of_time(req.state):
+        return terminal_response(req.state, req.text, engine=active_engine)
     # --- ขั้นที่ 1: ตีความ ---
     api_error_note = None
     try:
@@ -398,20 +459,20 @@ def _handle_command(req: CommandRequest):
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
     req.state = sync_clock(req.state)
-    if req.state.ending_id or engine.is_out_of_time(req.state):
-        return terminal_response(req.state, req.text)
+    if req.state.ending_id or active_engine.is_out_of_time(req.state):
+        return terminal_response(req.state, req.text, engine=active_engine)
     # Accept the previous wire format, but execute a sequence in one place only.
     if parsed.action == ActionType.SEQUENCE or (
         parsed.action == ActionType.AMBIGUOUS and parsed.sequence
     ):
-        return execute_sequence(parsed, req.state)
+        return execute_sequence(parsed, req.state, engine=active_engine)
     # --- ขั้นที่ 2: ตัดสินด้วยกฎ ---
-    if parsed.action == ActionType.ACCUSE and not engine.is_out_of_time(req.state):
-        decision = accusation_submission(engine, parsed, req.state, req.submitted_evidence)
+    if parsed.action == ActionType.ACCUSE and not active_engine.is_out_of_time(req.state):
+        decision = accusation_submission(active_engine, parsed, req.state, req.submitted_evidence)
     else:
         if parsed.action == ActionType.INFER:
             parsed = parsed.model_copy(update={"evidence": list(req.submitted_evidence or [])})
-        decision = engine.decide(parsed, req.state)
+        decision = active_engine.decide(parsed, req.state)
 
     # --- ขั้นที่ 2.5: Closed-Loop NeSy Reflexion & Uncertainty Gating ---
     if not decision.allowed:
@@ -421,8 +482,8 @@ def _handle_command(req: CommandRequest):
             parsed=parsed,
             decision=decision,
             state=req.state,
-            world_data=engine.world,
-            decide_fn=lambda p, s: engine.decide(p, s),
+            world_data=active_engine.world,
+            decide_fn=lambda p, s: active_engine.decide(p, s),
             interpret_remote_fn=interpret_remote if llm_online() else None,
         )
         if parsed.confidence < 0.50 and parsed.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS) and not decision.allowed:
@@ -484,7 +545,8 @@ def _handle_command(req: CommandRequest):
     return CommandResponse(parsed=parsed, decision=decision, new_state=new_state, api_status=get_api_status())
 
 
-def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse:
+def execute_sequence(parsed: ParsedCommand, state: GameState, engine: SymbolicEngine | None = None) -> CommandResponse:
+    active_engine = engine or engine_for_state(state)
     """ประมวลผลคำสั่งพ่วงต่อเนื่องหลายขั้นตอน (Multi-step Command Sequence)
 
     คุณสมบัติ:
@@ -516,8 +578,8 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
     sequence_steps = []
     for index, step in enumerate(steps):
         state = sync_clock(state)
-        if state.ending_id or engine.is_out_of_time(state):
-            return terminal_response(state, parsed.raw_text)
+        if state.ending_id or active_engine.is_out_of_time(state):
+            return terminal_response(state, parsed.raw_text, engine=active_engine)
         action, target = step.split()
         if action in {"accuse", "burn", "infer"}:
             return CommandResponse(parsed=parsed, new_state=state, pending_steps=steps[index:],
@@ -526,7 +588,7 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
                     message="\n\n".join(messages + ["ขั้นต่อไปต้องยืนยันก่อนดำเนินการ"]),
                     reasoning_chain=reasoning))
         from app.neural.repair import resolve_contextual_target
-        resolved_target = resolve_contextual_target(action, target, state, engine.world, raw_text=parsed.raw_text)
+        resolved_target = resolve_contextual_target(action, target, state, active_engine.world, raw_text=parsed.raw_text)
         repair_note = None
         if resolved_target:
             if resolved_target != target:
@@ -534,8 +596,8 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
             target = resolved_target
 
         command = ParsedCommand(action=ActionType(action), target=target, raw_text=step, confidence=1)
-        decision = engine.decide(command, state)
-        scene_playback = engine.dialogue_scene(command, state) if decision.allowed else None
+        decision = active_engine.decide(command, state)
+        scene_playback = active_engine.dialogue_scene(command, state) if decision.allowed else None
         messages.append(decision.message)
         reasoning.extend(decision.reasoning_chain)
 
@@ -580,10 +642,11 @@ def execute_sequence(parsed: ParsedCommand, state: GameState) -> CommandResponse
         decision=Decision(allowed=True, message="\n\n".join(messages), reasoning_chain=reasoning))
 
 
-def terminal_response(state: GameState, text: str = "") -> CommandResponse:
+def terminal_response(state: GameState, text: str = "", engine: SymbolicEngine | None = None) -> CommandResponse:
     """สร้าง CommandResponse ปิดคดีเมื่อหมดเวลาหรือเกิดฉากจบของเกม"""
+    active_engine = engine or engine_for_state(state)
     parsed = ParsedCommand(action=ActionType.UNKNOWN, raw_text=text)
-    decision = engine.decide(parsed, state)
+    decision = active_engine.decide(parsed, state)
     ending = decision.state_changes.get("ending")
     if ending:
         state = state.model_copy(update={"ending_id": ending})
@@ -593,16 +656,17 @@ def terminal_response(state: GameState, text: str = "") -> CommandResponse:
 @app.post("/clock")
 def game_clock(session: Session = Depends(session_for)):
     """ซิงค์เวลาและตรวจสอบการหมดเวลาของคดี (Investigation Deadline Check)"""
+    engine = engine_for_session(session)
     state = sync_clock(session.state)
     session.state = state
     if state.ending_id:
-        result = terminal_response(state)
+        result = terminal_response(state, engine=engine)
         return result.model_dump()
     if engine.is_out_of_time(state):
-        result = terminal_response(state)
+        result = terminal_response(state, engine=engine)
         session.state = result.new_state
         session_id = result.new_state.session_id or "default"
-        tracker = get_tracker(session_id)
+        tracker = get_tracker(session_id, eng=engine)
         profile = tracker.record_turn(
             raw_input="timeout",
             parsed=result.parsed,

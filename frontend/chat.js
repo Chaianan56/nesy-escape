@@ -834,7 +834,11 @@ async function sendMessage(e) {
 
 async function restartGame() {
   try {
-    const res = await fetch(`${API_BASE}/new-game`, { method: "POST" });
+    const res = await fetch(`${API_BASE}/new-game`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ random: true }),
+    });
     if (!res.ok && res.status !== 401) throw new Error(`HTTP ${res.status}`);
     window.location.reload();
   } catch (err) {
