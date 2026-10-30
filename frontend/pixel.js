@@ -1444,24 +1444,9 @@ const PixelUI = (() => {
         // 2. สภาวะปกติ (Normal State): แสดงเฉพาะตัวอย่างคำสั่งพื้นฐาน 1-2 ปุ่ม ไม่ปล่อยปุ่มทั้งหมดจนคลิกจบเกมได้เอง
         let sampleButtonsCount = 0;
 
-        // หากเพิ่งตรวจสิ่งของเสร็จ ให้มีปุ่มกลับมาหน้าเดิมทันทีที่แถบคำสั่งด่วน
-        if (typeof window !== 'undefined' && window.__lastExaminedItem) {
-          const locId = (typeof gameState !== 'undefined' && gameState?.current_location) || 'first_class_car';
-          const locName = (typeof locationsMap !== 'undefined' && locationsMap[locId]) ? locationsMap[locId].split(':')[0] : 'ตู้เดิม';
-          const returnBtn = document.createElement('button');
-          returnBtn.type = 'button';
-          returnBtn.className = 'object-button return-to-room-chip';
-          returnBtn.title = `คลิกเพื่อกลับสู่หน้าเดิม (${locName})`;
-          returnBtn.innerHTML = `↩ กลับมาหน้าเดิม (${locName})`;
-          returnBtn.onclick = () => {
-            if (typeof window.returnToRoom === 'function') window.returnToRoom();
-          };
-          visible.append(returnBtn);
-        }
-
-        // ตัวอย่างคำสั่งตรวจสิ่งของ (สูงสุด 1 ปุ่ม - เสนอชิ้นถัดไปที่ยังไม่ได้ตรวจเพื่อความลื่นไหล)
+        // ตัวอย่างคำสั่งตรวจสิ่งของ (สูงสุด 1 ปุ่ม)
         if (data.visible && data.visible.length && sampleButtonsCount < 2) {
-          const o = (typeof window !== 'undefined' && window.__lastExaminedItem && data.visible.find(item => item.id !== window.__lastExaminedItem)) || data.visible[0];
+          const o = data.visible[0];
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'object-button quick-inspect-btn';
