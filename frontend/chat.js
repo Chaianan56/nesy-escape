@@ -277,6 +277,33 @@ function executeInitialLookAround() {
   return locked(() => submit("ดูรอบๆ", { isRoomLook: true }));
 }
 
+function returnToRoom() {
+  if (typeof window !== 'undefined') {
+    if (window.__itemReturnTimer) {
+      clearTimeout(window.__itemReturnTimer);
+      window.__itemReturnTimer = null;
+    }
+    if (window.__countdownInterval) {
+      clearInterval(window.__countdownInterval);
+      window.__countdownInterval = null;
+    }
+    window.__lastExaminedItem = null;
+  }
+  if (typeof GameArt !== 'undefined' && typeof GameArt.resetToRoom === 'function') {
+    GameArt.resetToRoom();
+  }
+  return executeInitialLookAround();
+}
+if (typeof window !== 'undefined') window.returnToRoom = returnToRoom;
+
+function isItemTarget(target) {
+  if (!target) return false;
+  const knownLocations = ['locomotive', 'luggage_van_electrical', 'dining_car_staff', 'first_class_car', 'lounge_car', 'second_class_car'];
+  if (knownLocations.includes(target) || (locationsMap && locationsMap[target])) return false;
+  if (suspectsMap && suspectsMap[target]) return false;
+  return true;
+}
+
 // ============================================================
 // 2. HUD UPDATES (Location & Clock)
 // ============================================================
@@ -827,13 +854,34 @@ function showLoading() {
 async function sendMessage(e) {
   e.preventDefault();
   const input = document.getElementById("chatInput");
-  const text = input.value.trim();
+  const text = input ? input.value.trim() : "";
   // ระหว่างบทสนทนา: ช่องว่าง = อ่านต่อ, มีข้อความ = ข้ามบทสนทนาแล้วส่งคำสั่งเลย
   if (typeof NovelUI !== 'undefined' && NovelUI.active()) {
     if (!text) { NovelUI.next(); return; }
     NovelUI.close();
   }
-  if (!text) return;
+  if (!text) {
+    if (typeof window !== 'undefined' && window.__lastExaminedItem) {
+      if (typeof window.returnToRoom === 'function') {
+        window.returnToRoom();
+        return;
+      }
+    }
+    return;
+  }
+
+  // ล้างการนับเวลาถอยหลังกลับห้องเมื่อผู้เล่นพิมพ์คำสั่งใหม่
+  if (typeof window !== 'undefined') {
+    if (window.__itemReturnTimer) {
+      clearTimeout(window.__itemReturnTimer);
+      window.__itemReturnTimer = null;
+    }
+    if (window.__countdownInterval) {
+      clearInterval(window.__countdownInterval);
+      window.__countdownInterval = null;
+    }
+    window.__lastExaminedItem = null;
+  }
 
   let steps = [], sequence = false;
   await locked(async () => {
@@ -1020,12 +1068,40 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
 
   const steps = decision.reasoning_chain || [];
   let statusBadge = "";
+  const isItemExamine = Boolean(!isRoomLook && decision.allowed && parsed?.action === 'examine' && isItemTarget(parsed?.target));
+
   if (isRoomLook) {
     statusBadge = `<span class="badge info">📍 สภาพตู้รถปัจจุบัน</span>`;
+  } else if (isItemExamine) {
+    statusBadge = `<span class="badge allowed">🔍 ตรวจสอบหลักฐาน</span>`;
   } else if (decision.allowed) {
     statusBadge = `<span class="badge allowed">✓ อนุมัติ (ALLOWED)</span>`;
   } else {
     statusBadge = `<span class="badge denied">✗ ปฏิเสธ (DENIED)</span>`;
+  }
+
+  let returnHtml = "";
+  if (isItemExamine) {
+    if (typeof window !== 'undefined') window.__lastExaminedItem = parsed.target;
+    const curLoc = (typeof gameState !== 'undefined' && gameState?.current_location) || "first_class_car";
+    const curLocLabel = locationsMap[curLoc] || curLoc;
+    const shortLoc = curLocLabel.split(':')[0]; // เช่น "ตู้ 4"
+    returnHtml = `
+      <div class="item-return-panel" id="itemReturnPanel">
+        <div class="item-return-actions">
+          <button type="button" class="btn-return-room" id="btnReturnRoom" onclick="if(typeof window!=='undefined'&&typeof window.returnToRoom==='function')window.returnToRoom();" title="ตรวจสอบเสร็จแล้ว คลิกเพื่อกลับสู่มุมมองตู้รถเดิม">
+            ↩ ตรวจสอบเสร็จแล้ว · กลับมาหน้าเดิม (${escapeHtml(shortLoc)})
+          </button>
+          <span class="return-countdown-label" id="returnCountdown">
+            ⏱️ กำลังกลับสู่หน้าเดิมใน 4 วินาที · กด [Enter] หรือคลิกเพื่อกลับทันที
+          </span>
+        </div>
+        <div class="item-return-peek">
+          <span class="peek-badge">📍 ตำแหน่งปัจจุบัน:</span>
+          <span class="peek-text">${escapeHtml(curLocLabel)}</span>
+        </div>
+      </div>
+    `;
   }
 
   const modeLabel = "โหมด B (NeSy Engine)";
@@ -1078,10 +1154,91 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     </div>
     <div class="story-text">${escapeHtml(decision.message)}</div>
     ${reasoningHtml}
+    ${returnHtml}
   `;
 
   feed.appendChild(card);
   feed.scrollTop = feed.scrollHeight;
+
+  // จัดการตัวนับเวลาถอยหลังเพื่อกลับสู่หน้าเดิมอัตโนมัติเมื่อสำรวจสิ่งของเสร็จ
+  if (isItemExamine && typeof window !== 'undefined') {
+    if (window.__itemReturnTimer) {
+      clearTimeout(window.__itemReturnTimer);
+      window.__itemReturnTimer = null;
+    }
+    if (window.__countdownInterval) {
+      clearInterval(window.__countdownInterval);
+      window.__countdownInterval = null;
+    }
+
+    let secondsLeft = 4;
+    const countdownEl = card.querySelector ? card.querySelector('#returnCountdown') : null;
+
+    if (typeof setInterval !== 'undefined') {
+      window.__countdownInterval = setInterval(() => {
+        secondsLeft--;
+        if (countdownEl && secondsLeft > 0) {
+          countdownEl.textContent = `⏱️ กำลังกลับสู่หน้าเดิมใน ${secondsLeft} วินาที · กด [Enter] หรือคลิกเพื่อกลับทันที`;
+        }
+        if (secondsLeft <= 0) {
+          if (window.__countdownInterval) {
+            clearInterval(window.__countdownInterval);
+            window.__countdownInterval = null;
+          }
+        }
+      }, 1000);
+    }
+
+    if (typeof setTimeout !== 'undefined') {
+      window.__itemReturnTimer = setTimeout(() => {
+        window.__itemReturnTimer = null;
+        if (window.__countdownInterval) {
+          clearInterval(window.__countdownInterval);
+          window.__countdownInterval = null;
+        }
+        if (typeof window.returnToRoom === 'function' && window.__lastExaminedItem) {
+          window.returnToRoom();
+        }
+      }, 4000);
+    }
+
+    if (card.addEventListener) {
+      card.addEventListener('mouseenter', () => {
+        if (window.__itemReturnTimer) {
+          clearTimeout(window.__itemReturnTimer);
+          window.__itemReturnTimer = null;
+        }
+        if (window.__countdownInterval) {
+          clearInterval(window.__countdownInterval);
+          window.__countdownInterval = null;
+        }
+        if (countdownEl) countdownEl.textContent = '⏸️ หยุดนับเวลาชั่วคราวขณะอ่าน (กด Enter หรือคลิกปุ่มเพื่อกลับ)';
+      });
+    }
+  } else if (isRoomLook) {
+    if (typeof window !== 'undefined') {
+      window.__lastExaminedItem = null;
+      if (window.__itemReturnTimer) {
+        clearTimeout(window.__itemReturnTimer);
+        window.__itemReturnTimer = null;
+      }
+      if (window.__countdownInterval) {
+        clearInterval(window.__countdownInterval);
+        window.__countdownInterval = null;
+      }
+    }
+  }
+}
+
+// Global Escape Key to Return to Room View
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && typeof window !== 'undefined' && window.__lastExaminedItem) {
+      if (typeof window.returnToRoom === 'function') {
+        window.returnToRoom();
+      }
+    }
+  });
 }
 
 function renderError(message) {
