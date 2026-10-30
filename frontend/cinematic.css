@@ -1016,3 +1016,57 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
   letter-spacing: 0.5px;
 }
 
+/* Dynamic Character Silhouette (People Tab) */
+.person-card.person-unknown {
+  opacity: 0.72;
+  border: 1px dashed #3a4b5d;
+  background: #0f1620;
+}
+.person-card.person-unknown:hover {
+  border-color: #5d7085;
+  background: #131c28;
+}
+.person-name.person-name-unknown {
+  color: #8394a5 !important;
+  font-style: italic;
+}
+.person-badge.badge-unknown {
+  background: rgba(100, 115, 130, 0.2);
+  color: #8c9ba8;
+  border: 1px dashed #4e5d6d;
+}
+.archive-image-slot-unknown {
+  background: #0b1017 !important;
+  border: 1px dashed #2f3d4d !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.archive-image-slot-unknown .silhouette-icon {
+  font-size: 32px;
+  opacity: 0.38;
+  filter: grayscale(1);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Profiler Assistance Chip (Quick Action Strip) */
+.profiler-chip-btn {
+  background: linear-gradient(135deg, #2b2312, #18140a) !important;
+  color: #ffd580 !important;
+  border: 1px solid #d4a34b !important;
+  box-shadow: 0 0 8px rgba(212, 163, 75, 0.3) !important;
+  font-weight: 600 !important;
+  animation: profilerChipPulse 2.2s infinite ease-in-out;
+}
+.profiler-chip-btn:hover {
+  background: linear-gradient(135deg, #3d3119, #221c0e) !important;
+  border-color: #ffd580 !important;
+  box-shadow: 0 0 12px rgba(255, 213, 128, 0.55) !important;
+}
+@keyframes profilerChipPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(212, 163, 75, 0.25); }
+  50% { box-shadow: 0 0 12px rgba(255, 213, 128, 0.55); }
+}
+

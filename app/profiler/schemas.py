@@ -107,6 +107,10 @@ class PlayerProfile(BaseModel):
     scaffolding_trigger_count: int = 0
     pillars_fulfilled: Dict[str, bool] = Field(default_factory=dict)
     ending_id: Optional[str] = None
+    assistance_chip: Optional[Dict[str, str]] = Field(
+        None,
+        description="ชิปคำสั่งช่วยเหลือเจาะจงจาก Profiler เมื่อผู้เล่นติดหล่มระดับ 2 เช่น {'command': 'ตรวจนาฬิกาพก', 'label': '💡 Profiler แนะนำ: ตรวจนาฬิกาพก'}",
+    )
 
 
 class SessionSummary(BaseModel):

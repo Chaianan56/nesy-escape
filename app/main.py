@@ -291,7 +291,21 @@ def journal(session: Session = Depends(session_for)):
                     "location": sus.get("location"),
                     "accusable": sus.get("accusable", True),
                     "topics": engine.dialogue_options(sid, state) if not state.ending_id else [],
-                    "interrogated": sid in state.interrogated_suspects}
+                    "interrogated": sid in state.interrogated_suspects,
+                    "encountered": bool(
+                        state.ending_id
+                        or sus.get("location") == state.current_location
+                        or sus.get("location") in state.visited_locations
+                        or sid in state.interrogated_suspects
+                        or any(d.startswith(sid) for d in state.dialogue_history)
+                    ),
+                    "discovered": bool(
+                        state.ending_id
+                        or sus.get("location") == state.current_location
+                        or sus.get("location") in state.visited_locations
+                        or sid in state.interrogated_suspects
+                        or any(d.startswith(sid) for d in state.dialogue_history)
+                    )}
                    for sid, sus in w["suspects"].items()],
         "pillars": {sid: engine.pillar_status(sid, case) for sid, person in w["suspects"].items() if person.get("accusable", True)} if state.ending_id else {},
         "inference_questions": engine.inference_questions(state) if not state.ending_id else [],
@@ -371,6 +385,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
         is_looping=is_looping,
         recent_violation_count=recent_violation_count,
         consecutive_looping_count=profile.consecutive_looping_count,
+        engine=engine,
     )
     if adaptive_note and tracker.turns:
         tracker.turns[-1].adaptive_note = adaptive_note

@@ -317,3 +317,43 @@ def test_consecutive_looping_scaffolding():
     assert "คุณตรวจสอบบริเวณนี้อย่างถี่ถ้วนแล้ว" in adapted_consec.message
 
 
+def test_profiler_scaffolding_levels_and_assistance_chip():
+    """ทดสอบการทำงานของ Scaffolding ระดับ 1 (ข้อความวิเคราะห์) และระดับ 2 (Profiler Assistance Chip)"""
+    adaptation = DynamicAdaptationEngine()
+    state = GameState(current_location="lounge_car", visited_locations=["lounge_car"])
+    dec = Decision(allowed=True, message="ok")
+    tracker = BehaviorTracker(session_id="test_levels")
+
+    # เทิร์นที่ 1
+    tracker.record_turn("ตรวจ", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    # เทิร์นที่ 2 (consec = 1)
+    p2 = tracker.record_turn("ตรวจซ้ำ 1", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    # เทิร์นที่ 3 (consec = 2) -> Level 1 Scaffolding
+    p3 = tracker.record_turn("ตรวจซ้ำ 2", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    assert p3.consecutive_looping_count == 2
+    adapted_l1, note_l1 = adaptation.adapt(dec, ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), state, p3, is_looping=True)
+    assert note_l1 is not None
+    assert "Scaffolding nudge triggered" in note_l1
+    assert "คุณตรวจสอบบริเวณนี้อย่างถี่ถ้วนแล้ว" in adapted_l1.message
+    # ระดับ 1 ยังไม่ปล่อย assistance chip
+    assert p3.assistance_chip is None
+
+    # เทิร์นที่ 4 (consec = 3) -> Level 2 Scaffolding (ผู้เล่นยังไม่คืบหน้าหลังได้รับคำแนะนำ)
+    p4 = tracker.record_turn("ตรวจซ้ำ 3", ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), dec, state)
+    assert p4.consecutive_looping_count == 3
+    adapted_l2, note_l2 = adaptation.adapt(dec, ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), state, p4, is_looping=True)
+    assert note_l2 is not None
+    assert "Profiler Level 2 Assistance Chip generated" in note_l2
+    assert "ชิปคำสั่งนำทาง" in adapted_l2.message
+    assert p4.assistance_chip is not None
+    assert "Profiler แนะนำ" in p4.assistance_chip["label"]
+    assert "command" in p4.assistance_chip
+
+    # เมื่อผู้เล่นหลุดพ้นลูป (มีความคืบหน้า) ชิปต้องถูกเคลียร์กลับเป็น None
+    state_moved = GameState(current_location="car_3_dining", visited_locations=["lounge_car", "car_3_dining"])
+    p5 = tracker.record_turn("เดินไปตู้เสบียง", ParsedCommand(action=ActionType.MOVE, target="car_3_dining", raw_text="..."), dec, state_moved)
+    assert p5.consecutive_looping_count == 0
+    adapted_cleared, _ = adaptation.adapt(dec, ParsedCommand(action=ActionType.MOVE, target="car_3_dining", raw_text="..."), state_moved, p5, is_looping=False)
+    assert p5.assistance_chip is None
+
+

@@ -4,7 +4,7 @@ app.profiler.adaptation — ระบบปรับเปลี่ยนกา�
 โดยไม่ทำลายความถูกต้องของ Symbolic Rules (Sound Logic)
 """
 
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from app.schemas import ActionType, Decision, GameState, ParsedCommand
 from app.profiler.schemas import PlayerArchetype, PlayerProfile
 
@@ -21,10 +21,13 @@ class DynamicAdaptationEngine:
         is_looping: bool = False,
         recent_violation_count: int = 0,
         consecutive_looping_count: Optional[int] = None,
+        engine: Optional[Any] = None,
     ) -> Tuple[Decision, Optional[str]]:
         """
         ปรับปรุงข้อความใน Decision ให้มีน้ำเสียงและปฏิกิริยาของตัวละครที่เหมาะสม
-        และเพิ่มคำแนะนำ (Scaffolding) หากผู้เล่นพบปัญหาติดขัด
+        และเพิ่มคำแนะนำ (Scaffolding) หากผู้เล่นพบปัญหาติดขัด:
+        - Level 1: Consecutive looping >= 2 หรือทำผิดกฎซ้ำ แสดงข้อความวิเคราะห์/คำแนะนำสืบสวนเชิงตรรกะในกล่องบทสนทนา
+        - Level 2: Consecutive looping >= 3 หรือติดซ้ำหลังได้รับคำแนะนำ ส่งชิปคำสั่งช่วยเหลือเจาะจง (Profiler Assistance Chip)
         คืนค่า: (Updated Decision, Adaptive Note หรือ None)
         """
         adapted_message = decision.message
@@ -40,14 +43,39 @@ class DynamicAdaptationEngine:
                 adaptive_note = f"NPC reaction adapted for {profile.primary_archetype.value}"
 
         # ----------------------------------------------------------------------
-        # 2. Adaptive Scaffolding (ระบบให้คำแนะนำเมื่อติดหล่ม หรือทำผิดกฎซ้ำๆ)
+        # 2. Adaptive Scaffolding (ระดับ 1 & 2)
         # ----------------------------------------------------------------------
+        consec_loops = (
+            consecutive_looping_count
+            if consecutive_looping_count is not None
+            else getattr(profile, "consecutive_looping_count", 0)
+        )
+
         scaffold = self._get_scaffolding_nudge(
-            decision, parsed, state, profile, is_looping, recent_violation_count, consecutive_looping_count
+            decision, parsed, state, profile, is_looping, recent_violation_count, consec_loops
         )
         if scaffold:
             adapted_message = f"{adapted_message}\n\n{scaffold}"
             adaptive_note = (adaptive_note + " | " if adaptive_note else "") + "Scaffolding nudge triggered"
+
+        # Level 2 Scaffolding: เมื่อยังคงติดซ้ำหลังได้รับคำแนะนำ (consec_loops >= 3 หรือ recent_violations >= 3 หรือติดซ้ำหลังมี trigger)
+        is_level_2 = (
+            (is_looping and consec_loops >= 3)
+            or recent_violation_count >= 3
+            or (is_looping and consec_loops >= 2 and profile.scaffolding_trigger_count >= 1)
+        )
+
+        if is_level_2:
+            chip = self.generate_assistance_chip(state, engine, profile)
+            profile.assistance_chip = chip
+            level2_msg = (
+                f"💡 *[คำแนะนำสืบสวนเจาะจงของ Profiler]*: ตรวจพบว่าคุณยังคงวนซ้ำในจุดเดิม "
+                f"Profiler ได้สร้างชิปคำสั่งนำทาง [{chip['label']}] บนแถบ Quick Action ให้แล้ว"
+            )
+            adapted_message = f"{adapted_message}\n\n{level2_msg}"
+            adaptive_note = (adaptive_note + " | " if adaptive_note else "") + "Profiler Level 2 Assistance Chip generated"
+        else:
+            profile.assistance_chip = None
 
         # สร้าง Decision ใหม่ที่มีข้อความผ่านการ Adapt
         new_decision = Decision(
@@ -269,3 +297,83 @@ class DynamicAdaptationEngine:
             )
 
         return None
+
+    def generate_assistance_chip(
+        self,
+        state: GameState,
+        engine: Optional[Any] = None,
+        profile: Optional[PlayerProfile] = None,
+    ) -> Dict[str, str]:
+        """สร้างชิปคำสั่งช่วยเหลือเจาะจง (Profiler Assistance Chip) ตามบริบทสถานการณ์ปัจจุบัน"""
+        if engine is None:
+            try:
+                from app.cases import get_engine
+                engine = get_engine(getattr(state, "case_id", None) or "case_01_gideon")
+            except Exception:
+                engine = None
+
+        if engine and hasattr(engine, "world"):
+            w = engine.world
+            cur_loc = state.current_location
+
+            # 1. หาสิ่งของที่ยังไม่ได้ตรวจในห้องปัจจุบัน
+            unexamined_objs = [
+                (oid, obj)
+                for oid, obj in w.get("objects", {}).items()
+                if obj.get("location") == cur_loc
+                and oid not in state.discovered_evidence
+                and oid not in state.examined_objects
+                and (not hasattr(engine, "offerable") or engine.offerable(oid, state))
+            ]
+            if unexamined_objs:
+                oid, obj = unexamined_objs[0]
+                obj_name = obj.get("name_th", oid)
+                return {
+                    "command": f"ตรวจ{obj_name}",
+                    "label": f"Profiler แนะนำ: ตรวจ{obj_name}",
+                }
+
+            # 2. หาบุคคลที่อยู่ในห้องปัจจุบัน
+            suspects_here = [
+                (sid, sus)
+                for sid, sus in w.get("suspects", {}).items()
+                if sus.get("location") == cur_loc
+            ]
+            if suspects_here:
+                sid, sus = suspects_here[0]
+                sus_name = sus.get("name_th", sid).split(" (")[0]
+                # ถ้ายังไม่เคยสอบปากคำ
+                if sid not in state.interrogated_suspects:
+                    return {
+                        "command": f"สอบปากคำ {sus_name}",
+                        "label": f"Profiler แนะนำ: สอบปากคำ {sus_name}",
+                    }
+                # ถ้าเคยแล้วแต่ยังมีหัวข้อคุย
+                if hasattr(engine, "dialogue_options"):
+                    topics = engine.dialogue_options(sid, state)
+                    if topics:
+                        t = topics[0]
+                        return {
+                            "command": f"ถาม{sus_name} เรื่อง{t['label']}",
+                            "label": f"Profiler แนะนำ: ถาม {sus_name} เรื่อง{t['label']}",
+                        }
+
+            # 3. แนะนำเดินไปตู้ที่ยังไม่เคยไป
+            visited = set(state.visited_locations or [cur_loc])
+            unvisited_locs = [
+                (lid, loc)
+                for lid, loc in w.get("locations", {}).items()
+                if lid not in visited
+            ]
+            if unvisited_locs:
+                lid, loc = unvisited_locs[0]
+                loc_name = loc.get("name_th", lid)
+                return {
+                    "command": f"ไปที่ {lid}",
+                    "label": f"Profiler แนะนำ: ไป {loc_name}",
+                }
+
+        return {
+            "command": "ดูรอบๆ",
+            "label": "Profiler แนะนำ: ดูรอบๆ",
+        }

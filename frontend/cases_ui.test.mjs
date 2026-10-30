@@ -95,3 +95,172 @@ test('parallel case timeline logic differentiates routes', () => {
   assert.equal(resC.isConfirmed, true);
   assert.equal(resC.title, 'ช่วงเวลาเกิดเหตุรุนแรง: 20:20 – 20:25 (วางยาพิษอำพราง)');
 });
+
+test('timeline suspect cards start as pending and do not spoil conclusions on turn 1', () => {
+  function evaluateSuspectStamps(caseId, evidenceIds = [], deductions = []) {
+    const evidenceSet = new Set(evidenceIds);
+    const deductionSet = new Set(deductions);
+    const hasWatch = evidenceSet.has('pocket_watch');
+    const hasWallClock = evidenceSet.has('wall_clock');
+    const hasVincentBlood = evidenceSet.has('vincent_blood');
+    const hasVincentCutters = evidenceSet.has('wire_cutters') || evidenceSet.has('cut_copper_wire');
+    const hasVincentConfession = evidenceSet.has('vincent_blackout_confession');
+    const hasVincentTicket = evidenceSet.has('vincent_ticket');
+    const hasVincentStation = evidenceSet.has('vincent_station_alibi');
+    const hasLioraLog = evidenceSet.has('liora_patient_log');
+    const hasPatientWitness = evidenceSet.has('liora_patient_witness');
+    const hasTeaTrace = evidenceSet.has('tea_lozenge_trace');
+
+    let isTimeConfirmed = false;
+    if (caseId === 'case_02_vincent') {
+      isTimeConfirmed = hasWallClock || hasVincentBlood || deductionSet.has('D01_BLACKOUT_MURDER_WINDOW');
+    } else if (caseId === 'case_03_liora') {
+      isTimeConfirmed = hasWatch || deductionSet.has('D01_POISON_DEATH_WINDOW');
+    } else {
+      isTimeConfirmed = hasWatch || deductionSet.has('D01_TRUE_MURDER_WINDOW');
+    }
+
+    let gideon = 'รอตรวจสอบ';
+    let vincent = 'รอตรวจสอบ';
+    let liora = 'รอตรวจสอบ';
+
+    if (caseId === 'case_02_vincent') {
+      if (isTimeConfirmed) gideon = 'ยืนยันแล้ว';
+      if (hasVincentBlood || deductionSet.has('D04_VINCENT_BLOOD_SPATTER') || (hasVincentCutters && isTimeConfirmed)) {
+        vincent = 'หักล้างแล้ว';
+      } else if (hasVincentCutters || hasVincentConfession) {
+        vincent = 'ต้องสงสัย';
+      }
+      if (isTimeConfirmed) liora = 'ยืนยันแล้ว';
+    } else if (caseId === 'case_03_liora') {
+      if (isTimeConfirmed || hasTeaTrace || deductionSet.has('D01_POISON_DEATH_WINDOW')) gideon = 'ยืนยันแล้ว';
+      if (deductionSet.has('D05_VINCENT_CLEARED') || deductionSet.has('D01_POISON_DEATH_WINDOW') || hasTeaTrace) {
+        vincent = 'พ้นข้อหาฆาตกรรม';
+      } else if (hasVincentBlood || hasVincentCutters || hasVincentConfession) {
+        vincent = 'ต้องสงสัย';
+      }
+      if (deductionSet.has('D03_LIORA_POISON_TRACE') || deductionSet.has('D04_LIORA_ALIBI_BROKEN') || hasTeaTrace) {
+        liora = 'หักล้างแล้ว';
+      }
+    } else {
+      if (hasWatch || deductionSet.has('D02_BLACKOUT_ALIBI_IRRELEVANT')) gideon = 'หักล้างแล้ว';
+      if ((hasVincentTicket && hasVincentStation) || deductionSet.has('D08_VINCENT_CLEARED')) {
+        vincent = 'ยืนยันแล้ว';
+      } else if (hasVincentConfession || hasVincentCutters || hasVincentBlood) {
+        vincent = 'ต้องสงสัย';
+      }
+      if ((hasLioraLog && hasPatientWitness) || deductionSet.has('D09_LIORA_CLEARED')) liora = 'ยืนยันแล้ว';
+    }
+
+    return { gideon, vincent, liora };
+  }
+
+  // Turn 1: No evidence discovered yet
+  const t1Case01 = evaluateSuspectStamps('case_01_gideon', []);
+  assert.equal(t1Case01.gideon, 'รอตรวจสอบ');
+  assert.equal(t1Case01.vincent, 'รอตรวจสอบ');
+  assert.equal(t1Case01.liora, 'รอตรวจสอบ');
+
+  const t1Case02 = evaluateSuspectStamps('case_02_vincent', []);
+  assert.equal(t1Case02.gideon, 'รอตรวจสอบ');
+  assert.equal(t1Case02.vincent, 'รอตรวจสอบ');
+  assert.equal(t1Case02.liora, 'รอตรวจสอบ');
+
+  const t1Case03 = evaluateSuspectStamps('case_03_liora', []);
+  assert.equal(t1Case03.gideon, 'รอตรวจสอบ');
+  assert.equal(t1Case03.vincent, 'รอตรวจสอบ');
+  assert.equal(t1Case03.liora, 'รอตรวจสอบ');
+
+  // Progressive Clue Discovery in Case 02: wall_clock confirms time
+  const t2Case02 = evaluateSuspectStamps('case_02_vincent', ['wall_clock', 'vincent_blood']);
+  assert.equal(t2Case02.gideon, 'ยืนยันแล้ว');
+  assert.equal(t2Case02.liora, 'ยืนยันแล้ว');
+  assert.equal(t2Case02.vincent, 'หักล้างแล้ว');
+
+  // Progressive Clue Discovery in Case 03: tea trace confirms poison
+  const t2Case03 = evaluateSuspectStamps('case_03_liora', ['tea_lozenge_trace']);
+  assert.equal(t2Case03.gideon, 'ยืนยันแล้ว');
+  assert.equal(t2Case03.vincent, 'พ้นข้อหาฆาตกรรม');
+  assert.equal(t2Case03.liora, 'หักล้างแล้ว');
+});
+
+test('people tab renders silhouette ??? for unencountered characters', () => {
+  function formatPersonCard(person, visitedLocations = ['lounge_car']) {
+    const isEncountered = Boolean(
+      person.encountered !== undefined
+        ? person.encountered
+        : (person.here || visitedLocations.includes(person.location) || person.interrogated)
+    );
+    if (!isEncountered) {
+      return {
+        isUnknown: true,
+        displayName: '??? (ยังไม่พบตัว)',
+        badge: '❓ ยังไม่พบตัว',
+      };
+    }
+    return {
+      isUnknown: false,
+      displayName: person.name,
+      badge: person.here ? '📍 อยู่ในตู้นี้' : person.location,
+    };
+  }
+
+  const gideonInLounge = { id: 'gideon_hart', name: 'กิเดียน ฮาร์ต', location: 'lounge_car', here: true, encountered: true };
+  const lioraInDining = { id: 'dr_liora_venn', name: 'ดร. ลิโอรา เวนน์', location: 'car_3_dining', here: false, encountered: false };
+
+  const cardGideon = formatPersonCard(gideonInLounge);
+  assert.equal(cardGideon.isUnknown, false);
+  assert.equal(cardGideon.displayName, 'กิเดียน ฮาร์ต');
+
+  const cardLiora = formatPersonCard(lioraInDining);
+  assert.equal(cardLiora.isUnknown, true);
+  assert.equal(cardLiora.displayName, '??? (ยังไม่พบตัว)');
+  assert.equal(cardLiora.badge, '❓ ยังไม่พบตัว');
+
+  // When backend or client updates encountered to true
+  const cardLioraVisited = formatPersonCard({ ...lioraInDining, encountered: true });
+  assert.equal(cardLioraVisited.isUnknown, false);
+  assert.equal(cardLioraVisited.displayName, 'ดร. ลิโอรา เวนน์');
+
+  // When testing client-side fallback without backend encountered field
+  const lioraFallback = { id: 'dr_liora_venn', name: 'ดร. ลิโอรา เวนน์', location: 'car_3_dining', here: false };
+  assert.equal(formatPersonCard(lioraFallback, ['lounge_car']).isUnknown, true);
+  assert.equal(formatPersonCard(lioraFallback, ['lounge_car', 'car_3_dining']).isUnknown, false);
+});
+
+test('quick action strip limits normal state to at most 2 basic sample buttons and shows profiler chip', () => {
+  function renderQuickButtons(visibleObjects, peopleHere, assistanceChip = null) {
+    const buttons = [];
+    if (assistanceChip) {
+      buttons.push({ type: 'profiler-chip', label: assistanceChip.label, command: assistanceChip.command });
+    }
+    let sampleCount = 0;
+    if (visibleObjects && visibleObjects.length && sampleCount < 2) {
+      buttons.push({ type: 'inspect', label: `ตรวจ${visibleObjects[0].name}` });
+      sampleCount++;
+    }
+    if (peopleHere && peopleHere.length && sampleCount < 2) {
+      const person = peopleHere[0];
+      buttons.push({ type: 'talk', label: `สอบปากคำ ${person.name}` });
+      sampleCount++;
+    }
+    return buttons;
+  }
+
+  // Room with 5 objects and 2 people
+  const objs = [{ name: 'นาฬิกาพก' }, { name: 'โต๊ะเครื่องดื่ม' }, { name: 'กระดุม' }];
+  const people = [{ name: 'กิเดียน ฮาร์ต' }, { name: 'พนักงาน' }];
+
+  // Normal state: limited to at most 2 buttons (not 5!)
+  const normalBtns = renderQuickButtons(objs, people, null);
+  assert.equal(normalBtns.length, 2);
+  assert.equal(normalBtns[0].type, 'inspect');
+  assert.equal(normalBtns[1].type, 'talk');
+
+  // Profiler Level 2 assistance state: adds profiler chip
+  const profilerChip = { command: 'ตรวจนาฬิกาพก', label: '💡 Profiler แนะนำ: ตรวจนาฬิกาพก' };
+  const assistedBtns = renderQuickButtons(objs, people, profilerChip);
+  assert.equal(assistedBtns.length, 3);
+  assert.equal(assistedBtns[0].type, 'profiler-chip');
+  assert.equal(assistedBtns[0].label, '💡 Profiler แนะนำ: ตรวจนาฬิกาพก');
+});
