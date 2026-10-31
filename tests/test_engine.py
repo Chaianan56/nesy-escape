@@ -603,3 +603,23 @@ def test_time_runs_out_before_the_command_is_even_inspected(engine):
     over = GameState(elapsed_seconds=engine.world["time_limit_seconds"])
     d = engine.decide(cmd(ActionType.EXAMINE, "ของที่ไม่มีอยู่จริง"), over)
     assert d.violated_rule_id == "R014_TIME_LIMIT"
+
+@pytest.mark.parametrize('case_id', ['case_01_gideon', 'case_02_vincent', 'case_03_liora'])
+def test_room_description_tracks_unlock_and_restored_state(case_id):
+    from app.cases import get_engine
+
+    engine = get_engine(case_id)
+    state = GameState(current_location='first_class_car', inventory=['medical_key'])
+    assert 'ห้องแพทย์ข้างกันล็อกอยู่' in engine.look_around(state.current_location, state)
+    decision = engine.decide(cmd(ActionType.USE, 'medical_room_door', instrument='medical_key'), state)
+    assert decision.allowed
+    state = apply_changes(state, decision.state_changes)
+    restored = GameState.model_validate_json(state.model_dump_json())
+    for current in (state, restored):
+        description = engine.look_around(current.current_location, current)
+        assert 'ห้องแพทย์ข้างกันปลดล็อกแล้ว' in description
+        assert 'ห้องแพทย์ข้างกันล็อกอยู่' not in description
+        examined = engine.decide(cmd(ActionType.EXAMINE, 'medical_room_door'), current)
+        assert examined.allowed
+        assert 'ประตูห้องแพทย์ปลดล็อกแล้ว' in examined.message
+        assert 'จะมอบกุญแจ' not in examined.message

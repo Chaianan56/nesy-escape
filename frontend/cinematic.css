@@ -96,7 +96,7 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 
 /* Bottom Dock */
 .command-dock{max-width:none;width:100%;margin:0;background:transparent;gap:24px;padding:8px 24px 14px;align-items:center;display:flex;box-sizing:border-box}
-.command-dock .train-map{width:640px;flex:0 0 640px;margin:0;padding:0;border:0;background:transparent;box-shadow:none}
+.command-dock .train-map{width:40%;max-width:640px;min-width:0;flex:0 1 40%;margin:0;padding:0;border:0;background:transparent;box-shadow:none}
 .command-dock .route-label{font-size:12px;margin-bottom:3px;color:var(--gold);letter-spacing:0.3px}
 .command-dock .train-cars{display:block;width:100%;padding:0}
 .command-dock .train-map-svg{display:block;width:100%;height:auto;max-height:86px;overflow:visible}
@@ -1072,3 +1072,31 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
 
 
 
+
+/* Keep the command input usable when the map and API status need another row. */
+@media (max-width: 1200px) {
+  .command-dock {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    position: static;
+  }
+  .command-dock .command-body { grid-column: 1 / -1; grid-row: 1; }
+  .command-dock .train-map { width: 100%; max-width: 640px; min-width: 0; }
+  .command-dock #apiStatusDock { min-width: 0 !important; }
+  .masthead { height: auto; min-height: 110px; flex-wrap: wrap; justify-content: center; padding: 12px 0; gap: 12px; }
+  .masthead .wordmark { position: static; transform: none; width: 100%; order: -1; }
+  .masthead .header-right { margin: 0; flex-wrap: wrap; justify-content: center; }
+  .scene-topline { flex-wrap: wrap; gap: 6px; }
+}
+@media (max-width: 700px) {
+  .command-dock { grid-template-columns: minmax(0, 1fr); }
+  .command-dock .train-map, .command-dock #apiStatusDock { grid-column: 1; }
+  .command-dock #apiStatusDock { align-items: flex-start !important; text-align: left !important; }
+  .command-dock #apiStatusWidget { max-width: 100%; flex-wrap: wrap; }
+  .masthead .header-right { max-width: 100%; gap: 6px; }
+  .masthead .profiler-pill { max-width: 100%; white-space: normal; }
+  .interaction-strip { flex-wrap: wrap; }
+  .interaction-strip .chips-scroll, .interaction-strip #visibleObjects { min-width: 0; max-width: 100%; }
+  .chat-input-bar { gap: 6px; }
+}
