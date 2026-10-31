@@ -541,7 +541,11 @@ class SymbolicEngine:
         ไม่งั้นสิ่งที่เห็นกับสิ่งที่ทำได้จะไม่ตรงกัน
         """
         loc = self.world["locations"].get(loc_id, {})
-        lines = [loc.get("description", loc.get("name_th", loc_id))]
+        description = loc.get("description", loc.get("name_th", loc_id))
+        for object_id, unlocked_description in loc.get("unlocked_descriptions", {}).items():
+            if object_id in state.unlocked_objects:
+                description = unlocked_description
+        lines = [description]
 
         here = [oid for oid, o in self.world["objects"].items()
                 if o.get("location") == loc_id and oid not in state.inventory]
@@ -617,6 +621,8 @@ class SymbolicEngine:
             if cmd.target in doc_map:
                 from app.document_loader import load_in_game_document
                 return load_in_game_document(doc_map[cmd.target])
+            if cmd.target in state.unlocked_objects and obj.get("unlocked_description"):
+                return obj["unlocked_description"]
             return obj.get("description") or sus.get("description") or f"ตรวจสอบ{name}อย่างละเอียด แต่ไม่พบอะไรเพิ่มเติม"
 
         if cmd.action == ActionType.INTERROGATE:
