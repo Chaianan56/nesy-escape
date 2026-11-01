@@ -172,6 +172,8 @@ def interpret(
         ParsedCommand: โครงสร้างคำสั่งที่สกัดแล้ว (action, target, instrument, confidence)
     """
     global _active_key_index, _last_api_status
+    from app.cases import get_engine
+    case_world = get_engine(state.case_id).world
     clients = _clients()
     if not clients:
         raise NeuralNotConfigured("ไม่มี GEMINI_API_KEY หรือไม่ได้ติดตั้ง google-genai SDK")
@@ -208,7 +210,7 @@ def interpret(
                         retry_options=types.HttpRetryOptions(attempts=1),
                     ),
                     system_instruction=build_interpret_system_prompt(
-                        STORY_DATA,
+                        case_world,
                         state=state,
                         user_text=text,
                         prune=prune,
@@ -246,7 +248,7 @@ def interpret(
 
             # Symbolic-Guided Self-Correction (Repair Loop)
             if enable_repair:
-                repaired_result, repair_note = repair_parsed_command(parsed_result, STORY_DATA, state=state, raw_text=text)
+                repaired_result, repair_note = repair_parsed_command(parsed_result, case_world, state=state, raw_text=text)
                 if repair_note:
                     logger.info("Symbolic Repair applied: %s", repair_note)
                     # Closed-Loop NeSy Active Co-Learning: บันทึกตัวอย่างที่ซ่อมแล้วเข้าสู่ Memory Bank

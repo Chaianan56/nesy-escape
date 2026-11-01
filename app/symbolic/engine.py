@@ -618,7 +618,7 @@ class SymbolicEngine:
                 "burnt_folder_c": "burnt_memo_fragment.md",
                 "secret_file": "liora_project_nocturne.md"
             }
-            if cmd.target in doc_map:
+            if cmd.target in doc_map and not obj.get("inline_document"):
                 from app.document_loader import load_in_game_document
                 return load_in_game_document(doc_map[cmd.target])
             if cmd.target in state.unlocked_objects and obj.get("unlocked_description"):
