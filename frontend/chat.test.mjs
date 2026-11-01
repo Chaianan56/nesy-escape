@@ -591,3 +591,33 @@ test('ตรวจสิ่งของแล้วมีข้อความ�
   c.read('renderSystem({ allowed: true, message: "ตู้ 4: ตู้โดยสารชั้นหนึ่ง..." }, { action: "examine", target: "first_class_car" }, true)');
   assert.equal(c.read('window.__lastExaminedItem'), null);
 });
+
+for (const failure of ['network', 'timeout', 'http503']) {
+  test(`single command recovers after ${failure} without automatic resend`, async () => {
+    let calls = 0;
+    const c = loadChat(async () => {
+      calls++;
+      if (calls === 1) {
+        if (failure === 'http503') return {ok:false,status:503,json:async()=>({})};
+        const error = new Error('Simulated connection failure');
+        error.name = failure === 'timeout' ? 'TimeoutError' : 'TypeError';
+        throw error;
+      }
+      return reply({state:{current_location:'first_class_car'}});
+    });
+    c.el('chatInput').value = 'ไปตู้ 4';
+    await c.sandbox.sendMessage(ev);
+    assert.equal(calls, 1, 'Failed POST must not be retried automatically');
+    assert.equal(c.read('gameState.current_location'), 'lounge_car');
+    assert.equal(c.read('busy'), false);
+    assert.equal(c.el('chatInput').disabled, false);
+    assert.equal(c.el('sendBtn').disabled, false);
+    const shown = c.el('chatFeed').children.map(n=>n.innerHTML).join('');
+    assert.match(shown, failure === 'timeout' ? /ตอบช้าเกินไป/ : /เชื่อมต่อไม่ได้/);
+    c.el('chatInput').value = 'ไปตู้ 4';
+    await c.sandbox.sendMessage(ev);
+    assert.equal(calls, 2);
+    assert.equal(c.read('gameState.current_location'), 'first_class_car');
+    assert.equal(c.read('busy'), false);
+  });
+}
