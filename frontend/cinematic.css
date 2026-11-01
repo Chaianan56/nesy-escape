@@ -3,7 +3,7 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .monogram{border-radius:0;transform:rotate(45deg);font-size:18px;width:35px;height:35px;cursor:pointer;transition:all 0.2s ease;user-select:none}
 .monogram:hover{border-color:#eed29c;box-shadow:0 0 16px rgba(217,183,117,0.45);transform:rotate(45deg) scale(1.08)}
 .monogram:active{transform:rotate(45deg) scale(0.96)}
-.wordmark{position:absolute;left:50%;transform:translateX(-50%);align-items:center;white-space:nowrap}
+.wordmark{position:static;transform:none;align-items:center;white-space:nowrap;flex-shrink:0}
 .wordmark>span{color:var(--gold);font-size:25px;letter-spacing:5px}.wordmark small{color:#b9ab91;letter-spacing:3px}
 .masthead{margin:0 24px;max-width:none;width:auto}
 .header-left{display:inline-flex;align-items:center;position:relative;z-index:10;padding-right:8px}
