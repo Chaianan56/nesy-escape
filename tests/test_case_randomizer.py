@@ -108,26 +108,18 @@ def test_new_game_random_flag():
 
 
 def test_case_02_solve_true_ending():
-    """ทดสอบการไขคดี Case 02 สำเร็จด้วย True Ending เมื่อมัดตัววินเซนต์ เกรย์"""
-    eng = get_engine("case_02_vincent")
-    state = GameState(case_id="case_02_vincent", discovered_evidence=[
-        "wall_clock", "liora_time_estimate",      # -> D01_BLACKOUT_MURDER_WINDOW (timeline)
-        "wire_cutters", "cut_copper_wire", "tool_marks",  # -> D02_VINCENT_SABOTAGE (opportunity)
-        "mara_job_note", "vincent_theft_motive",  # -> D03_VINCENT_MOTIVE (motive)
-        "vincent_blood", "letter_opener",         # -> D04_VINCENT_BLOOD_SPATTER (opportunity)
-        "gideon_blackout_alibi",                  # -> D05_GIDEON_ALIBI_SOLID (corroboration)
-    ])
+    from app.game_setup import new_game_state
+    from app.walkthrough import parse_step
+    from app.symbolic.engine import apply_changes
 
-    # ตรวจสอบว่า 4 เสาของวินเซนต์ครบถ้วน
-    pillars = eng.pillar_status("vincent_gray", state)
-    for p in ("timeline", "motive", "opportunity", "corroboration"):
-        assert len(pillars.get(p, [])) > 0, f"Pillar {p} must be complete"
-
-    # กล่าวหาวินเซนต์
-    cmd = ParsedCommand(action=ActionType.ACCUSE, target="vincent_gray", raw_text="กล่าวหาวินเซนต์")
-    decision = eng.decide(cmd, state)
-    assert decision.allowed is True
-    assert decision.state_changes.get("ending") == "true_ending"
+    walk = json.loads(Path("data/walkthrough_case_02.json").read_text(encoding="utf-8"))
+    engine = get_engine(walk["case_id"])
+    state = new_game_state(engine.world, walk["case_id"])
+    for step in walk["steps"]:
+        decision = engine.decide(parse_step(step, walk), state)
+        assert decision.allowed, (step, decision.message)
+        state = apply_changes(state, decision.state_changes)
+    assert state.ending_id == "true_ending"
 
 
 def test_case_02_scapegoat_ending():
@@ -143,25 +135,18 @@ def test_case_02_scapegoat_ending():
 
 
 def test_case_03_solve_true_ending():
-    """ทดสอบการไขคดี Case 03 สำเร็จด้วย True Ending เมื่อมัดตัว พญ. ลิโอรา เวนน์"""
-    eng = get_engine("case_03_liora")
-    state = GameState(case_id="case_03_liora", discovered_evidence=[
-        "pocket_watch", "liora_time_estimate", "second_teacup",  # -> D01_POISON_DEATH_WINDOW (timeline)
-        "secret_file", "dossier_missing_file_c",                # -> D02_LIORA_MOTIVE (motive)
-        "tea_lozenge_trace", "liora_patient_log",               # -> D03_LIORA_POISON_TRACE (opportunity)
-        "liora_patient_witness", "tunnel_schedule",             # -> D04_LIORA_ALIBI_BROKEN (corroboration)
-    ])
+    from app.game_setup import new_game_state
+    from app.walkthrough import parse_step
+    from app.symbolic.engine import apply_changes
 
-    # ตรวจสอบว่า 4 เสาของลิโอราครบถ้วน
-    pillars = eng.pillar_status("dr_liora_venn", state)
-    for p in ("timeline", "motive", "opportunity", "corroboration"):
-        assert len(pillars.get(p, [])) > 0, f"Pillar {p} must be complete"
-
-    # กล่าวหาลิโอรา
-    cmd = ParsedCommand(action=ActionType.ACCUSE, target="dr_liora_venn", raw_text="กล่าวหาลิโอรา")
-    decision = eng.decide(cmd, state)
-    assert decision.allowed is True
-    assert decision.state_changes.get("ending") == "true_ending"
+    walk = json.loads(Path("data/walkthrough_case_03.json").read_text(encoding="utf-8"))
+    engine = get_engine(walk["case_id"])
+    state = new_game_state(engine.world, walk["case_id"])
+    for step in walk["steps"]:
+        decision = engine.decide(parse_step(step, walk), state)
+        assert decision.allowed, (step, decision.message)
+        state = apply_changes(state, decision.state_changes)
+    assert state.ending_id == "true_ending"
 
 
 def test_case_03_scapegoat_ending():
@@ -188,3 +173,29 @@ def test_all_cases_block_turn1_accusation():
             assert dec.allowed is False, f"{case_id} allowed accusing {target} with zero evidence!"
             assert dec.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
 
+
+@pytest.mark.parametrize("case_id,evidence,forbidden", [
+    ("case_02_vincent", ["wall_clock", "liora_time_estimate"], "D01_BLACKOUT_MURDER_WINDOW"),
+    ("case_03_liora", ["gideon_blackout_alibi"], "D06_GIDEON_CLEARED"),
+    ("case_03_liora", ["liora_patient_witness", "tunnel_schedule"], "D04_LIORA_ALIBI_BROKEN"),
+])
+def test_parallel_cases_need_corresponding_evidence(case_id, evidence, forbidden):
+    assert forbidden not in get_engine(case_id).deductions(GameState(case_id=case_id, discovered_evidence=evidence))
+
+@pytest.mark.parametrize('number', ['02', '03'])
+def test_parallel_walkthrough_through_api_without_remote(number, monkeypatch):
+    from app.neural import gemini_client
+    def no_remote(*args, **kwargs):
+        raise AssertionError('Direct walkthrough must never require an external model')
+    monkeypatch.setattr(gemini_client, 'interpret', no_remote)
+    walk = json.loads(Path(f'data/walkthrough_case_{number}.json').read_text(encoding='utf-8'))
+    with TestClient(app) as local:
+        local.get('/scene')
+        local.post('/new-game', json={'case_id': walk['case_id']})
+        local.post('/start', json={})
+        for step in walk['steps']:
+            response = local.post('/command', json={'text': ' '.join(step)})
+            assert response.status_code == 200
+            result = response.json()
+            assert result['decision']['allowed'], (step, result['decision'])
+        assert result['new_state']['ending_id'] == 'true_ending'

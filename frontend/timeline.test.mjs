@@ -26,3 +26,16 @@ for (const case_id of ['case_01_gideon','case_02_vincent','case_03_liora']) {
     assert.equal((html.match(/ยังไม่ได้รับคำให้การในสมุดคดี/g)||[]).length,2);
   });
 }
+
+test('timeline does not infer murder or poison from a watch and tea alone', () => {
+  const html = render({case_id:'case_03_liora',people:[],evidence:[
+    {id:'pocket_watch',name:'นาฬิกา',description:'กลไกหยุด 20:25'},
+    {id:'second_teacup',name:'ถ้วยชา',description:'ยังรอผลตรวจ'}
+  ],deductions:[]});
+  assert.match(html,/กลไกหยุด 20:25/);
+  assert.doesNotMatch(html,/ยาพิษออกฤทธิ์|พ้นข้อหา|หักล้างแล้ว|ข้อสรุปหลังปิดคดี/);
+});
+test('timeline displays the server conclusion without rewriting it', () => {
+  const html = render({people:[],evidence:[],deductions:[{id:'D01',name:'เหตุรุนแรงก่อนดับไฟ แต่ยังรอผลตรวจพิษ'}]});
+  assert.match(html,/เหตุรุนแรงก่อนดับไฟ แต่ยังรอผลตรวจพิษ/);
+});

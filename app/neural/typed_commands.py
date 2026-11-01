@@ -249,9 +249,12 @@ def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedComma
 def interpret_game(text, state, **kwargs):
     from app.neural.gemini_client import STORY_DATA, interpret
     from app.neural.repair import repair_parsed_command
-    parsed = parse_typed_command(text, state, STORY_DATA)
+    from app.cases import get_engine
+    world = get_engine(state.case_id).world
+
+    parsed = parse_typed_command(text, state, world)
     if parsed:
-        repaired, repair_note = repair_parsed_command(parsed, STORY_DATA, state=state, raw_text=text)
+        repaired, repair_note = repair_parsed_command(parsed, world, state=state, raw_text=text)
         if repair_note and not repaired.repair_note:
             repaired = repaired.model_copy(update={"repair_note": repair_note})
         return repaired
