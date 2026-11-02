@@ -40,29 +40,16 @@ const load = file => JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
         }
         return result;
       }
-      async function choose(container, ids) {
-        for(const id of ids) await page.locator(`${container} label`).filter({has:page.getByText(world.objects[id].name_th,{exact:true})}).locator('input').check();
-      }
       let result;
       for(const step of walk.steps) {
         result = await send(step.join(' '));
-        if(step[0] === 'infer' && !result.decision.allowed) {
-          await page.locator('#inferenceChoice').selectOption(step[1]);
-          await choose('#inferenceEvidence',walk.inference_evidence);
-          const reply = page.waitForResponse(r => r.url().endsWith('/command'));
-          await page.locator('#confirmInference').click();
-          result = await (await reply).json();
-        }
-        if(step[0] === 'accuse' && !result.decision.allowed && walk.submitted_evidence) {
-          await choose('#accusationEvidence',walk.submitted_evidence);
-          const reply = page.waitForResponse(r => r.url().endsWith('/command'));
-          await page.locator('#confirmAccusation').click();
-          result = await (await reply).json();
-        }
         assert.equal(result.decision.allowed,true,`${caseId} ${step.join(' ')}: ${result.decision.message}`);
         await page.waitForFunction(() => !document.getElementById('sendBtn').disabled || gameOver);
       }
       assert.equal(result.new_state.ending_id,'true_ending');
+      assert.deepEqual(result.new_state.validated_claims, []);
+      assert.deepEqual((await (await context.request.post(`${base}/journal`)).json()).inference_questions, []);
+      assert.equal(await page.locator('#inferenceDialog').count(), 0);
       assert.equal(await page.evaluate(() => {
         const title = document.querySelector('.wordmark').getBoundingClientRect();
         const controls = document.querySelector('.header-right').getBoundingClientRect();

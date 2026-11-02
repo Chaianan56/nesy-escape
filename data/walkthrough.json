@@ -1,5 +1,5 @@
 {
-  "note": "เส้นทางแกนสั้นใช้กระดุม+ตรา ไม่ต้องเก็บทุกหลักฐาน ช่องที่สามคือ topic สำหรับ interrogate หรือ code/key สำหรับ unlock; INFER แนบ inference_evidence; ACCUSE แนบ submitted_evidence",
+  "note": "ค้นหลักฐานและคำให้การ แล้วกล่าวหาได้โดยตรง ไม่ต้องเสนอข้อสรุปหรือเลือกหลักฐานแนบ; inference_evidence เก็บรายการหลักฐานเวลาไว้สำหรับเครื่องมือทดสอบเก่า",
   "steps": [
     [
       "interrogate",
@@ -101,10 +101,6 @@
     [
       "examine",
       "gideon_signet_ring"
-    ],
-    [
-      "infer",
-      "claim_two_times"
     ],
     [
       "accuse",

@@ -88,16 +88,12 @@ def test_forged_client_knowledge_does_not_unlock_scenes(client, monkeypatch):
     assert client.get("/reconstruction", params={"ending_id": "true_ending"}).json() == {"scene": None}
 
 
-@pytest.mark.parametrize("missing", ["validated_claim", "claim_record", "clock", "lie_source"])
-def test_raw_or_incomplete_knowledge_never_exposes_confrontation(client, monkeypatch, missing):
+@pytest.mark.parametrize("missing", ["clock", "lie_source"])
+def test_incomplete_evidence_never_exposes_confrontation(client, monkeypatch, missing):
     state = earned_state()
-    if missing == "validated_claim":
-        state.validated_claims = []
-        state.claim_evidence = {}
-    elif missing == "claim_record":
-        state.claim_evidence = {}
-    else:
-        state.discovered_evidence.remove("wall_clock" if missing == "clock" else "staff_no_message")
+    state.validated_claims = []
+    state.claim_evidence = {}
+    state.discovered_evidence.remove("wall_clock" if missing == "clock" else "staff_no_message")
     session(client).state = state
     parse_as(monkeypatch, ActionType.INTERROGATE, "gideon_hart", topic="confrontation")
     assert client.post("/journal").json()["scene_followups"] == []
@@ -109,6 +105,8 @@ def test_raw_or_incomplete_knowledge_never_exposes_confrontation(client, monkeyp
 
 def test_earned_followup_survives_other_location_and_is_consumed_by_dialogue(client, monkeypatch):
     state = earned_state()
+    state.validated_claims = []
+    state.claim_evidence = {}
     state.current_location = "first_class_car"
     session(client).state = state
     followups = client.post("/journal").json()["scene_followups"]
