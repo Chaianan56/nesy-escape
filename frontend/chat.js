@@ -755,7 +755,7 @@ async function submit(text, opts = {}) {
     const res = await fetch(`${API_BASE}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text, ...(opts.submittedEvidence ? {submitted_evidence: opts.submittedEvidence} : {}) }),
+      body: JSON.stringify({ text: text }),
       signal: AbortSignal.timeout(25000), // longer than the server's 20s Gemini budget
     });
     if (gameOver) return null;
@@ -792,22 +792,12 @@ async function submit(text, opts = {}) {
     updateClock();
     removeLoading();
     if (gameState?.ending_id) { showGameOver(data.decision); return data; }
-    let askInference = false;
-    if (data.parsed?.action === 'infer' && !opts.submittedEvidence && !data.decision.allowed
-        && typeof InferenceUI !== 'undefined') {
-      const response = await fetch(`${API_BASE}/journal`, {method:'POST', signal: AbortSignal.timeout(8000)});
-      if (!response.ok) throw Error(`HTTP ${response.status}`);
-      const journal = await response.json();
-      const question = (journal.inference_questions || []).find(q => q.choices.some(c => c.target === data.parsed.target));
-      if (question && !gameOver) { InferenceUI.open(question, journal.evidence); askInference = true; }
-    }
-
     // กรณีคำสั่งพ่วง (Sequence) มีหลายขั้นตอน ให้แสดงผลทีละก้าวแบบ RPG Playback
-    if (!askInference && data.sequence_steps && data.sequence_steps.length > 1) {
+    if (data.sequence_steps && data.sequence_steps.length > 1) {
       await SequencePlayback.play(data);
     } else {
       // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
-      if (!askInference && !(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
+      if (!(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook, data.service_error);
       renderConversationSummary(data.conversation_summaries || []);
       if (typeof GameArt !== 'undefined') GameArt.onResult(data);
       if (typeof PixelUI !== 'undefined') PixelUI.refresh();
@@ -979,7 +969,7 @@ function offerSteps(steps, confirm = false) {
   box.className = "msg-system";
   box.innerHTML = confirm
       ? (steps[0]?.action === 'infer'
-      ? `<div class="story-text"><strong>ขั้นต่อไปต้องให้คุณเสนอข้อสรุปเอง</strong><br>เลือกทำต่อเพื่อเลือกข้อสรุปและแนบหลักฐาน</div>`
+      ? `<div class="story-text"><strong>คำสั่งนี้เป็นรูปแบบเก่า</strong><br>ค้นหลักฐานและสอบปากคำ แล้วกล่าวหาผู้ต้องสงสัยได้โดยตรง</div>`
       : `<div class="story-text"><strong>ขั้นต่อไปย้อนกลับไม่ได้</strong><br>กดยืนยันถ้าต้องการทำต่อ</div>`)
     : `<div class="story-text"><strong>คำสั่งนี้ตีความได้ ${steps.length} อย่าง</strong><br>เลือกสิ่งที่ต้องการ</div>`;
   const wrap = document.createElement("div");
@@ -1044,7 +1034,7 @@ function renderUser(text) {
   feed.scrollTop = feed.scrollHeight;
 }
 
-function renderSystem(decision, parsed = null, isRoomLook = false) {
+function renderSystem(decision, parsed = null, isRoomLook = false, serviceError = null) {
   const feed = document.getElementById("chatFeed");
   const card = document.createElement("div");
   card.className = `msg-system ${decision.allowed ? "" : "denied"} ${isRoomLook ? "room-card" : ""}`;
@@ -1053,7 +1043,9 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
   let statusBadge = "";
   const isItemExamine = Boolean(!isRoomLook && decision.allowed && parsed?.action === 'examine' && isItemTarget(parsed?.target));
 
-  if (isRoomLook) {
+  if (serviceError) {
+    statusBadge = `<span class="badge info">⚠ บริการตีความยังไม่พร้อม</span>`;
+  } else if (isRoomLook) {
     statusBadge = `<span class="badge info">📍 สภาพตู้รถปัจจุบัน</span>`;
   } else if (decision.allowed) {
     statusBadge = `<span class="badge allowed">✓ อนุมัติ (ALLOWED)</span>`;
@@ -1066,7 +1058,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     : "";
 
   const modeLabel = "โหมด B (NeSy Engine)";
-  const modeTag = renderParserModeTag(parsed);
+  const modeTag = serviceError ? "" : renderParserModeTag(parsed);
 
   const repairBanner = parsed?.repair_note ? `
     <div class="nesy-repair-banner">
