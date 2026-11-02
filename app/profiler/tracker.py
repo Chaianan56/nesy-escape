@@ -123,6 +123,7 @@ class BehaviorTracker:
         state: GameState,
         pillars_status: Optional[Dict[str, Any]] = None,
     ) -> PlayerProfile:
+        """ประมวลผลและคืนค่า PlayerProfile ล่าสุดของผู้เล่นจากประวัติเทิร์นสะสมและสถานะคดี"""
         pillars_fulfilled_map: Dict[str, bool] = {}
         if pillars_status:
             for suspect_id, p_info in pillars_status.items():

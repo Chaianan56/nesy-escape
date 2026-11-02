@@ -26,6 +26,7 @@ PROMPT_VERSION = "neural-gm-1.1"
 
 
 class NeuralGameOutput(BaseModel):
+    """โครงสร้างข้อมูลผลลัพธ์ของ Game Master โหมด Pure Neural (Baseline สำหรับเปรียบเทียบกับ NeSy)"""
     model_config = ConfigDict(extra="ignore", strict=True)
     allowed: bool
     message: str
@@ -40,6 +41,7 @@ class NeuralGameOutput(BaseModel):
 
 @dataclass
 class ProviderReply:
+    """ผลลัพธ์การตอบกลับดิบจาก LLM Provider พร้อมข้อมูล Usage และ Model Version"""
     text: str
     usage: dict
     model_version: str | None = None
@@ -47,6 +49,7 @@ class ProviderReply:
 
 @dataclass
 class NeuralTurn:
+    """บันทึกผลการประมวลผลเทิร์นของ Neural Game Master ประกอบด้วยผลลัพธ์ ข้อมูลเมทาดาทา และคำตอบดิบ"""
     output: NeuralGameOutput
     metadata: dict
     raw_response: str
@@ -62,6 +65,7 @@ class NeuralGameError(RuntimeError):
 
 
 def digest(value) -> str:
+    """สร้างค่าแฮช SHA-256 จากข้อมูลแบบ Deterministic JSON สำหรับตรวจสอบความเที่ยงตรง"""
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
 

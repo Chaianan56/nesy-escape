@@ -244,11 +244,12 @@ class KNNExampleRetriever:
         ]
 
 
-# Global Singleton
+# อินสแตนซ์เดี่ยวส่วนกลาง (Global Singleton)
 _RETRIEVER_INSTANCE: Optional[KNNExampleRetriever] = None
 
 
 def get_retriever() -> KNNExampleRetriever:
+    """คืนค่าอินสแตนซ์ Singleton ของ KNNExampleRetriever สำหรับค้นหา Few-shot Examples"""
     global _RETRIEVER_INSTANCE
     if _RETRIEVER_INSTANCE is None:
         _RETRIEVER_INSTANCE = KNNExampleRetriever()

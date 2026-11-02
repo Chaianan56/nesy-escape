@@ -90,7 +90,7 @@ def prune_entities(
     return relevant_objects, relevant_suspects, raw_locations
 
 
-# Alias for backward compatibility
+# ชื่อฟังก์ชันสำรองเพื่อความเข้ากันได้ย้อนหลัง (Backward Compatibility)
 prune_world_entities = prune_entities
 
 
@@ -151,6 +151,13 @@ def build_interpret_system_prompt(
     k_examples: int = 5,
     zero_shot: bool = False,
 ) -> str:
+    """สร้าง System Prompt สำหรับให้ Gemini LLM ตีความคำสั่งภาษาธรรมชาติของผู้เล่น
+
+    รองรับกลไก:
+    - Entity Pruning (ตัดรายการที่อยู่นอกบริบทเพื่อประหยัด Token)
+    - Dynamic kNN Few-Shot Retrieval พร้อม Maximal Marginal Relevance (MMR)
+    - Zero-Shot Baseline สำหรับการทดลองเปรียบเทียบ
+    """
     claims_text = "\n".join(f"  - {cid}: {claim.get('name_th', cid)}"
                             for cid, claim in world_data.get('claims', {}).items())
     if prune and (state is not None or user_text is not None):

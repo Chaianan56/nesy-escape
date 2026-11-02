@@ -218,8 +218,8 @@ def _ending_matches(ending, suspect_id, state, world):
 
 
 def _accusation_ready(cmd, state, world, p):
-    # Only an actual ending for this suspect can authorize an accusation.
-    # The wildcard fallback must never make an unsupported accusation playable.
+    # อนุญาตการกล่าวหาเฉพาะเมื่อเข้าเงื่อนไขฉากจบจริงของผู้ต้องสงสัยคนนี้เท่านั้น
+    # กรณีทั่วไปต้องไม่อนุมัติการกล่าวหาที่หลักฐานยังไม่เพียงพอ
     candidates = [e for e in world.get("endings", {}).values()
                   if e.get("accuse") == cmd.target]
     if any(_ending_matches(e, cmd.target, state, world) for e in candidates):
@@ -331,8 +331,7 @@ def _claim_supported(cid, evidence, state, world):
 
 
 def _claim_held(cid, state, world):
-    # Keep the player's earned reasoning, but do not turn optional supporting
-    # observations into mandatory evidence in every later accusation.
+    # คงสายเหตุผลที่ผู้เล่นได้รับไว้ แต่ไม่เปลี่ยนข้อสังเกตเสริมเป็นหลักฐานบังคับในการกล่าวหาครั้งถัดไป
     known = set(state.discovered_evidence)
     evidence = [eid for eid in state.claim_evidence.get(cid, []) if eid in known]
     return (cid in state.validated_claims and bool(evidence)
@@ -395,9 +394,11 @@ CHECKERS: Dict[str, Callable] = {
 
 
 # ============================================================
-# ENGINE
+# โครงสร้างเครื่องยนต์ตัดสินกฎ (Symbolic Rule Engine)
 # ============================================================
 class SymbolicEngine:
+    """เครื่องยนต์ตัดสินกฎเชิงสัญลักษณ์ (Symbolic Rule Engine) 100% ปราศจาก LLM"""
+
     def __init__(self, rules_path: Path = None, story_path: Path = None):
         rules_path = rules_path or DATA_DIR / "rules.json"
         story_path = story_path or DATA_DIR / "story.json"
@@ -407,10 +408,12 @@ class SymbolicEngine:
 
     @property
     def max_submitted_evidence(self):
+        """เพดานจำนวนหลักฐานสูงสุดที่อนุญาตให้ส่งต่อครั้ง"""
         return self.world.get("max_submitted_evidence", MAX_SUBMITTED_EVIDENCE)
 
     @property
     def time_limit_seconds(self):
+        """เวลาจำกัดรวมของคดีในหน่วยวินาที"""
         rule = next((r for r in self.rules if r["check"] == "within_time_limit"), {})
         return rule.get("params", {}).get("limit_seconds", self.world.get("time_limit_seconds", 3600))
 
@@ -419,6 +422,7 @@ class SymbolicEngine:
                 if "*" in r.get("applies_to", []) or action.value in r.get("applies_to", [])]
 
     def decide(self, cmd: ParsedCommand, state: GameState) -> Decision:
+        """ตัดสินคำสั่งตามกฎอย่างเป็นระบบ พร้อมสร้างสายเหตุผลที่ตรวจสอบได้ (Reasoning Chain)"""
         chain: List[ReasoningStep] = []
 
         for rule in self._applicable(cmd.action):
@@ -651,6 +655,7 @@ class SymbolicEngine:
         return all(found[p] for p in pillar_names(self.world))
 
     def dialogue_options(self, suspect_id: str, state: GameState) -> List[dict]:
+        """ดึงรายการหัวข้อบทสนทนาที่ผู้เล่นสามารถซักถามผู้ต้องสงสัยได้ตามสถานะคดีปัจจุบัน"""
         person = self.world["suspects"].get(suspect_id, {})
         if person.get("location") != state.current_location or state.ending_id or self.is_out_of_time(state):
             return []

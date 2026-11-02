@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, AliasChoices
 # 1) ACTION — รายการสิ่งที่ผู้เล่นทำได้ทั้งหมด (Action Types)
 # ============================================================
 class ActionType(str, Enum):
+    """ประเภทการกระทำทั้งหมดที่ผู้เล่นสามารถทำได้ในเกม (Action Types)"""
     EXAMINE = "examine"        # ตรวจสอบวัตถุ/หลักฐาน
     TAKE = "take"              # หยิบ/เก็บ
     USE = "use"                # ใช้ของกับเป้าหมาย (ต้องมี instrument)
@@ -74,6 +75,7 @@ class ParsedCommand(BaseModel):
 # 3) GAME STATE — สถานะเกมที่ Symbolic ต้องใช้ตรวจกฎ
 # ============================================================
 class GameState(BaseModel):
+    """สถานะของโลกในเกม (Game State) สำหรับการตรวจสอบกฎและการเปลี่ยนผ่านสถานะ"""
     started_at: Optional[float] = Field(None, description="เวลาเริ่มคดี Unix seconds สำหรับนาฬิกาเล่นจริง")
     current_location: str = Field("lounge_car", description="id ของตู้รถที่ผู้เล่นอยู่")
     inventory: List[str] = Field(default_factory=list)

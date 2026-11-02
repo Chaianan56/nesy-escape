@@ -63,6 +63,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_no_cache_headers(request, call_next):
+    """มิดเดิลแวร์ป้องกันการแคชไฟล์คงที่ (HTML/JS/CSS) เพื่อให้เบราว์เซอร์โหลดเวอร์ชันล่าสุดเสมอ"""
     response = await call_next(request)
     path = request.url.path
     if path.endswith((".html", ".js", ".css")) or path in ("/", ""):
@@ -563,7 +564,6 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
 
 
 def execute_sequence(parsed: ParsedCommand, state: GameState, engine: SymbolicEngine | None = None) -> CommandResponse:
-    active_engine = engine or engine_for_state(state)
     """ประมวลผลคำสั่งพ่วงต่อเนื่องหลายขั้นตอน (Multi-step Command Sequence)
 
     คุณสมบัติ:
@@ -572,6 +572,7 @@ def execute_sequence(parsed: ParsedCommand, state: GameState, engine: SymbolicEn
     3. หากพบคำสั่งที่มีผลกระทบย้อนกลับไม่ได้ (accuse, burn, infer) จะหยุดรอยืนยันจากผู้เล่นก่อน
     4. หากมีขั้นตอนใดไม่ผ่านกฎ จะหยุดการทำงานทันทีและยกเลิกขั้นตอนที่เหลือเพื่อป้องกัน State Corruption
     """
+    active_engine = engine or engine_for_state(state)
     parsed = parsed.model_copy(update={"action": ActionType.SEQUENCE, "sequence": False})
     actions = {a.value for a in ActionType} - {"sequence", "ambiguous", "unknown"}
     normalized_steps = []
