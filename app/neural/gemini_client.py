@@ -188,7 +188,7 @@ def interpret(
 
     # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
     last_error: Optional[Exception] = None
-    # Allow one bounded retry for transient timeouts without retrying indefinitely.
+    # อนุญาตให้ลองใหม่แบบจำกัดเวลาเมื่อเกิด timeout ชั่วคราว โดยไม่วนซ้ำไม่รู้จบ
     deadline = time.monotonic() + 20
     queue = list(clients)
     retried = False
@@ -246,7 +246,7 @@ def interpret(
                 parsed_result.prompt_tokens = getattr(response.usage_metadata, "prompt_token_count", None)
                 parsed_result.completion_tokens = getattr(response.usage_metadata, "candidates_token_count", None)
 
-            # Symbolic-Guided Self-Correction (Repair Loop)
+            # วงจรตรวจสอบและซ่อมแซมคำสั่งเชิงสัญลักษณ์ (Symbolic Repair Loop)
             if enable_repair:
                 repaired_result, repair_note = repair_parsed_command(parsed_result, case_world, state=state, raw_text=text)
                 if repair_note:

@@ -65,10 +65,8 @@ def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedComma
                         if world.get('objects', {}).get(key, {}).get('type') == 'key']
         return carried_keys[0] if len(carried_keys) == 1 else None
     def resolve_local_key_to_take(label):
-        # Resolve a generic reference only when exactly one takeable key is
-        # present in the current location. If there are multiple keys (or
-        # visibility depends on hidden requirements), leave it to the model
-        # rather than guessing.
+        # จับคู่อัตโนมัติเฉพาะเมื่อมีกุญแจดอกเดียวที่หยิบได้ในห้องปัจจุบัน
+        # หากมีกุญแจหลายดอกหรือมีเงื่อนไขการซ่อน ให้ส่งต่อให้โมเดลตัดสินแทนการเดา
         if label.strip() not in {'กุญแจ', 'กุญแจดอกนั้น', 'กุญแจที่วางอยู่'}:
             return None
         candidates = [key for key, entity in world.get('objects', {}).items()
@@ -247,6 +245,7 @@ def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedComma
 
 
 def interpret_game(text, state, **kwargs):
+    """จุดเชื่อมต่อตีความคำสั่งเกม: ลอง Fast-Path ก่อน หากไม่ตรงจึงส่งต่อให้ Gemini API"""
     from app.neural.gemini_client import interpret
     from app.neural.repair import repair_parsed_command
     from app.cases import get_engine

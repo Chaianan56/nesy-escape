@@ -310,7 +310,7 @@ def resolve_contextual_target(
             if oid in ("cassian_reed", "cassian_body") or "ศพ" in name_th or "ร่าง" in name_th:
                 candidates.append(oid)
 
-    # 7. Generic substring match
+    # 7. ตรวจจับคำสั่งด้วยข้อความย่อยทั่วไป (Generic substring match)
     elif t_clean not in ("null", "none", ""):
         for oid, obj in room_objects.items():
             name_th = obj.get("name_th", "").lower()
