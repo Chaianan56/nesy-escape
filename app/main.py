@@ -11,7 +11,7 @@ main.py — Interaction Layer / ท่อเชื่อมระบบ
 """
 
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional
 import logging
 import time
 
@@ -47,7 +47,6 @@ from app.cases import (
     get_available_cases,
     get_engine,
     get_random_case_id,
-    load_case_data,
     should_randomize,
 )
 
@@ -56,7 +55,7 @@ app = FastAPI(title="NeSy-Escape API", version="0.1")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: จำกัดโดเมนก่อน deploy จริง
+    allow_origins=["*"],  # ข้อควรระวัง: จำกัดโดเมนที่อนุญาต (CORS) ก่อนนำขึ้นระบบจริง
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -137,7 +136,7 @@ from app.neural.typed_commands import interpret_game as interpret
 
 
 # ============================================================
-# ENDPOINTS
+# จุดเชื่อมต่อ API (Endpoints)
 # ============================================================
 
 @app.get("/health")
@@ -383,24 +382,15 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
         state=result.new_state,
         pillars_status=pillars_status,
     )
-    recent_violation_count = sum(1 for turn in tracker.turns[-3:] if not turn.allowed)
-    is_looping = tracker.turns[-1].is_looping if tracker.turns else False
-    result.decision, adaptive_note = adaptation_engine.adapt(
-        decision=result.decision,
-        parsed=result.parsed,
-        state=result.new_state,
-        profile=profile,
-        is_looping=is_looping,
-        recent_violation_count=recent_violation_count,
-        consecutive_looping_count=profile.consecutive_looping_count,
+    # ปรับแต่งการตอบสนองและคำแนะนำช่วยเหลือเชิงพลวัตแบบเบ็ดเสร็จผ่าน DynamicAdaptationEngine
+    profile = adaptation_engine.adapt_turn(
+        tracker=tracker,
+        result=result,
+        state=session.state,
         engine=engine,
+        profile=profile,
     )
-    if adaptive_note and tracker.turns:
-        tracker.turns[-1].adaptive_note = adaptive_note
-        if "Scaffolding" in adaptive_note:
-            tracker.scaffolding_triggers += 1
     latest_profiles[session_id] = profile.model_dump()
-    result.profile = latest_profiles[session_id]
     if result.new_state.ending_id:
         save_session_telemetry(tracker.get_summary(result.new_state))
     if result.parsed.action == ActionType.ACCUSE and (result.decision.allowed or result.new_state.ending_id):
@@ -484,11 +474,11 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
         )
         api_error_note = "⚠️ **[Gemini API ขัดข้องชั่วคราว]** ระบบสลับเข้าโหมดออฟไลน์อัตโนมัติ กรุณาลองใช้คำสั่งเดี่ยว เช่น 'ไป ตู้ 3' หรือ 'ดูรอบๆ'"
 
-    # Include time spent waiting for Gemini; expired commands cannot change the world.
+    # นับรวมเวลาที่ใช้รอการตอบกลับจาก Gemini โดยคำสั่งที่หมดอายุแล้วจะไม่สามารถแก้ไขสถานะของโลกในเกมได้
     req.state = sync_clock(req.state)
     if req.state.ending_id or active_engine.is_out_of_time(req.state):
         return terminal_response(req.state, req.text, engine=active_engine)
-    # Accept the previous wire format, but execute a sequence in one place only.
+    # รองรับรูปแบบคำขอเดิม แต่ประมวลผลคำสั่งที่เป็นลำดับต่อเนื่องในจุดเดียวเพื่อความสอดคล้อง
     if parsed.action == ActionType.SEQUENCE or (
         parsed.action == ActionType.AMBIGUOUS and parsed.sequence
     ):
@@ -709,7 +699,7 @@ def game_clock(session: Session = Depends(session_for)):
 
 
 # ------------------------------------------------------------
-# FRONTEND STATIC FILES MOUNT
+# ติดตั้งจุดให้บริการไฟล์คงที่ของหน้าบ้าน (Frontend Static Files Mount)
 # ต้องอยู่ท้ายสุด เพราะ mount ที่ "/" จะกลืนทุก path ที่ประกาศหลังจากนี้
 # ------------------------------------------------------------
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"

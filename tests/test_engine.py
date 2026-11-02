@@ -346,16 +346,15 @@ def test_physical_clues_describe_observations_without_identifying_owner(engine):
         description = engine.world['objects'][key]['description']
         assert 'Gideon' not in description
         assert 'กิเดียน' not in description
-    # Matching observations remain available; the player makes the connection.
+    # ข้อสังเกตที่สอดคล้องกันยังคงเปิดให้สังเกตได้ เพื่อให้ผู้เล่นเป็นผู้เชื่อมโยงข้อสรุปด้วยตนเอง
     for key in ('wax_seal_imprint', 'gideon_signet_ring'):
         assert 'ข้าวหลามตัด' in engine.world['objects'][key]['description']
 
 
 def test_visible_exploration_and_earned_keys_can_reach_every_evidence_source(engine):
-    """Reachability check using visible objects/topics and codes read in returned text.
+    """ตรวจสอบความสามารถในการเข้าถึง (Reachability Check) ผ่านวัตถุ/หัวข้อที่มองเห็นและรหัสที่อ่านได้จากข้อความ
 
-    This is a mechanical dead-end check, not evidence that a human understands the story.
-    Hidden grant tables and authored unlock answers never seed player state.
+    เป็นการทดสอบเพื่อป้องกันทางตันเชิงกลไก โดยตารางสิทธิ์ที่ซ่อนอยู่และรหัสปลดล็อกจะไม่ถูกแทรกเข้าสู่สถานะผู้เล่นล่วงหน้า
     """
     w = engine.world
     s = GameState(**w.get("initial_state", {}))
@@ -365,7 +364,7 @@ def test_visible_exploration_and_earned_keys_can_reach_every_evidence_source(eng
     while progress and passes < 20:
         passes += 1
         progress = False
-        for loc in w["locations"]:  # the public train map lists these places
+        for loc in w["locations"]:  # แผนผังสาธารณะของขบวนรถไฟระบุรายชื่อสถานที่เหล่านี้
             if s.current_location != loc:
                 d = engine.decide(cmd(ActionType.MOVE, loc), s)
                 if not d.allowed:

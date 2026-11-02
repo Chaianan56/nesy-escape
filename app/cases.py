@@ -16,9 +16,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from app.schemas import ActionType, GameState
-from app.symbolic.engine import CHECKERS, SymbolicEngine
-from app.symbolic.validation import validate_world
+from app.symbolic.engine import SymbolicEngine
 
 logger = logging.getLogger(__name__)
 
@@ -69,16 +67,6 @@ CASE_METADATA: Dict[str, dict] = {
 
 # Cache สำหรับ SymbolicEngine ของแต่ละคดี เพื่อไม่ต้อง compile ซ้ำ
 _ENGINES: Dict[str, SymbolicEngine] = {}
-_RULES_CACHE: Optional[list] = None
-
-
-def get_rules() -> list:
-    """โหลดกติกากลาง (rules.json)"""
-    global _RULES_CACHE
-    if _RULES_CACHE is None:
-        rules_path = DATA_DIR / "rules.json"
-        _RULES_CACHE = json.loads(rules_path.read_text(encoding="utf-8"))["rules"]
-    return _RULES_CACHE
 
 
 def load_case_data(case_id: str) -> dict:

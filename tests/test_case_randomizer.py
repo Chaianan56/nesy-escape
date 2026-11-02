@@ -11,12 +11,10 @@ from app.main import app
 from app.schemas import ActionType, GameState, ParsedCommand
 from app.cases import (
     AVAILABLE_CASES,
-    CASE_METADATA,
     get_available_cases,
     get_engine,
     get_random_case_id,
     load_case_data,
-    should_randomize,
 )
 from app.symbolic.validation import validate_world
 from app.symbolic.engine import CHECKERS

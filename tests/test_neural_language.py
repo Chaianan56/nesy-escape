@@ -1,4 +1,11 @@
-"""Small opt-in live language sample; not a general accuracy benchmark."""
+"""
+tests/test_neural_language.py — ชุดทดสอบตัวอย่างการตีความภาษาธรรมชาติแบบ Live (Opt-in Language Sample)
+
+หน้าที่:
+- ทดสอบการตีความข้อความภาษาไทยของผู้เล่นด้วยโมเดล Gemini จริง (Live LLM) เมื่อเปิด Flag
+- ตรวจสอบความถูกต้องของการแปลงข้อความสืบสวนอิสระเป็น ParsedCommand และการส่งต่อให้ Symbolic Engine
+- ทดสอบทั้งคำสั่งที่ชัดเจน (Exact Action) และคำสั่งที่คลุมเครือ (Ambiguous)
+"""
 import json
 from pathlib import Path
 import pytest
@@ -20,9 +27,11 @@ SAMPLES=[
 @pytest.mark.llm
 @pytest.mark.parametrize('case_id,text,action,target,checkpoint',SAMPLES)
 def test_live_freeform_language(case_id,text,action,target,checkpoint):
+    """ทดสอบการตีความภาษาธรรมชาติภาษาไทยแบบ Live ด้วย Gemini API สำหรับกรณีคำสั่งปกติและคำสั่งคลุมเครือ"""
     engine=get_engine(case_id)
     state=new_game_state(engine.world,case_id)
     if checkpoint:
+        # หากมีการกำหนด Checkpoint ให้รัน Walkthrough จนถึงจุดที่พบหลักฐานเป้าหมายก่อน
         suffix='02' if case_id=='case_02_vincent' else '03'
         walk=json.loads(Path(f'data/walkthrough_case_{suffix}.json').read_text(encoding='utf-8'))
         for step in walk['steps']:
@@ -32,14 +41,17 @@ def test_live_freeform_language(case_id,text,action,target,checkpoint):
             state=apply_changes(state,decision.state_changes)
         else: raise AssertionError('Missing checkpoint')
     try:
+        # เรียกใช้โมเดลเพื่อตีความข้อความภาษาไทยของผู้เล่น
         parsed=interpret(text,state)
     except (NeuralNotConfigured,NeuralQuotaExceeded) as error:
         pytest.skip(type(error).__name__)
     print(json.dumps({'case':case_id,'text':text,'action':parsed.action.value,'target':parsed.target,'latency_ms':parsed.latency_ms},ensure_ascii=False))
     if action is None:
+        # กรณีคำสั่งคลุมเครือ ต้องตีความเป็น ambiguous หรือ unknown และถูกปฏิเสธโดย Symbolic Engine
         assert parsed.action.value in ('ambiguous','unknown')
         assert not engine.decide(parsed,state).allowed
     else:
+        # กรณีคำสั่งระบุเจาะจง ต้องสอดคล้องกับ Action และ Target ที่คาดหวัง และผ่านการอนุญาตของ Engine
         assert parsed.action.value==action
         assert parsed.target==target
         assert engine.decide(parsed,state).allowed

@@ -53,7 +53,7 @@ class NeuralTurn:
 
 
 class NeuralGameError(RuntimeError):
-    """A recorded provider/format failure, never a symbolic fallback."""
+    """ข้อผิดพลาดจากการเรียกใช้หรือรูปแบบผลลัพธ์ของโมเดล Neural (ไม่ใช่ Symbolic Fallback)"""
     def __init__(self, kind: str, metadata: dict, raw_response: str | None = None):
         super().__init__(f"Neural game master failed: {kind}")
         self.kind = kind
@@ -67,10 +67,10 @@ def digest(value) -> str:
 
 
 def _strip_additional_properties(schema: dict) -> dict:
-    """Recursively remove ``additionalProperties`` from a JSON Schema dict.
+    """ลบ 'additionalProperties' ออกจาก JSON Schema dict แบบเวียนเกิด (Recursive)
 
-    Gemini Developer API rejects this keyword; the full Pydantic model is still
-    used for validation after the response is received.
+    เนื่องจาก Gemini API ไม่รองรับคีย์เวิร์ดนี้ โดยการตรวจสอบความถูกต้องด้วย Pydantic ตัวเต็ม
+    จะยังคงถูกประมวลผลหลังจากได้รับคำตอบจากโมเดล
     """
     if not isinstance(schema, dict):
         return schema
@@ -91,9 +91,9 @@ def _strip_additional_properties(schema: dict) -> dict:
 
 
 def _pydantic_schema_for_gemini(model_cls: type[BaseModel]) -> dict:
-    """Return a Gemini-compatible JSON Schema dict from a Pydantic model class."""
+    """แปลง Pydantic Model Class ให้เป็น JSON Schema dict ที่เข้ากันได้กับ Gemini API"""
     raw = model_cls.model_json_schema()
-    # Inline $defs / definitions so Gemini receives a self-contained schema.
+    # คลี่โครงสร้าง $defs / definitions ให้เป็น Schema ที่สมบูรณ์ในตัวเองสำหรับส่งให้ Gemini
     defs = raw.pop("$defs", raw.pop("definitions", {}))
     def _resolve(node):
         if not isinstance(node, dict):
@@ -113,7 +113,7 @@ def _pydantic_schema_for_gemini(model_cls: type[BaseModel]) -> dict:
 
 
 def load_game_bundle(root: Path = ROOT) -> dict:
-    """Load source facts only. Never calculate available evidence or deductions."""
+    """โหลดข้อมูลดิบของเกม (โลก, กฎ, เอกสาร, กลไก) โดยไม่คำนวณเบาะแสหรือข้ออนุมานล่วงหน้า"""
     return {
         "world": json.loads((root / "data/story.json").read_text(encoding="utf-8")),
         "rules": json.loads((root / "data/rules.json").read_text(encoding="utf-8")),
@@ -124,7 +124,7 @@ def load_game_bundle(root: Path = ROOT) -> dict:
 
 
 class GeminiGameProvider:
-    """One SDK attempt per turn. No hidden retries or key rotation in evaluation."""
+    """ผู้ให้บริการเชื่อมต่อ Gemini API แบบครั้งเดียวต่อเทิร์น โดยไม่มีการซ่อนการ Retry ในการประเมินวิจัย"""
     def __init__(self, model: str | None = None, timeout_ms: int = 60000):
         from app.neural.gemini_client import DEFAULT_MODEL
         self.model = model or DEFAULT_MODEL
@@ -154,6 +154,7 @@ class GeminiGameProvider:
 
 
 class NeuralGameMaster:
+    """ระบบ Game Master แบบ Neural ล้วน ทำหน้าที่ตัดสินกฎและความคืบหน้าของเกมโดยใช้ LLM 100% สำหรับการทดลองเปรียบเทียบ"""
     def __init__(self, bundle: dict | None = None,
                  provider: Callable[[str, str, type[BaseModel]], ProviderReply] | None = None,
                  model: str | None = None):
@@ -178,6 +179,7 @@ class NeuralGameMaster:
 
     def adjudicate(self, command: ParsedCommand, state: GameState,
                    submitted_evidence: list[str] | None = None) -> NeuralTurn:
+        """ตัดสินคำสั่งและสถานะเกมปัจจุบันด้วยโมเดล Neural และส่งคืนผลลัพธ์เทิร์น (NeuralTurn)"""
         payload = {"command": command.model_dump(mode="json"),
                    "state": state.model_dump(mode="json"),
                    "submitted_evidence": submitted_evidence}
@@ -192,7 +194,7 @@ class NeuralGameMaster:
             reply = self.provider(self.system, content, NeuralGameOutput)
         except Exception as exc:
             meta["latency_ms"] = round((time.perf_counter() - start) * 1000, 3)
-            # Avoid putting provider exception text (which may contain credentials) in logs.
+            # หลีกเลี่ยงการบันทึกข้อความ Exception ของผู้ให้บริการลงใน Log เพื่อป้องกันข้อมูลรับรองรั่วไหล
             meta["exception_type"] = type(exc).__name__
             raise NeuralGameError("provider", meta) from exc
         meta.update(latency_ms=round((time.perf_counter() - start) * 1000, 3),
@@ -202,15 +204,13 @@ class NeuralGameMaster:
             state_data = data.get("new_state") if isinstance(data, dict) else None
             if not isinstance(state_data, dict):
                 raise ValueError("new_state must be an object")
-            # Fill missing fields from the input state so flash-lite omissions
-            # don't cause a schema reject — omitted fields stay unchanged.
+            # เติมฟิลด์ที่ขาดหายไปจากสถานะนำเข้า เพื่อป้องกันไม่ให้ Schema ปฏิเสธกรณีโมเดลละเว้นฟิลด์ที่ไม่เปลี่ยนแปลง
             baseline = state.model_dump(mode="json")
             for field in GameState.model_fields:
                 if field not in state_data:
                     state_data[field] = baseline[field]
             data["new_state"] = state_data
-            # Strict JSON shape/type validation only; arbitrary IDs and wrong deductions
-            # intentionally pass so the experiment can observe semantic mistakes.
+            # ตรวจสอบเฉพาะโครงสร้าง JSON และประเภทข้อมูลอย่างเข้มงวด โดยจงใจปล่อยให้ ID ที่ผิดพลาดผ่านได้เพื่อสังเกตข้อผิดพลาดเชิงความหมาย
             output = NeuralGameOutput.model_validate(data, strict=True)
         except (ValueError, TypeError, ValidationError) as exc:
             raise NeuralGameError("schema", meta, reply.text) from exc

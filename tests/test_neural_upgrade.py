@@ -402,9 +402,9 @@ def test_symbolic_repair_note_and_xai_reasoning_step():
 
     # 2. เมื่อเรียกผ่าน /command ทาง API จะมี rule_id='SYMBOLIC_REPAIR' ปรากฏใน reasoning_chain
     with TestClient(app) as client:
-        # Establish session first
+        # สร้างเซสชันเริ่มต้นก่อน
         client.get("/scene")
-        # Mock interpret ให้ส่งคำสั่งที่ต้องถูกซ่อมแซม
+        # จำลอง interpret ให้ส่งคำสั่งที่ต้องถูกซ่อมแซม
         from app import main as app_main
         original_interpret = app_main.interpret
         try:
@@ -500,7 +500,7 @@ def test_full_three_step_sequence_rpg_playback_data():
         assert res.sequence_steps is not None
         assert len(res.sequence_steps) == 3
 
-        # Step 1: Move from electrical to dining car
+        # ขั้นที่ 1: เดินจากตู้สัมภาระระบบไฟไปยังตู้เสบียง
         step1 = res.sequence_steps[0]
         assert step1["step_index"] == 1
         assert step1["action"] == "move"
@@ -508,7 +508,7 @@ def test_full_three_step_sequence_rpg_playback_data():
         assert step1["location"] == "dining_car_staff"
         assert step1["allowed"] is True
 
-        # Step 2: Interrogate staff
+        # ขั้นที่ 2: สอบปากคำพนักงานตรวจตู้
         step2 = res.sequence_steps[1]
         assert step2["step_index"] == 2
         assert step2["action"] == "interrogate"
@@ -516,7 +516,7 @@ def test_full_three_step_sequence_rpg_playback_data():
         assert step2["location"] == "dining_car_staff"
         assert step2["allowed"] is True
 
-        # Step 3: Take staff key
+        # ขั้นที่ 3: หยิบกุญแจของพนักงาน
         step3 = res.sequence_steps[2]
         assert step3["step_index"] == 3
         assert step3["action"] == "take"

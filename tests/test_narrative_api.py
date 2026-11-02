@@ -160,7 +160,7 @@ def test_true_ending_recap_uses_all_discovered_evidence(client, monkeypatch):
     result = client.post("/command", json={"text": "accuse"}).json()
     assert result["decision"]["allowed"]
     assert result["new_state"]["ending_id"] == "true_ending"
-    assert result["narrative_scene"] is None  # Recap remains opt-in.
+    assert result["narrative_scene"] is None  # ฉากสรุปย้อนหลังยังคงเป็นแบบเลือกดู (Opt-in)
     assert session(client).submitted_evidence == state.discovered_evidence
     before = session(client).state.model_dump()
     recap = client.get("/reconstruction").json()["scene"]
