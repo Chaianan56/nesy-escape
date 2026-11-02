@@ -233,7 +233,7 @@ def test_interrogate_different_topics_not_looping():
 
 
 def test_r012_scaffolding_nudge_triggered():
-    """ตรวจว่าเมื่อผิดกฎ R012_ACCUSE_ENDING_REQUIREMENTS จะได้รับคำแนะนำกระดานคดี 4 เสา"""
+    """ตรวจว่าเมื่อผิดกฎ R012_ACCUSE_ENDING_REQUIREMENTS จะได้รับคำแนะนำอ้างอิงเงื่อนไขของคดีและแฟ้มสืบสวน"""
     adaptation = DynamicAdaptationEngine()
     state = GameState(current_location="lounge_car")
     tracker = BehaviorTracker(session_id="test_r012")
@@ -252,7 +252,9 @@ def test_r012_scaffolding_nudge_triggered():
     cmd = ParsedCommand(action=ActionType.ACCUSE, target="gideon_hart", raw_text="กล่าวหากิเดียน")
     adapted, note = adaptation.adapt(denied, cmd, state, profile)
 
-    assert "การชี้ตัวคนร้ายต้องการเสาหลักฐาน" in adapted.message
+    assert "รายการเงื่อนไขที่ยังขาดของคดีนี้" in adapted.message
+    assert "แฟ้มสืบสวน" in adapted.message
+    assert "4 เสา:" not in adapted.message
     assert note is not None
 
 

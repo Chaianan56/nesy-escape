@@ -29,6 +29,10 @@ def page(page_id, **extra):
 @pytest.fixture
 def engine():
     result = SymbolicEngine()
+    result.world['inference_questions'] = [{
+        'id': 'legacy_two_times', 'prompt': 'Legacy contract',
+        'requires_evidence': ['pocket_watch', 'wall_clock'],
+        'choices': [{'id': 'correct', 'label': 'Earlier violence', 'target': 'claim_two_times'}]}]
     result.world.setdefault('narrative_scenes', {}).update({
         'test_boarding': {'title': 'ขึ้นขบวน', 'pages': [page('arrival')]},
         'test_confrontation': {'title': 'ทักท้วงคำให้การ', 'pages': [

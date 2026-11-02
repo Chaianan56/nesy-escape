@@ -9,7 +9,7 @@ schemas.py — สัญญากลาง (Contract) ระหว่าง Neur
 """
 
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, AliasChoices
 
 
@@ -133,6 +133,7 @@ class CommandRequest(BaseModel):
 
 class CommandResponse(BaseModel):
     """ผลลัพธ์ตอบกลับคำสั่งส่งกลับไปยังฝั่งผู้เล่น/หน้าบ้าน"""
+    service_error: Optional[Literal["quota_exceeded", "unavailable"]] = None
     narrative_scene: Optional[Dict[str, Any]] = None
     conversation_summaries: List[Dict[str, Any]] = Field(default_factory=list)
     pending_steps: List[str] = Field(default_factory=list, description="ขั้นตอนที่รอการยืนยันจากผู้เล่นก่อนดำเนินการ")

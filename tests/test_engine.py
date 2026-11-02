@@ -413,11 +413,8 @@ def test_visible_exploration_and_earned_keys_can_reach_every_evidence_source(eng
     missing = [o for o, v in w["objects"].items()
                if v["type"] == "evidence" and o not in s.discovered_evidence]
     assert not missing, f"Unreachable evidence after visible exploration: {missing}"
-    assert any(c['target'] == 'claim_two_times' for q in engine.inference_questions(s) for c in q['choices'])
-    inferred = engine.decide(ParsedCommand(action=ActionType.INFER, target='claim_two_times',
-                                           evidence=INFERENCE_EVIDENCE, raw_text='test'), s)
-    assert inferred.allowed
-    s = apply_changes(s, inferred.state_changes)
+    assert engine.inference_questions(s) == []
+    assert s.validated_claims == []
     assert engine.ending_for("gideon_hart", s)["id"] == "true_ending"
     assert s.elapsed_seconds <= w["time_limit_seconds"], "เก็บครบแต่หมดเวลาก่อน"
 
@@ -622,3 +619,13 @@ def test_room_description_tracks_unlock_and_restored_state(case_id):
         assert examined.allowed
         assert 'ประตูห้องแพทย์ปลดล็อกแล้ว' in examined.message
         assert 'จะมอบกุญแจ' not in examined.message
+
+
+@pytest.mark.parametrize("missing", ["wall_clock", "pocket_watch", "staff_impact_testimony"])
+def test_forged_legacy_claim_cannot_replace_missing_timeline_evidence(engine, missing):
+    state = GameState(current_location="observation_car")
+    state.discovered_evidence = [key for key, obj in engine.world["objects"].items()
+                                 if obj["type"] == "evidence" and key != missing]
+    with_claim(state)  # Even an injected old claim cannot bypass the evidence gates.
+    ending = engine.ending_for("gideon_hart", state)
+    assert ending is None or ending["id"] != "true_ending"

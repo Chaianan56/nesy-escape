@@ -223,7 +223,11 @@ def test_journal_lists_only_held_keys_and_their_useful_description():
         'description': main.engine.world['objects']['medical_key']['description']}]
 
 
-def test_inference_uses_actual_submission_and_exports_attempts(monkeypatch):
+def test_legacy_inference_contract_uses_actual_submission_and_exports_attempts(monkeypatch):
+    monkeypatch.setitem(main.engine.world, 'inference_questions', [{
+        'id': 'legacy_two_times', 'prompt': 'Legacy contract',
+        'requires_evidence': ['pocket_watch', 'wall_clock'],
+        'choices': [{'id': 'correct', 'label': 'Earlier violence', 'target': 'claim_two_times'}]}])
     seed_state(GameState(discovered_evidence=INFERENCE_EVIDENCE))
     monkeypatch.setattr(main, 'interpret', lambda text, state: ParsedCommand(
         action=ActionType.INFER, target='claim_two_times', evidence=INFERENCE_EVIDENCE, raw_text=text))
@@ -474,7 +478,11 @@ def test_sequence_pauses_before_irreversible_step(fake_llm, action):
     assert client.get('/scene').json()['initial_state']['current_location'] == 'first_class_car'
 
 
-def test_sequence_pauses_before_inference_and_logs_only_the_explicit_submission(fake_llm):
+def test_legacy_sequence_pauses_before_inference_and_logs_only_the_explicit_submission(fake_llm, monkeypatch):
+    monkeypatch.setitem(main.engine.world, 'inference_questions', [{
+        'id': 'legacy_two_times', 'prompt': 'Legacy contract',
+        'requires_evidence': ['pocket_watch', 'wall_clock'],
+        'choices': [{'id': 'correct', 'label': 'Earlier violence', 'target': 'claim_two_times'}]}])
     steps = ['move first_class_car', 'infer claim_two_times', 'examine letter_opener']
     fake_llm(ActionType.SEQUENCE, alternatives=steps)
     seed_state(GameState(discovered_evidence=INFERENCE_EVIDENCE))

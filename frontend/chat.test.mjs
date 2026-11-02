@@ -41,14 +41,14 @@ test("การกล่าวหาไม่ต้องเลือกเล�
   assert.equal(commands,1);
 });
 
-test("ส่งหลักฐานที่เลือกได้เฉพาะตอนเสนอข้อสรุป", async () => {
+test("ไม่ส่งหลักฐานแนบจาก client แม้ส่ง option เก่าเข้ามา", async () => {
   let body;
   const c = loadChat(async (url, options) => {
     body = JSON.parse(options.body);
     return reply();
   });
   await c.sandbox.submit('กล่าวหา', {submittedEvidence: ['pocket_watch']});
-  assert.deepEqual(body, {text: 'กล่าวหา', submitted_evidence: ['pocket_watch']});
+  assert.deepEqual(body, {text: 'กล่าวหา'});
 });
 
 test("ส่งเฉพาะข้อความ ไม่ส่งสถานะที่ client แก้เอง", async () => {
@@ -621,3 +621,18 @@ for (const failure of ['network', 'timeout', 'http503']) {
     assert.equal(c.read('busy'), false);
   });
 }
+
+
+test('API outage is shown as service unavailable rather than a rule violation', async () => {
+  const c = loadChat(async () => {
+    const data = await reply({allowed:false}).json();
+    data.service_error = 'quota_exceeded';
+    data.decision = {allowed:false, message:'Gemini ยังไม่พร้อม กรุณารอสักครู่', reasoning_chain:[]};
+    data.parsed = {action:'unknown', parser_mode:'fallback'};
+    return {ok:true, json:async()=>data};
+  });
+  await c.sandbox.submit('ขอตรวจห้องหน่อย');
+  const html = c.el('chatFeed').children.map(n=>n.innerHTML).join('');
+  assert.match(html, /บริการตีความยังไม่พร้อม/);
+  assert.doesNotMatch(html, /DENIED|ไม่ผ่านกฎ|ไม่เข้าใจคำสั่ง/);
+});

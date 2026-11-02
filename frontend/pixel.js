@@ -785,11 +785,11 @@ const PixelUI = (() => {
     }
     wrap.append(clueSection);
 
-    // 4. Inference Questions & Pending Claims
-    if (data.inference_questions?.length || data.scene_followups?.length || data.validated_claims?.length) {
+    // 4. Dialogue follow-ups unlocked by discovered evidence
+    if (data.scene_followups?.length) {
       const claimSection = document.createElement('div');
       claimSection.className = 'archive-section';
-      claimSection.innerHTML = `<h3 class="archive-section-title">💡 ข้อสรุปและประเด็นที่ต้องเชื่อมโยง</h3>`;
+      claimSection.innerHTML = `<h3 class="archive-section-title">💬 ประเด็นสนทนาจากหลักฐานที่พบ</h3>`;
 
       (data.scene_followups || []).forEach(item => {
         const box = document.createElement('div');
@@ -804,30 +804,6 @@ const PixelUI = (() => {
         action.disabled = typeof gameOver !== 'undefined' && gameOver;
         box.append(title, action);
         claimSection.append(box);
-      });
-
-      (data.inference_questions || []).forEach(q => {
-        const box = document.createElement('div');
-        box.className = 'case-question';
-        const title = document.createElement('strong');
-        title.textContent = q.prompt;
-        const action = document.createElement('button');
-        action.type = 'button';
-        action.className = 'object-button highlight-btn';
-        action.textContent = 'เสนอข้อสรุปและแนบหลักฐาน';
-        action.onclick = () => {
-          if (typeof InferenceUI !== 'undefined') InferenceUI.open(q, data.evidence);
-        };
-        action.disabled = typeof gameOver !== 'undefined' && gameOver;
-        box.append(title, action);
-        claimSection.append(box);
-      });
-
-      (data.validated_claims || []).forEach(claim => {
-        const note = document.createElement('div');
-        note.className = 'note note-validated';
-        note.innerHTML = `<strong>✓ ข้อสรุปที่คุณตรวจสอบแล้ว:</strong> ${claim.name}`;
-        claimSection.append(note);
       });
 
       wrap.append(claimSection);
@@ -1143,9 +1119,7 @@ const PixelUI = (() => {
           ? 'ปิดแฟ้มคดีแล้ว'
           : (data.scene_followups?.length
             ? 'มีบทสนทนาใหม่ในสมุดคดี'
-            : (data.inference_questions?.length && !data.validated_claims?.length
-              ? 'มีประเด็นให้เสนอข้อสรุป'
-              : 'บันทึกพร้อมใช้งาน'));
+            : 'บันทึกพร้อมใช้งาน');
       }
 
       board();

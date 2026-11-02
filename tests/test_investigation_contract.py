@@ -139,8 +139,8 @@ def test_accusation_uses_all_discovered_evidence_and_ignores_submitted_subset(en
     submitted = walkthrough['winning_cases']['button_wax']
     assert len(submitted) == 19 and 'letter_opener' not in submitted
     state = GameState(discovered_evidence=submitted + ['letter_opener'])
-    state, _ = run(engine, state, ActionType.INFER, 'claim_two_times', evidence=support + ['letter_opener'])
-    assert 'letter_opener' in state.claim_evidence['claim_two_times']
+    assert state.validated_claims == []
+    assert engine.inference_questions(state) == []
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, submitted)
     assert decision.allowed and decision.state_changes['ending'] == 'true_ending'
     # ชุดหลักฐานย่อยที่ส่งมาจาก Caller รุ่นเก่าต้องไม่บดบังพยานหลักฐานที่ค้นพบแล้วในคดี
