@@ -41,14 +41,14 @@ test("การกล่าวหาไม่ต้องเลือกเล�
   assert.equal(commands,1);
 });
 
-test("ส่งหลักฐานที่เลือกได้เฉพาะตอนเสนอข้อสรุป", async () => {
+test("ไม่ส่งหลักฐานแนบจาก client แม้ส่ง option เก่าเข้ามา", async () => {
   let body;
   const c = loadChat(async (url, options) => {
     body = JSON.parse(options.body);
     return reply();
   });
   await c.sandbox.submit('กล่าวหา', {submittedEvidence: ['pocket_watch']});
-  assert.deepEqual(body, {text: 'กล่าวหา', submitted_evidence: ['pocket_watch']});
+  assert.deepEqual(body, {text: 'กล่าวหา'});
 });
 
 test("ส่งเฉพาะข้อความ ไม่ส่งสถานะที่ client แก้เอง", async () => {
