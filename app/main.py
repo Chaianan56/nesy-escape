@@ -374,6 +374,10 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
     session.state = result.new_state
     session_id = result.new_state.session_id or "default"
+    if result.service_error:
+        # Provider outages are operational failures, not player rule violations.
+        result.profile = latest_profiles.get(session_id)
+        return result
     tracker = get_tracker(session_id, eng=engine)
     pillars_status = {sid: engine.pillar_status(sid, result.new_state) for sid in engine.world["suspects"]}
     profile = tracker.record_turn(
@@ -463,6 +467,7 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
         return terminal_response(req.state, req.text, engine=active_engine)
     # --- ขั้นที่ 1: ตีความ ---
     api_error_note = None
+    service_error = None
     try:
         parsed = interpret(req.text, req.state)
     except NeuralQuotaExceeded as e:
@@ -473,7 +478,8 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
             confidence=0.0,
             parser_mode="fallback",
         )
-        api_error_note = "⚠️ **[Gemini API ติดโควตา/Rate Limit ชั่วคราว]** ระบบสลับเข้าโหมดออฟไลน์อัตโนมัติ กรุณารอสักครู่ หรือใช้คำสั่งเดี่ยว เช่น 'ไป ตู้ 3' หรือ 'ดูรอบๆ'"
+        service_error = "quota_exceeded"
+        api_error_note = "Gemini ยังไม่พร้อมรับคำสั่ง เนื่องจากติดข้อจำกัดการใช้งาน (Rate Limit / Quota) จึงยังไม่ได้ดำเนินการตามข้อความนี้ ไม่ได้หมายความว่าคุณพิมพ์ผิด กรุณารอสักครู่ก่อนลองใหม่ หากยังติดโควตาให้ตรวจโควตาของบัญชี ระหว่างนี้เปิดแฟ้มสืบสวนทบทวนข้อมูลได้"
     except NeuralUnavailable as e:
         logging.getLogger(__name__).warning("interpret failed: %s", e)
         parsed = ParsedCommand(
@@ -482,12 +488,17 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
             confidence=0.0,
             parser_mode="fallback",
         )
-        api_error_note = "⚠️ **[Gemini API ขัดข้องชั่วคราว]** ระบบสลับเข้าโหมดออฟไลน์อัตโนมัติ กรุณาลองใช้คำสั่งเดี่ยว เช่น 'ไป ตู้ 3' หรือ 'ดูรอบๆ'"
+        service_error = "unavailable"
+        api_error_note = "บริการตีความ Gemini ขัดข้อง จึงยังไม่ได้ดำเนินการตามข้อความนี้ ไม่ได้หมายความว่าคุณพิมพ์ผิด กรุณารอสักครู่ก่อนลองใหม่ ระหว่างนี้เปิดแฟ้มสืบสวนทบทวนข้อมูลได้"
 
     # Include time spent waiting for Gemini; expired commands cannot change the world.
     req.state = sync_clock(req.state)
     if req.state.ending_id or active_engine.is_out_of_time(req.state):
         return terminal_response(req.state, req.text, engine=active_engine)
+    if service_error:
+        return CommandResponse(parsed=parsed, new_state=req.state,
+            decision=Decision(allowed=False, message=api_error_note),
+            service_error=service_error, api_status=get_api_status())
     # Accept the previous wire format, but execute a sequence in one place only.
     if parsed.action == ActionType.SEQUENCE or (
         parsed.action == ActionType.AMBIGUOUS and parsed.sequence
@@ -527,11 +538,6 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
         )
         decision = decision.model_copy(
             update={"reasoning_chain": [repair_step] + decision.reasoning_chain}
-        )
-
-    if api_error_note and not decision.allowed:
-        decision = decision.model_copy(
-            update={"message": f"{decision.message}\n\n{api_error_note}"}
         )
 
     # --- ขั้นที่ 3: อัปเดตสถานะเฉพาะเมื่อคำสั่งผ่าน ---

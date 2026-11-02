@@ -223,8 +223,8 @@ def _accusation_ready(cmd, state, world, p):
     candidates = [e for e in world.get("endings", {}).values()
                   if e.get("accuse") == cmd.target]
     if any(_ending_matches(e, cmd.target, state, world) for e in candidates):
-        return True, "หลักฐานและข้อสรุปเข้าเงื่อนไขฉากจบของผู้ต้องสงสัยแล้ว"
-    return False, "หลักฐานหรือข้อสรุปยังไม่เข้าเงื่อนไข ต้องสืบสวนต่อก่อนกล่าวหา"
+        return True, "หลักฐานที่ค้นพบเข้าเงื่อนไขฉากจบของผู้ต้องสงสัยแล้ว"
+    return False, "หลักฐานที่ค้นพบยังไม่เข้าเงื่อนไข ต้องสืบสวนต่อก่อนกล่าวหา"
 
 
 def _four_pillars(cmd, state, world, p):
@@ -340,6 +340,8 @@ def _claim_held(cid, state, world):
 
 
 def _inference_ready(cmd, state, world, p):
+    if not world.get("inference_questions"):
+        return False, "คดีนี้ไม่ต้องส่งข้อสรุปหรือแนบหลักฐานแยก ให้รวบรวมหลักฐาน วิเคราะห์ด้วยตนเอง แล้วกล่าวหาผู้ต้องสงสัยได้เลย ระบบจะตรวจจากหลักฐานที่ค้นพบจริง"
     available = {choice["target"] for q in _available_questions(state, world) for choice in q.get("choices", [])}
     if cmd.target not in available:
         return False, "ยังไม่มีประเด็นนี้ในสมุดคดี"

@@ -797,7 +797,7 @@ async function submit(text, opts = {}) {
       await SequencePlayback.play(data);
     } else {
       // คำสั่งพ่วงไม่ต้องโชว์การ์ด "กำกวม" ของตัวมันเอง เดี๋ยวแต่ละขั้นมีการ์ดของตัวเอง
-      if (!(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook);
+      if (!(data.parsed?.sequence && data.parsed.alternatives?.length)) renderSystem(data.decision, data.parsed, opts.isRoomLook, data.service_error);
       renderConversationSummary(data.conversation_summaries || []);
       if (typeof GameArt !== 'undefined') GameArt.onResult(data);
       if (typeof PixelUI !== 'undefined') PixelUI.refresh();
@@ -1034,7 +1034,7 @@ function renderUser(text) {
   feed.scrollTop = feed.scrollHeight;
 }
 
-function renderSystem(decision, parsed = null, isRoomLook = false) {
+function renderSystem(decision, parsed = null, isRoomLook = false, serviceError = null) {
   const feed = document.getElementById("chatFeed");
   const card = document.createElement("div");
   card.className = `msg-system ${decision.allowed ? "" : "denied"} ${isRoomLook ? "room-card" : ""}`;
@@ -1043,7 +1043,9 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
   let statusBadge = "";
   const isItemExamine = Boolean(!isRoomLook && decision.allowed && parsed?.action === 'examine' && isItemTarget(parsed?.target));
 
-  if (isRoomLook) {
+  if (serviceError) {
+    statusBadge = `<span class="badge info">⚠ บริการตีความยังไม่พร้อม</span>`;
+  } else if (isRoomLook) {
     statusBadge = `<span class="badge info">📍 สภาพตู้รถปัจจุบัน</span>`;
   } else if (decision.allowed) {
     statusBadge = `<span class="badge allowed">✓ อนุมัติ (ALLOWED)</span>`;
@@ -1056,7 +1058,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false) {
     : "";
 
   const modeLabel = "โหมด B (NeSy Engine)";
-  const modeTag = renderParserModeTag(parsed);
+  const modeTag = serviceError ? "" : renderParserModeTag(parsed);
 
   const repairBanner = parsed?.repair_note ? `
     <div class="nesy-repair-banner">
