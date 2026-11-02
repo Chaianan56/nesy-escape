@@ -143,7 +143,7 @@ def test_accusation_uses_all_discovered_evidence_and_ignores_submitted_subset(en
     assert 'letter_opener' in state.claim_evidence['claim_two_times']
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, submitted)
     assert decision.allowed and decision.state_changes['ending'] == 'true_ending'
-    # A subset supplied by an old caller cannot hide evidence already found in the case.
+    # ชุดหลักฐานย่อยที่ส่งมาจาก Caller รุ่นเก่าต้องไม่บดบังพยานหลักฐานที่ค้นพบแล้วในคดี
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, ['pocket_watch'])
     assert decision.allowed and decision.state_changes['ending'] == 'true_ending'
     assert engine.pillar_status('gideon_hart', state)['timeline']

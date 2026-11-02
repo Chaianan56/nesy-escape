@@ -12,6 +12,62 @@ from app.profiler.schemas import PlayerArchetype, PlayerProfile
 class DynamicAdaptationEngine:
     """ประเมินและแต่งเติมการตอบสนองของระบบให้ตอบรับกับพฤติกรรมผู้เล่นแบบ Real-time"""
 
+    def adapt_turn(
+        self,
+        tracker: Any,
+        result: Any,
+        state: GameState,
+        engine: Optional[Any] = None,
+        profile: Optional[PlayerProfile] = None,
+    ) -> PlayerProfile:
+        """ปรับแต่งการตอบสนองและคำแนะนำช่วยเหลือสำหรับเทิร์นปัจจุบันแบบเบ็ดเสร็จ (Encapsulated 100%)
+
+        ซ่อนตรรกะภายในทั้งหมด:
+        - คำนวณ recent_violation_count จากประวัติ 3 เทิร์นล่าสุด
+        - ตรวจสอบสถานะการวนลูป (is_looping) และ consecutive_looping_count
+        - ปรับข้อความและคำแนะนำผ่าน adapt()
+        - บันทึก adaptive_note ลงในประวัติเทิร์นล่าสุด
+        - เพิ่มตัวนับ tracker.scaffolding_triggers เมื่อเกิด Scaffolding และซิงค์ลงใน profile
+        - อัปเดต result.decision และ result.profile
+        - คืนค่า PlayerProfile ที่ได้รับการปรับปรุงแล้ว
+        """
+        if profile is None:
+            profile = tracker.get_profile(state)
+
+        # 1. คำนวณจำนวนการละเมิดกฎใน 3 เทิร์นล่าสุด และตรวจสอบการวนลูป
+        turns = getattr(tracker, "turns", [])
+        recent_violation_count = sum(1 for turn in turns[-3:] if not turn.allowed)
+        is_looping = turns[-1].is_looping if turns else False
+        consecutive_looping_count = getattr(profile, "consecutive_looping_count", 0)
+
+        # 2. เรียก adapt() เพื่อปรับปรุง Decision และสร้างข้อความคำแนะนำ
+        new_decision, adaptive_note = self.adapt(
+            decision=result.decision,
+            parsed=result.parsed,
+            state=state,
+            profile=profile,
+            is_looping=is_looping,
+            recent_violation_count=recent_violation_count,
+            consecutive_looping_count=consecutive_looping_count,
+            engine=engine,
+        )
+        result.decision = new_decision
+
+        # 3. บันทึก telemetry และอัปเดตตัวนับ Scaffolding Triggers
+        if adaptive_note and turns:
+            turns[-1].adaptive_note = adaptive_note
+        if adaptive_note and ("Scaffolding" in adaptive_note or "Assistance Chip" in adaptive_note):
+            tracker.scaffolding_triggers += 1
+            profile.scaffolding_trigger_count = tracker.scaffolding_triggers
+        elif hasattr(tracker, "scaffolding_triggers"):
+            profile.scaffolding_trigger_count = tracker.scaffolding_triggers
+
+        # 4. ซิงค์โปรไฟล์ลงในผลลัพธ์ของคำสั่ง
+        if hasattr(result, "profile") and profile is not None:
+            result.profile = profile.model_dump() if hasattr(profile, "model_dump") else profile
+
+        return profile
+
     def adapt(
         self,
         decision: Decision,
@@ -73,7 +129,7 @@ class DynamicAdaptationEngine:
                 f"Profiler ได้สร้างชิปคำสั่งนำทาง [{chip['label']}] บนแถบ Quick Action ให้แล้ว"
             )
             adapted_message = f"{adapted_message}\n\n{level2_msg}"
-            adaptive_note = (adaptive_note + " | " if adaptive_note else "") + "Profiler Level 2 Assistance Chip generated"
+            adaptive_note = (adaptive_note + " | " if adaptive_note else "") + "Profiler Level 2 Scaffolding Assistance Chip generated"
         else:
             profile.assistance_chip = None
 

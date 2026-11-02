@@ -1,4 +1,11 @@
-"""Adversarial API playthroughs and provider outage recovery; no external calls."""
+"""
+tests/test_resilience.py — ทดสอบความทนทานต่อสภาวะผิดปกติ (Resilience & Outage Recovery)
+
+ครอบคลุม:
+- การทดสอบการเล่นเกมแบบแทรกแซง (Adversarial Playthrough): การปฏิเสธคำสั่งนอกเส้นทาง การตรวจเบาะแสซ้ำ และการเดินย้อนกลับ
+- การคงอยู่ของความคืบหน้าและสถานะหลักฐานเมื่อเกิดความล้มเหลวของ Neural Provider หรือโควตาเต็ม
+- การจัดการคำสั่งที่หมดเวลาของเซิร์ฟเวอร์ขณะรอการประมวลผลของโมเดลภายนอก โดยต้องไม่เปลี่ยนสถานะโลกของเกม
+"""
 import json
 from pathlib import Path
 
@@ -17,6 +24,7 @@ PROGRESS = ('current_location','inventory','discovered_evidence','examined_objec
 
 @pytest.fixture
 def client(monkeypatch):
+    """ฟิกซ์เจอร์จำลอง TestClient ในสภาวะออฟไลน์โดยตัดการเชื่อมต่อภายนอกทั้งหมด"""
     def offline(*args, **kwargs):
         raise NeuralUnavailable('Simulated provider outage')
     monkeypatch.setattr(gemini_client,'interpret',offline)
@@ -26,18 +34,23 @@ def client(monkeypatch):
         yield c
 
 def command(client,text,**extra):
+    """ส่งคำสั่งไปยังเอนด์พอยต์ /command และส่งคืนข้อมูล JSON ผลลัพธ์"""
     response=client.post('/command',json={'text':text,**extra})
     assert response.status_code == 200
     return response.json()
 
 def snapshot(client):
+    """ดึงภาพรวมสถานะเริ่มต้น (Snapshot) ของฉากปัจจุบันจากเซิร์ฟเวอร์"""
     return client.get('/scene').json()['initial_state']
 
 @pytest.mark.parametrize('case_id,filename',CASES)
 def test_off_route_denials_repeated_clues_and_backtracking_still_solve(client,case_id,filename):
+    """ทดสอบว่าการปฏิเสธคำสั่งนอกเส้นทาง การตรวจเบาะแสซ้ำ และการเดินย้อนกลับ
+    ไม่ทำลายสถานะหลักฐานที่ได้รับแล้ว และยังคงสามารถคลี่คลายคดีจนจบได้สำเร็จ
+    """
     client.get('/scene',params={'case_id':case_id})
     client.post('/start')
-    # Remote/locked content and premature accusations cannot reveal evidence.
+    # วัตถุที่อยู่ห่างไกล วัตถุที่ล็อกอยู่ หรือการกล่าวหาล่วงหน้า ต้องไม่เปิดเผยพยานหลักฐานก่อนกำหนด
     for text in ['examine secret_file','examine pocket_watch','accuse vincent_gray']:
         before=snapshot(client)
         reply=command(client,text)
@@ -67,6 +80,7 @@ def test_off_route_denials_repeated_clues_and_backtracking_still_solve(client,ca
 @pytest.mark.parametrize('case_id,filename',CASES)
 @pytest.mark.parametrize('failure',[NeuralUnavailable,NeuralQuotaExceeded])
 def test_provider_failure_preserves_progress_and_recovers(client,monkeypatch,case_id,filename,failure):
+    """ทดสอบว่าเมื่อระบบ Neural ขัดข้องหรือโควตาหมด สถานะความคืบหน้าจะคงเดิม และสามารถกลับมาทำงานต่อได้เมื่อระบบฟื้นตัว"""
     client.get('/scene',params={'case_id':case_id})
     client.post('/start')
     command(client,'move first_class_car')
@@ -89,6 +103,7 @@ def test_provider_failure_preserves_progress_and_recovers(client,monkeypatch,cas
 
 @pytest.mark.parametrize('case_id,filename',CASES)
 def test_time_expiring_during_provider_wait_does_not_apply_command(client,monkeypatch,case_id,filename):
+    """ทดสอบว่าหากเวลาของเกมหมดลงระหว่างรอการตอบกลับของ Provider คำสั่งนั้นต้องไม่ถูกนำไปแก้ไขสถานะของเกม"""
     now=[1000.0]
     monkeypatch.setattr(main.time,'time',lambda: now[0])
     client.get('/scene',params={'case_id':case_id})

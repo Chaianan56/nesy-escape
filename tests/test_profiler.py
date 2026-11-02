@@ -5,7 +5,7 @@ tests/test_profiler.py — ทดสอบระบบ Behavior Profiler, Dynami
 from fastapi.testclient import TestClient
 
 from app import main
-from app.schemas import ActionType, Decision, GameState, ParsedCommand
+from app.schemas import ActionType, CommandResponse, Decision, GameState, ParsedCommand
 from app.profiler.schemas import PlayerArchetype
 from app.profiler.tracker import BehaviorTracker
 from app.profiler.adaptation import DynamicAdaptationEngine
@@ -343,7 +343,7 @@ def test_profiler_scaffolding_levels_and_assistance_chip():
     assert p4.consecutive_looping_count == 3
     adapted_l2, note_l2 = adaptation.adapt(dec, ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="..."), state, p4, is_looping=True)
     assert note_l2 is not None
-    assert "Profiler Level 2 Assistance Chip generated" in note_l2
+    assert "Profiler Level 2 Scaffolding Assistance Chip generated" in note_l2
     assert "ชิปคำสั่งนำทาง" in adapted_l2.message
     assert p4.assistance_chip is not None
     assert "Profiler แนะนำ" in p4.assistance_chip["label"]
@@ -356,4 +356,166 @@ def test_profiler_scaffolding_levels_and_assistance_chip():
     adapted_cleared, _ = adaptation.adapt(dec, ParsedCommand(action=ActionType.MOVE, target="car_3_dining", raw_text="..."), state_moved, p5, is_looping=False)
     assert p5.assistance_chip is None
 
+
+def test_adapt_turn_encapsulates_recent_violation_count_and_scaffolding():
+    """ทดสอบว่า adapt_turn ซ่อนการคำนวณ recent_violation_count และการบวก scaffolding_triggers 100%"""
+    adaptation = DynamicAdaptationEngine()
+    tracker = BehaviorTracker(session_id="test_adapt_turn_viol")
+    state = GameState(current_location="lounge_car", visited_locations=["lounge_car"])
+
+    # จำลอง 2 เทิร์นแรกที่ทำผิดกฎ R005_SAME_LOCATION (อยู่คนละตู้)
+    parsed_err = ParsedCommand(action=ActionType.EXAMINE, target="pocket_watch", raw_text="ตรวจนาฬิกาพก")
+    dec_err = Decision(allowed=False, message="วัตถุไม่ได้อยู่ในห้องปัจจุบัน", violated_rule_id="R005_SAME_LOCATION")
+    tracker.record_turn("ตรวจนาฬิกาพก", parsed_err, dec_err, state)
+    tracker.record_turn("ตรวจนาฬิกาพก", parsed_err, dec_err, state)
+
+    # เทิร์นที่ 3 ทำผิดกฎซ้ำ (recent_violation_count = 3 >= 2 ทำให้เกิด Scaffolding)
+    profile_before = tracker.record_turn("ตรวจนาฬิกาพก", parsed_err, dec_err, state)
+    assert tracker.scaffolding_triggers == 0
+    assert profile_before.scaffolding_trigger_count == 0
+
+    result = CommandResponse(
+        parsed=parsed_err,
+        decision=dec_err,
+        new_state=state,
+    )
+
+    # เรียก adapt_turn โดยผู้เรียกไม่ต้องคำนวณ recent_violation_count หรือบวก scaffolding_triggers เอง
+    updated_profile = adaptation.adapt_turn(
+        tracker=tracker,
+        result=result,
+        state=state,
+        profile=profile_before,
+    )
+
+    # ยืนยันว่า adapt_turn ซ่อนการคำนวณ recent_violation_count และบวก triggers อัตโนมัติ
+    assert tracker.scaffolding_triggers == 1
+    assert updated_profile.scaffolding_trigger_count == 1
+    assert tracker.turns[-1].adaptive_note is not None
+    assert "Scaffolding" in tracker.turns[-1].adaptive_note
+
+    # ยืนยันว่าผลลัพธ์ Decision และ Profile ถูกอัปเดตอย่างสมบูรณ์
+    assert "ข้อสังเกตของผู้สืบสวน" in result.decision.message
+    assert result.profile is not None
+    assert result.profile["scaffolding_trigger_count"] == 1
+
+
+def test_adapt_turn_encapsulates_consecutive_looping_and_assistance_chip():
+    """ทดสอบว่า adapt_turn ตรวจจับการวนลูปซ้ำและสร้าง Assistance Chip อัตโนมัติ"""
+    adaptation = DynamicAdaptationEngine()
+    tracker = BehaviorTracker(session_id="test_adapt_turn_loop")
+    state = GameState(current_location="lounge_car", visited_locations=["lounge_car"])
+    dec_ok = Decision(allowed=True, message="สำรวจเรียบร้อย")
+    cmd_loop = ParsedCommand(action=ActionType.EXAMINE, target="watch", raw_text="ตรวจซ้ำ")
+
+    # เทิร์น 1: ปกติ
+    tracker.record_turn("ตรวจ", cmd_loop, dec_ok, state)
+
+    # เทิร์น 2: ลูปครั้งที่ 1 (consec=1) -> ยังไม่เกิด Scaffolding
+    p2 = tracker.record_turn("ตรวจซ้ำ 1", cmd_loop, dec_ok, state)
+    res2 = CommandResponse(parsed=cmd_loop, decision=dec_ok, new_state=state)
+    up2 = adaptation.adapt_turn(tracker, res2, state, profile=p2)
+    assert up2.consecutive_looping_count == 1
+    assert tracker.scaffolding_triggers == 0
+    assert up2.scaffolding_trigger_count == 0
+    assert up2.assistance_chip is None
+
+    # เทิร์น 3: ลูปครั้งที่ 2 (consec=2) -> Level 1 Scaffolding Nudge
+    p3 = tracker.record_turn("ตรวจซ้ำ 2", cmd_loop, dec_ok, state)
+    res3 = CommandResponse(parsed=cmd_loop, decision=dec_ok, new_state=state)
+    up3 = adaptation.adapt_turn(tracker, res3, state, profile=p3)
+    assert up3.consecutive_looping_count == 2
+    assert tracker.scaffolding_triggers == 1
+    assert up3.scaffolding_trigger_count == 1
+    assert "คุณตรวจสอบบริเวณนี้อย่างถี่ถ้วนแล้ว" in res3.decision.message
+    assert res3.profile["scaffolding_trigger_count"] == 1
+
+    # เทิร์น 4: ลูปครั้งที่ 3 (consec=3) -> Level 2 Scaffolding (Assistance Chip)
+    p4 = tracker.record_turn("ตรวจซ้ำ 3", cmd_loop, dec_ok, state)
+    res4 = CommandResponse(parsed=cmd_loop, decision=dec_ok, new_state=state)
+    up4 = adaptation.adapt_turn(tracker, res4, state, profile=p4)
+    assert up4.consecutive_looping_count == 3
+    assert tracker.scaffolding_triggers == 2
+    assert up4.scaffolding_trigger_count == 2
+    assert up4.assistance_chip is not None
+    assert "Profiler แนะนำ" in up4.assistance_chip["label"]
+    assert res4.profile["assistance_chip"] is not None
+    assert "ชิปคำสั่งนำทาง" in res4.decision.message
+
+
+def test_adapt_turn_allowed_turn_no_scaffolding():
+    """ทดสอบกรณีคำสั่งปกติที่ไม่มีการวนลูปหรือผิดกฎ adapt_turn ต้องไม่ออก Scaffolding"""
+    adaptation = DynamicAdaptationEngine()
+    tracker = BehaviorTracker(session_id="test_adapt_turn_clean")
+    state = GameState(current_location="lounge_car")
+    cmd = ParsedCommand(action=ActionType.EXAMINE, target="second_teacup", raw_text="ตรวจถ้วยชา")
+    dec = Decision(allowed=True, message="พบถ้วยชาใบที่สองวางอยู่บนโต๊ะ")
+
+    prof = tracker.record_turn("ตรวจถ้วยชา", cmd, dec, state)
+    result = CommandResponse(parsed=cmd, decision=dec, new_state=state)
+
+    updated_prof = adaptation.adapt_turn(tracker, result, state, profile=prof)
+
+    assert tracker.scaffolding_triggers == 0
+    assert updated_prof.scaffolding_trigger_count == 0
+    assert updated_prof.assistance_chip is None
+    assert result.decision.message == "พบถ้วยชาใบที่สองวางอยู่บนโต๊ะ"
+    assert result.profile["scaffolding_trigger_count"] == 0
+    assert result.profile["assistance_chip"] is None
+
+
+def test_adapt_turn_auto_retrieves_profile_when_omitted():
+    """ทดสอบว่าเมื่อไม่ส่ง profile เข้ามา adapt_turn จะดึงจาก tracker.get_profile(state) ให้อัตโนมัติ"""
+    adaptation = DynamicAdaptationEngine()
+    tracker = BehaviorTracker(session_id="test_adapt_turn_auto_prof")
+    state = GameState(current_location="lounge_car")
+    cmd = ParsedCommand(action=ActionType.EXAMINE, target="second_teacup", raw_text="ตรวจถ้วยชา")
+    dec = Decision(allowed=True, message="พบถ้วยชาใบที่สองวางอยู่บนโต๊ะ")
+
+    tracker.record_turn("ตรวจถ้วยชา", cmd, dec, state)
+    result = CommandResponse(parsed=cmd, decision=dec, new_state=state)
+
+    # เรียก adapt_turn โดยไม่ส่ง profile (profile=None)
+    returned_profile = adaptation.adapt_turn(tracker, result, state, profile=None)
+
+    assert returned_profile is not None
+    assert returned_profile.session_id == "test_adapt_turn_auto_prof"
+    assert result.profile is not None
+    assert result.profile["session_id"] == "test_adapt_turn_auto_prof"
+
+
+def test_adapt_turn_level2_scaffolding_on_non_r005_violations():
+    """ทดสอบว่า adapt_turn ซิงค์ scaffolding triggers เมื่อเกิด Level 2 Assistance Chip บนกฎที่ไม่ใช่ R005"""
+    adaptation = DynamicAdaptationEngine()
+    tracker = BehaviorTracker(session_id="test_non_r005_scaffolding")
+    state = GameState(current_location="lounge_car")
+
+    # จำลองการละเมิดกฎที่ไม่ใช่ R005 (เช่น R006_ITEM_AVAILABLE) ติดต่อกัน 3 ครั้ง
+    # ใน 2 ครั้งแรกยังไม่ถึงเกณฑ์ recent_violation_count >= 3 และไม่มี Level 1 nudge
+    for i in range(1, 3):
+        cmd = ParsedCommand(action=ActionType.EXAMINE, target=f"nonexistent_{i}", raw_text=f"ตรวจ {i}")
+        dec = Decision(allowed=False, message=f"ไม่พบวัตถุ {i}", violated_rule_id="R006_ITEM_AVAILABLE")
+        prof = tracker.record_turn(f"ตรวจ {i}", cmd, dec, state)
+        res = CommandResponse(parsed=cmd, decision=dec, new_state=state)
+        adaptation.adapt_turn(tracker, res, state, profile=prof)
+        assert tracker.scaffolding_triggers == 0
+        assert prof.scaffolding_trigger_count == 0
+
+    # เทิร์นที่ 3: ละเมิดกฎครั้งที่ 3 (recent_violation_count == 3) -> เกิด Level 2 Assistance Chip
+    cmd3 = ParsedCommand(action=ActionType.EXAMINE, target="nonexistent_3", raw_text="ตรวจ 3")
+    dec3 = Decision(allowed=False, message="ไม่พบวัตถุ 3", violated_rule_id="R006_ITEM_AVAILABLE")
+    prof3 = tracker.record_turn("ตรวจ 3", cmd3, dec3, state)
+    res3 = CommandResponse(parsed=cmd3, decision=dec3, new_state=state)
+    updated_prof = adaptation.adapt_turn(tracker, res3, state, profile=prof3)
+
+    # ตรวจสอบว่าเกิด Assistance Chip และ Scaffolding Telemetry ซิงค์ถูกต้อง
+    assert updated_prof.assistance_chip is not None
+    assert res3.profile is not None
+    assert res3.profile["assistance_chip"] is not None
+    assert tracker.scaffolding_triggers == 1
+    assert updated_prof.scaffolding_trigger_count == 1
+    assert res3.profile["scaffolding_trigger_count"] == 1
+    assert tracker.turns[-1].adaptive_note is not None
+    assert "Scaffolding" in tracker.turns[-1].adaptive_note
+    assert "Assistance Chip" in tracker.turns[-1].adaptive_note
 

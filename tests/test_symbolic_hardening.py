@@ -1,3 +1,12 @@
+"""
+tests/test_symbolic_hardening.py — ทดสอบความแข็งแกร่งของตรรกะ Symbolic Engine (Hardening Tests)
+
+ครอบคลุม:
+- การป้องกันการตรวจหลักฐานที่ยังไม่ผ่านการสอบปากคำ (R008_EVIDENCE_SOURCE)
+- การทดสอบความถูกต้องของการจัดการ Concurrency และ Race Condition ข้ามเซสชัน
+- การป้องกันไคลเอนต์ปลอมแปลงสถานะหลักฐาน ตำแหน่ง และเวลาของเกม
+- การคงอยู่ของ Invariant ตรรกะของเกมภายใต้สถานะผิดปกติและข้อมูลที่ไม่ถูกต้อง
+"""
 import ast
 import json
 import threading
@@ -14,10 +23,12 @@ from app.walkthrough import parse_step
 
 
 def command(action, target=None):
+    """สร้างออบเจกต์ ParsedCommand จำลองสำหรับการทดสอบ"""
     return ParsedCommand(action=action, target=target, raw_text='test')
 
 
 def test_testimony_cannot_be_examined_until_interrogated():
+    """ทดสอบว่าพยานหลักฐานที่ได้จากคำให้การไม่สามารถตรวจดูได้จนกว่าจะสอบปากคำผู้ต้องสงสัย (R008)"""
     engine = SymbolicEngine()
     for eid, obj in engine.world['objects'].items():
         owner = obj.get('from_testimony')
@@ -27,7 +38,7 @@ def test_testimony_cannot_be_examined_until_interrogated():
         denied = engine.decide(command(ActionType.EXAMINE, eid), state)
         assert not denied.allowed
         assert denied.violated_rule_id == 'R008_EVIDENCE_SOURCE'
-        # The source rule applies to the exact spoken node, not merely a prior greeting.
+        # กฎแหล่งที่มาของหลักฐาน (Source Rule) บังคับใช้กับโหนดคำพูดที่ระบุเจาะจง ไม่ใช่เพียงการทักทายเบื้องต้น
         state.discovered_evidence = [key for key, value in engine.world['objects'].items()
                                      if value.get('type') == 'evidence' and key != eid]
         for _ in range(max(1, len(engine.world['suspects'][owner].get('dialogue_nodes', [])))):
@@ -41,6 +52,7 @@ def test_testimony_cannot_be_examined_until_interrogated():
 
 
 def test_time_override_is_shared_by_checker_and_clock(tmp_path):
+    """ทดสอบว่าการกำหนดขีดจำกัดเวลาผ่านกฎถูกใช้งานร่วมกันระหว่างตัวตรวจกฎและนาฬิกาของเกม"""
     engine = SymbolicEngine()
     for rule in engine.rules:
         if rule['check'] == 'within_time_limit':
@@ -57,6 +69,7 @@ def test_time_override_is_shared_by_checker_and_clock(tmp_path):
 
 @pytest.mark.parametrize('broken', ['checker', 'duplicate_rule', 'reference', 'order', 'threshold', 'cycle', 'duplicate_pool', 'zero_time'])
 def test_bad_data_rejected_at_startup(tmp_path, broken):
+    """ทดสอบว่า SymbolicEngine ปฏิเสธข้อมูลเกมและกฎที่มีโครงสร้างผิดพลาดตั้งแต่ขั้นตอนเริ่มต้นระบบ"""
     engine = SymbolicEngine()
     rules, world = engine.rules, engine.world
     if broken == 'checker': rules[0]['check'] = 'missing'
@@ -76,6 +89,7 @@ def test_bad_data_rejected_at_startup(tmp_path, broken):
 
 @pytest.fixture
 def clients(monkeypatch):
+    """ฟิกซ์เจอร์สร้าง TestClient จำลองสองตัวพร้อมล้างข้อมูลเซสชันก่อนและหลังการทดสอบ"""
     sessions.clear()
     monkeypatch.setattr(main, 'interpret', lambda text, state: command(ActionType.MOVE, 'first_class_car'))
     a, b = TestClient(main.app), TestClient(main.app)
@@ -85,6 +99,7 @@ def clients(monkeypatch):
 
 
 def test_client_cannot_forge_evidence_clock_or_location(clients, monkeypatch):
+    """ทดสอบว่าฝั่งไคลเอนต์ไม่สามารถปลอมแปลงหลักฐาน ตำแหน่ง หรือเวลาเริ่มต้นผ่านการส่ง JSON payload ได้"""
     a, b = clients
     original = a.get('/scene').json()['initial_state']
     fake = GameState(current_location='first_class_car', discovered_evidence=list(main.engine.world['objects']),
@@ -101,6 +116,7 @@ def test_client_cannot_forge_evidence_clock_or_location(clients, monkeypatch):
 
 
 def test_progress_is_persistent_and_isolated_between_sessions(clients):
+    """ทดสอบว่าความคืบหน้าของแต่ละเซสชันถูกบันทึกอย่างต่อเนื่องและแยกขาดจากเซสชันอื่น"""
     a, b = clients
     moved = a.post('/command', json={'text':'move'}).json()['new_state']
     assert moved['current_location'] == 'first_class_car'
@@ -115,6 +131,7 @@ def test_progress_is_persistent_and_isolated_between_sessions(clients):
 
 
 def test_complete_walkthrough_uses_only_server_state(clients, monkeypatch):
+    """ทดสอบการดำเนินคดีตาม Walkthrough จนจบสมบูรณ์โดยอาศัยสถานะบนเซิร์ฟเวอร์เท่านั้น"""
     a, _ = clients
     walkthrough = json.loads(Path('data/walkthrough.json').read_text(encoding='utf-8'))
     for step in walkthrough['steps']:
@@ -132,6 +149,7 @@ def test_complete_walkthrough_uses_only_server_state(clients, monkeypatch):
 
 
 def test_expired_server_clock_cannot_be_reset_by_client(clients, monkeypatch):
+    """ทดสอบว่าเมื่อเวลาบนเซิร์ฟเวอร์หมดลง ไคลเอนต์จะไม่สามารถรีเซ็ตเวลากลับมาใหม่ได้"""
     a, _ = clients
     sessions[a.cookies[COOKIE]].state.started_at = 100
     monkeypatch.setattr(game_clock.time, 'time', lambda: 100 + main.engine.time_limit_seconds)
@@ -141,6 +159,7 @@ def test_expired_server_clock_cannot_be_reset_by_client(clients, monkeypatch):
 
 
 def test_session_required_and_scene_hides_unseen_objects():
+    """ทดสอบว่าต้องมีเซสชันก่อนส่งคำสั่ง และการดึงข้อมูลฉากจะไม่เปิดเผยวัตถุที่ยังค้นไม่พบ"""
     c = TestClient(main.app)
     assert c.post('/command', json={'text':'move'}).status_code == 401
     assert c.post('/journal').status_code == 401
@@ -151,6 +170,7 @@ def test_session_required_and_scene_hides_unseen_objects():
 
 
 def test_overlapping_commands_do_not_overwrite_progress(clients, monkeypatch):
+    """ทดสอบว่าคำสั่งที่ส่งเข้ามาพร้อมกันจากเซสชันเดียวกันจะไม่เขียนทับความคืบหน้าของกันและกัน"""
     a, _ = clients
     started, release = threading.Event(), threading.Event()
     calls = []
@@ -161,7 +181,7 @@ def test_overlapping_commands_do_not_overwrite_progress(clients, monkeypatch):
             assert release.wait(5)
         return command(ActionType.MOVE, 'first_class_car')
     monkeypatch.setattr(main, 'interpret', interpret)
-    # Separate HTTP clients share one session cookie to simulate two browser requests.
+    # ไคลเอนต์ HTTP สองตัวที่ถือ Session Cookie เดียวกัน จำลองคำขอพร้อมกันจากสองแท็บเบราว์เซอร์
     other = TestClient(main.app)
     other.cookies.set(COOKIE, a.cookies[COOKIE])
     with ThreadPoolExecutor(2) as pool:
@@ -175,6 +195,7 @@ def test_overlapping_commands_do_not_overwrite_progress(clients, monkeypatch):
 
 
 def test_cli_pillar_labels_work_and_wrong_ending_does_not_name_a_killer(capsys):
+    """ทดสอบว่าป้ายกำกับเสาหลักฐานบน CLI แสดงผลภาษาไทยถูกต้อง และตอนจบที่ผิดจะไม่เฉลยชื่อคนร้าย"""
     source = Path('play.py').read_text(encoding='utf-8')
     tree = ast.parse(source)
     functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('show_pillars','th_name')]

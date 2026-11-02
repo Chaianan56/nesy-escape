@@ -1,4 +1,11 @@
-"""Session isolation and concurrent tab requests, with no external model calls."""
+"""
+tests/test_session_isolation.py — ทดสอบการแยกเซสชันของผู้เล่น (Session Isolation & Concurrency)
+
+หน้าที่:
+- ตรวจสอบว่าผู้เล่นต่างเซสชันกันไม่แชร์สถานะความคืบหน้า และการเริ่มเกมใหม่ไม่กระทบอีกฝ่าย
+- ตรวจสอบว่าแท็บเบราว์เซอร์ที่ใช้ Cookie เดียวกันจะจัดลำดับคำสั่งแบบเรียงลำดับ (Serialized)
+- ตรวจสอบการปฏิเสธคำสั่งเมื่อ Cookie หมดอายุหรือไม่ถูกต้อง และการสร้างเซสชันใหม่เมื่อโหลดหน้าจอ
+"""
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
@@ -14,10 +21,12 @@ from app.neural.gemini_client import NeuralUnavailable
 CASES=['case_01_gideon','case_02_vincent','case_03_liora']
 
 def initial_evidence(case_id):
+    """ดึงรายการพยานหลักฐานเริ่มต้นที่เปิดเผยในแต่ละคดี"""
     return new_game_state(get_engine(case_id).world,case_id).discovered_evidence
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
+    """ฟิกซ์เจอร์ตั้งค่าให้ระบบทำงานแบบออฟไลน์โดยปฏิเสธการเรียกใช้โมเดลภายนอก"""
     def unavailable(*args,**kwargs):
         raise NeuralUnavailable('Offline session test')
     monkeypatch.setattr(gemini_client,'interpret',unavailable)
@@ -25,15 +34,18 @@ def offline(monkeypatch):
     monkeypatch.setattr(main,'llm_online',lambda:False)
 
 def scene(c):
+    """ดึงสถานะเริ่มต้นของฉากผ่านเอนด์พอยต์ /scene"""
     return c.get('/scene').json()['initial_state']
 
 def send(c,text):
+    """ส่งคำสั่งไปยัง /command และตรวจสอบสถานะ HTTP 200"""
     r=c.post('/command',json={'text':text})
     assert r.status_code==200
     return r.json()
 
 @pytest.mark.parametrize('case_id',CASES)
 def test_independent_players_do_not_share_progress_or_restart(case_id):
+    """ทดสอบว่าผู้เล่นต่างเซสชันมีสถานะแยกขาดจากกัน ไม่แชร์พยานหลักฐาน และการรีเซ็ตเกมของคนหนึ่งไม่กระทบอีกคน"""
     with TestClient(main.app) as a, TestClient(main.app) as b:
         a.get('/scene',params={'case_id':case_id})
         b.get('/scene',params={'case_id':'case_03_liora'})
@@ -52,6 +64,7 @@ def test_independent_players_do_not_share_progress_or_restart(case_id):
 
 @pytest.mark.parametrize('case_id',CASES)
 def test_shared_cookie_tabs_serialize_commands_and_keep_journal_responsive(monkeypatch,case_id):
+    """ทดสอบว่าคำสั่งจากหลายแท็บที่ใช้ Cookie เดียวกันจะถูกจัดคิวทำงานตามลำดับ และสมุดบันทึกยังตอบสนองได้โดยไม่ติดบล็อก"""
     with TestClient(main.app) as a, TestClient(main.app) as b:
         a.get('/scene',params={'case_id':case_id})
         b.cookies.update(a.cookies)
@@ -83,6 +96,7 @@ def test_shared_cookie_tabs_serialize_commands_and_keep_journal_responsive(monke
         assert scene(a)['started_at'] is None
 
 def test_unknown_cookie_cannot_send_commands_and_reload_creates_fresh_session():
+    """ทดสอบว่า Cookie ที่ไม่ถูกต้องหรือไม่รู้จักจะถูกปฏิเสธ (401) และการเรียก /scene จะออก Cookie ใหม่ที่สะอาดเสมอ"""
     with TestClient(main.app) as c:
         c.cookies.set(COOKIE,'expired-test-session')
         assert c.post('/command',json={'text':'move first_class_car'}).status_code==401
