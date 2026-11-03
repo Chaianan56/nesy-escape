@@ -519,7 +519,7 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
             decide_fn=lambda p, s: active_engine.decide(p, s),
             interpret_remote_fn=interpret_remote if llm_online() else None,
         )
-        if parsed.confidence < 0.50 and parsed.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS) and not decision.allowed:
+        if parsed.confidence < 0.70 and parsed.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS) and not decision.allowed:
             decision = decision.model_copy(
                 update={"message": f"{decision.message}\n\n💡 *[ความเชื่อมั่นของ AI ต่ำ ({int(parsed.confidence * 100)}%)]*: ลองระบุชื่อเป้าหมายหรือคำสั่งให้ชัดเจนยิ่งขึ้น"}
             )
