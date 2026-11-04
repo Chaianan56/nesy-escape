@@ -68,6 +68,43 @@ def test_other_provider_errors_do_not_skip(monkeypatch):
     with pytest.raises(NeuralUnavailable):
         say("ดูรอบๆ")
 
+
+def test_key_failover_on_transient_error(monkeypatch):
+    """ทดสอบว่าเมื่อ Key 1 เกิด Transient Error (503 / Timeout) ระบบจะสลับไปเรียก Key 2 จนสำเร็จ"""
+    from types import SimpleNamespace
+    from app.neural import gemini_client
+    import json
+
+    client1_calls = []
+    client2_calls = []
+
+    def fail_client1(**kwargs):
+        client1_calls.append(True)
+        raise RuntimeError("503 UNAVAILABLE: Server is temporarily overloaded")
+
+    def success_client2(**kwargs):
+        client2_calls.append(True)
+        valid_json = json.dumps({
+            "action": "examine",
+            "target": "wall_clock",
+            "raw_text": "ดูนาฬิกา",
+            "confidence": 1.0,
+            "alternatives": []
+        })
+        return SimpleNamespace(text=valid_json, usage_metadata=None)
+
+    c1 = SimpleNamespace(models=SimpleNamespace(generate_content=fail_client1))
+    c2 = SimpleNamespace(models=SimpleNamespace(generate_content=success_client2))
+
+    monkeypatch.setattr(gemini_client, "_clients", lambda: [c1, c2])
+    monkeypatch.setattr(gemini_client, "_active_key_index", 1)
+
+    result = gemini_client.interpret("ดูนาฬิกา", GameState())
+    assert result.action == ActionType.EXAMINE
+    assert result.target == "wall_clock"
+    assert len(client2_calls) == 1
+    assert gemini_client.get_api_status()["active_key"] == 2
+
 def test_entity_grounding_prompt_lists_every_id():
     """ทุก id ในโลกต้องอยู่ใน prompt ไม่งั้น LLM จะ ground ไม่ได้"""
     prompt = build_interpret_system_prompt(STORY_DATA)
@@ -232,3 +269,49 @@ def test_pruning_retains_explicit_remote_targets_and_known_evidence():
     assert 'cut_copper_wire' in objects
     assert set(locations) == set(STORY_DATA['locations'])
     assert len(objects) < len(STORY_DATA['objects'])
+
+
+def test_key_failover_quota_and_sticky_rotation(monkeypatch):
+    """ทดสอบว่าเมื่อ Key 1 ติดโควตา ระบบจะสลับไป Key 2 ทันที และจดจำ Key 2 ไว้ใช้ในเทิร์นถัดไป (Sticky Key)"""
+    from types import SimpleNamespace
+    from app.neural import gemini_client
+    import json
+
+    history = []
+
+    def make_reply(name):
+        valid_json = json.dumps({
+            "action": "examine",
+            "target": "wall_clock",
+            "raw_text": "ดูนาฬิกา",
+            "confidence": 1.0,
+            "alternatives": []
+        })
+        return SimpleNamespace(text=valid_json, usage_metadata=None)
+
+    def mock_c1(**kwargs):
+        history.append("c1")
+        raise RuntimeError("429 RESOURCE_EXHAUSTED: Quota exceeded for project")
+
+    def mock_c2(**kwargs):
+        history.append("c2")
+        return make_reply("c2")
+
+    c1 = SimpleNamespace(models=SimpleNamespace(generate_content=mock_c1))
+    c2 = SimpleNamespace(models=SimpleNamespace(generate_content=mock_c2))
+
+    monkeypatch.setattr(gemini_client, "_clients", lambda: [c1, c2])
+    monkeypatch.setattr(gemini_client, "_active_key_index", 1)
+
+    # เทิร์นแรก: Key 1 ติดโควตา -> ต้องสลับไป Key 2 สำเร็จ
+    res1 = gemini_client.interpret("ดูนาฬิกา", GameState())
+    assert res1.action == ActionType.EXAMINE
+    assert history == ["c1", "c2"]
+    assert gemini_client.get_api_status()["active_key"] == 2
+
+    # เทิร์นสอง: ต้องเริ่มที่ Key 2 ทันที (Sticky Key) โดยไม่ต้องกลับไปเสียเวลากับ Key 1
+    history.clear()
+    res2 = gemini_client.interpret("ดูนาฬิกา", GameState())
+    assert res2.action == ActionType.EXAMINE
+    assert history == ["c2"]
+    assert gemini_client.get_api_status()["active_key"] == 2
