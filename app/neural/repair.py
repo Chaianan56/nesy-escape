@@ -62,11 +62,51 @@ def repair_parsed_command(
                 updates["alternatives"] = []
                 repair_notes.append(f"De-sequenced movement intent to MOVE '{dest}'")
 
+    # ==========================================================================
+    # กรณีพิเศษ: AMBIGUOUS ที่ผู้เล่นมีเจตนาจัดการวัตถุ/กุญแจในห้องปัจจุบันที่มีชิ้นเดียว
+    # เช่น "เดินไปหยิบกุญแจบนโต๊ะ", "take key", "pick up the key"
+    # แต่ LLM สกัดเป็น ambiguous เนื่องจากพบว่ามีกุญแจหลายดอกในโลก (เช่น medical_key, staff_key)
+    # หากวัตถุประเภทนั้นมีอยู่ในห้องปัจจุบันเพียงชิ้นเดียว ให้ปรับเป็น action และ target ที่ถูกต้องอัตโนมัติ
+    # ==========================================================================
+    if parsed.action == ActionType.AMBIGUOUS and state:
+        inferred_action = None
+        if any(w in raw for w in ("หยิบ", "เก็บ", "เอา", "take", "pick up", "grab", "get")):
+            inferred_action = ActionType.TAKE
+        elif any(w in raw for w in ("ตรวจ", "ดู", "ส่อง", "examine", "inspect", "check", "look")):
+            inferred_action = ActionType.EXAMINE
+        elif parsed.alternatives:
+            first_alt_parts = parsed.alternatives[0].split()
+            first_act = first_alt_parts[0] if first_alt_parts else ""
+            if first_act in ("take", "examine", "unlock") and all(alt.startswith(first_act) for alt in parsed.alternatives):
+                try:
+                    inferred_action = ActionType(first_act)
+                except ValueError:
+                    pass
+
+        if inferred_action:
+            resolved = resolve_contextual_target(
+                inferred_action,
+                parsed.target,
+                state,
+                world_data,
+                raw_text=raw,
+            )
+            if resolved and resolved in objects:
+                obj_data = objects.get(resolved, {})
+                if obj_data.get("location") == state.current_location:
+                    updates["action"] = inferred_action
+                    updates["target"] = resolved
+                    updates["confidence"] = 1.0
+                    updates["alternatives"] = []
+                    repair_notes.append(
+                        f"Contextually resolved AMBIGUOUS {inferred_action.value} to unique room entity '{resolved}' ({obj_data.get('name_th', resolved)})"
+                    )
+
     if not updates and parsed.action in (ActionType.UNKNOWN, ActionType.SEQUENCE, ActionType.AMBIGUOUS):
         return parsed, None
 
-    target = parsed.target
-    action = parsed.action
+    target = updates.get("target", parsed.target)
+    action = updates.get("action", parsed.action)
 
     # ==========================================================================
     # กรณีที่ 1: การใช้คำว่า 'เปิด' (Semantic Over-specification: UNLOCK vs EXAMINE)
