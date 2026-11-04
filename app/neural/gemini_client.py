@@ -96,15 +96,17 @@ class NeuralQuotaExceeded(NeuralUnavailable):
 
 
 def _is_quota_error(e: Exception) -> bool:
-    """โควตาหมดของคีย์นี้หรือเปล่า ถ้าใช่ค่อยคุ้มที่จะเปลี่ยนไปคีย์อื่น"""
-    text = str(e)
-    return "RESOURCE_EXHAUSTED" in text or "429" in text
+    """ตรวจสอบว่าข้อผิดพลาดเกิดจากโควตาเต็ม (Quota / Rate Limit) หรือไม่"""
+    text = str(e).upper()
+    return any(s in text for s in ("RESOURCE_EXHAUSTED", "429", "QUOTA_EXCEEDED", "RATE_LIMIT"))
 
 
 def _is_transient(e: Exception) -> bool:
-    """Gemini ค้างหรือล่มชั่วคราว ลองคีย์เดิมซ้ำมักผ่าน (วัดจริง ~1 ใน 4 ค้างจน 504)"""
-    text = str(e)
-    return any(s in text for s in ("DEADLINE_EXCEEDED", "504", "503", "UNAVAILABLE", "timed out", "Timeout"))
+    """ตรวจสอบว่าข้อผิดพลาดเป็นปัญหาชั่วคราวของเซิร์ฟเวอร์หรือเครือข่ายหรือไม่"""
+    text = str(e).upper()
+    return any(s in text for s in (
+        "DEADLINE_EXCEEDED", "504", "503", "502", "500", "UNAVAILABLE", "TIMED OUT", "TIMEOUT", "CONNECTION"
+    ))
 
 
 def _clients() -> list:
@@ -186,48 +188,53 @@ def interpret(
         f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}"
     )
 
-    # ไล่ใช้คีย์ทีละตัว คีย์ไหนโควตาหมดก็ข้ามไปตัวถัดไป
+    # ไล่ใช้คีย์ตามลำดับ โดยเริ่มจาก Active Key ล่าสุดและสลับคีย์อัตโนมัติหากคีย์ปัจจุบันมีปัญหา (Auto-Failover)
     last_error: Optional[Exception] = None
-    # อนุญาตให้ลองใหม่แบบจำกัดเวลาเมื่อเกิด timeout ชั่วคราว โดยไม่วนซ้ำไม่รู้จบ
     deadline = time.monotonic() + 20
-    queue = list(clients)
-    retried = False
-    while queue:
-        client = queue[0]
-        remaining_ms = min(int((deadline - time.monotonic()) * 1000), 8000)
-        if remaining_ms <= 500:
-            break
-        try:
-            t_call_start = time.perf_counter()
-            # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
-            response = client.models.generate_content(
-                model=DEFAULT_MODEL,
-                contents=prompt_content,
-                config=types.GenerateContentConfig(
-                    http_options=types.HttpOptions(
-                        timeout=remaining_ms,
-                        headers={"X-Server-Timeout": "15"},
-                        retry_options=types.HttpRetryOptions(attempts=1),
-                    ),
-                    system_instruction=build_interpret_system_prompt(
-                        case_world,
-                        state=state,
-                        user_text=text,
-                        prune=prune,
-                        use_knn=use_knn,
-                        zero_shot=zero_shot,
-                        use_mmr=use_mmr,
-                    ),
-                    response_mime_type="application/json",
-                    response_schema=ParsedCommand,
-                    temperature=0.0,
-                ),
-            )
-            t_elapsed_ms = round((time.perf_counter() - t_call_start) * 1000, 2)
-            if not response.text:
-                raise RuntimeError("Gemini API คืนคำตอบว่าง")
+
+    start_idx = (_active_key_index - 1) % len(clients) if len(clients) > 0 else 0
+    ordered_clients = clients[start_idx:] + clients[:start_idx]
+
+    for client in ordered_clients:
+        current_key_idx = clients.index(client) + 1
+        _active_key_index = current_key_idx
+
+        # ให้โอกาสลองซ้ำที่คีย์เดิมได้ 1 ครั้งเฉพาะกรณี transient error ก่อนสลับคีย์
+        for attempt in range(2):
+            remaining_ms = min(int((deadline - time.monotonic()) * 1000), 8000)
+            if remaining_ms <= 500:
+                break
             try:
-                _active_key_index = clients.index(client) + 1
+                t_call_start = time.perf_counter()
+                # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
+                response = client.models.generate_content(
+                    model=DEFAULT_MODEL,
+                    contents=prompt_content,
+                    config=types.GenerateContentConfig(
+                        http_options=types.HttpOptions(
+                            timeout=remaining_ms,
+                            headers={"X-Server-Timeout": "15"},
+                            retry_options=types.HttpRetryOptions(attempts=1),
+                        ),
+                        system_instruction=build_interpret_system_prompt(
+                            case_world,
+                            state=state,
+                            user_text=text,
+                            prune=prune,
+                            use_knn=use_knn,
+                            zero_shot=zero_shot,
+                            use_mmr=use_mmr,
+                        ),
+                        response_mime_type="application/json",
+                        response_schema=ParsedCommand,
+                        temperature=0.0,
+                    ),
+                )
+                t_elapsed_ms = round((time.perf_counter() - t_call_start) * 1000, 2)
+                if not response.text:
+                    raise RuntimeError("Gemini API คืนคำตอบว่าง")
+
+                _active_key_index = current_key_idx
                 _last_api_status = {
                     "status": "ready",
                     "online": True,
@@ -236,49 +243,48 @@ def interpret(
                     "key_label": f"Key {_active_key_index}",
                     "message": "พร้อมใช้งาน",
                 }
-            except Exception:
-                pass
-            parsed_result = ParsedCommand.model_validate_json(response.text)
-            parsed_result.raw_text = text
-            parsed_result.latency_ms = t_elapsed_ms
-            parsed_result.parser_mode = "gemini_knn" if use_knn else "gemini_static"
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
-                parsed_result.prompt_tokens = getattr(response.usage_metadata, "prompt_token_count", None)
-                parsed_result.completion_tokens = getattr(response.usage_metadata, "candidates_token_count", None)
+                parsed_result = ParsedCommand.model_validate_json(response.text)
+                parsed_result.raw_text = text
+                parsed_result.latency_ms = t_elapsed_ms
+                parsed_result.parser_mode = "gemini_knn" if use_knn else "gemini_static"
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    parsed_result.prompt_tokens = getattr(response.usage_metadata, "prompt_token_count", None)
+                    parsed_result.completion_tokens = getattr(response.usage_metadata, "candidates_token_count", None)
 
-            # วงจรตรวจสอบและซ่อมแซมคำสั่งเชิงสัญลักษณ์ (Symbolic Repair Loop)
-            if enable_repair:
-                repaired_result, repair_note = repair_parsed_command(parsed_result, case_world, state=state, raw_text=text)
-                if repair_note:
-                    logger.info("Symbolic Repair applied: %s", repair_note)
-                    # Closed-Loop NeSy Active Co-Learning: บันทึกตัวอย่างที่ซ่อมแล้วเข้าสู่ Memory Bank
-                    if repaired_result.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS):
-                        from app.neural.retriever import get_retriever
-                        retriever = get_retriever()
-                        new_exemplar = {
-                            "query": text,
-                            "action": repaired_result.action.value,
-                            "target": repaired_result.target,
-                            "confidence": round(repaired_result.confidence, 2),
-                            "source": "active_learning_repair",
-                        }
-                        if repaired_result.instrument:
-                            new_exemplar["instrument"] = repaired_result.instrument
-                        if repaired_result.code:
-                            new_exemplar["code"] = repaired_result.code
-                        retriever.add_example(new_exemplar, persist=False)
-                        logger.info("Active Learning: Added repaired exemplar to memory bank [%s -> %s %s]", text, repaired_result.action.value, repaired_result.target)
-                return repaired_result
+                # วงจรตรวจสอบและซ่อมแซมคำสั่งเชิงสัญลักษณ์ (Symbolic Repair Loop)
+                if enable_repair:
+                    repaired_result, repair_note = repair_parsed_command(parsed_result, case_world, state=state, raw_text=text)
+                    if repair_note:
+                        logger.info("Symbolic Repair applied: %s", repair_note)
+                        # Closed-Loop NeSy Active Co-Learning: บันทึกตัวอย่างที่ซ่อมแล้วเข้าสู่ Memory Bank
+                        if repaired_result.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS):
+                            from app.neural.retriever import get_retriever
+                            retriever = get_retriever()
+                            new_exemplar = {
+                                "query": text,
+                                "action": repaired_result.action.value,
+                                "target": repaired_result.target,
+                                "confidence": round(repaired_result.confidence, 2),
+                                "source": "active_learning_repair",
+                            }
+                            if repaired_result.instrument:
+                                new_exemplar["instrument"] = repaired_result.instrument
+                            if repaired_result.code:
+                                new_exemplar["code"] = repaired_result.code
+                            retriever.add_example(new_exemplar, persist=False)
+                            logger.info("Active Learning: Added repaired exemplar to memory bank [%s -> %s %s]", text, repaired_result.action.value, repaired_result.target)
+                    return repaired_result
 
-            return parsed_result
-        except Exception as e:
-            last_error = e
-            if _is_quota_error(e):
-                queue.pop(0)
-                retried = False
-            elif _is_transient(e) and not retried:
-                retried = True
-            else:
+                return parsed_result
+            except Exception as e:
+                last_error = e
+                # หากเป็น Quota error ไม่ต้องลองซ้ำที่คีย์เดิม ให้ข้ามไปลองคีย์ถัดไปทันที
+                if _is_quota_error(e):
+                    break
+                # หากเป็น transient error (เช่น timeout, 503) และยังเป็น attempt แรก ให้ลองซ้ำที่คีย์เดิม 1 ครั้ง
+                if attempt == 0 and _is_transient(e):
+                    continue
+                # หากลองซ้ำแล้วยังไม่สำเร็จ หรือเป็น error อื่นๆ ให้ข้ามไปลองคีย์ถัดไป
                 break
     is_quota = _is_quota_error(last_error)
     _last_api_status = {
