@@ -24,6 +24,7 @@ def gemini_only_tests(monkeypatch):
     # These tests exercise Gemini failures, never spend a configured GPT key.
     from app.neural import openai_client
     monkeypatch.setattr(openai_client, "configured", lambda **kwargs: False)
+    monkeypatch.setattr(openai_client, "groq_configured", lambda: False)
 
 
 def say(text: str, state: GameState = None) -> ParsedCommand:

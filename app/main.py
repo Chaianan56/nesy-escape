@@ -142,15 +142,15 @@ from app.neural.typed_commands import interpret_game as interpret
 # ============================================================
 
 class ApiProviderRequest(BaseModel):
-    provider: Literal["auto", "gemini", "openai"]
+    provider: Literal["auto", "gemini", "openai", "groq"]
 
 
 @app.get("/api-provider")
 def api_provider(session: Session = Depends(session_for)):
-    from app.neural.openai_client import configured
+    from app.neural.openai_client import configured, groq_configured
     return {"selected": session.api_provider,
             "available": {"auto": True, "gemini": bool(_clients()),
-                          "openai": configured(fallback=False)}}
+                          "openai": configured(fallback=False), "groq": groq_configured()}}
 
 
 @app.post("/api-provider")

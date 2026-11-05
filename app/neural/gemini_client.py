@@ -78,17 +78,19 @@ def get_api_status() -> dict:
     """คืนสถานะการเชื่อมต่อ API, หมายเลข Key ปัจจุบัน และรายการสถานะของแต่ละ Key"""
     clients = _clients()
     total = len(clients)
-    if _last_api_status and _last_api_status.get("provider") == "openai":
+    if _last_api_status and _last_api_status.get("provider") in ("openai", "groq"):
         st = _last_api_status
         return {**st, "total_keys": total + 1, "keys": [{
             "index": 0, "label": st["key_label"], "is_active": st["online"],
             "state": "ready" if st["online"] else "error",
             "message": st["message"], "error": None,
         }]}
-    if total == 0 and openai_client.configured():
+    if total == 0 and (openai_client.groq_configured() or openai_client.configured(fallback=False)):
+        backup = "groq" if openai_client.groq_configured() else "openai"
+        label = "Groq" if backup == "groq" else "GPT"
         return {"status": "ready", "online": True, "active_key": 0,
-                "total_keys": 0, "key_label": "GPT สำรอง", "keys": [],
-                "provider": "openai", "message": "ตั้งค่า GPT สำรองแล้ว"}
+                "total_keys": 1, "key_label": label, "keys": [],
+                "provider": backup, "message": f"ตั้งค่า {label} แล้ว"}
     if not GENAI_AVAILABLE or total == 0:
         return {
             "status": "offline",
@@ -199,7 +201,7 @@ def llm_online() -> bool:
     แค่ตรวจว่ามีคีย์และสร้างไคลเอนต์ได้ โควตาหมดแล้วมันก็ยังคืน True
     ถ้าอยากรู้ว่าเรียกได้จริงไหม ต้องลองเรียก interpret() แล้วดักข้อผิดพลาดเอง
     """
-    return get_genai_client() is not None or openai_client.configured()
+    return get_genai_client() is not None or openai_client.configured(fallback=False) or openai_client.groq_configured()
 
 
 # ============================================================
@@ -210,19 +212,23 @@ def interpret(text: str, state: GameState, prune: bool = True,
               use_knn: bool = True, zero_shot: bool = False,
               enable_repair: bool = True, use_mmr: bool = True,
               provider: str = "auto") -> ParsedCommand:
-    """Try Gemini's key/model failover first, then GPT once if configured."""
+    """Automatic priority: Gemini, Groq, then optional paid GPT backup."""
     global _last_api_status
-    if provider not in ("auto", "gemini", "openai"):
+    if provider not in ("auto", "gemini", "openai", "groq"):
         raise ValueError("Unknown API provider")
-    if provider != "openai":
+    if provider in ("auto", "gemini"):
         try:
             return _interpret_gemini(text, state, prune, use_knn, zero_shot, enable_repair, use_mmr)
         except NeuralUnavailable:
-            if provider == "gemini" or not openai_client.configured():
+            if provider == "gemini" or not (openai_client.groq_configured() or openai_client.configured()):
                 raise
-    elif not openai_client.configured(fallback=False):
+    elif provider == "groq" and not openai_client.groq_configured():
+        raise NeuralNotConfigured("ยังไม่ได้ตั้งค่า GROQ_API_KEY")
+    elif provider == "openai" and not openai_client.configured(fallback=False):
         raise NeuralNotConfigured("ยังไม่ได้ตั้งค่า OPENAI_API_KEY")
-    label = "GPT" if provider == "openai" else "GPT สำรอง"
+    candidates = [provider] if provider != "auto" else (
+        (["groq"] if openai_client.groq_configured() else [])
+        + (["openai"] if openai_client.configured() else []))
     from app.cases import get_engine
     world = get_engine(state.case_id).world
     system = build_interpret_system_prompt(world, state=state, user_text=text,
@@ -231,22 +237,31 @@ def interpret(text: str, state: GameState, prune: bool = True,
                f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
                f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
                f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}")
-    try:
-        parsed = openai_client.interpret_structured(system, content)
-    except NeuralUnavailable as exc:
-        _last_api_status = {"status": "quota_exceeded" if isinstance(exc, NeuralQuotaExceeded) else "error", "online": False,
-            "provider": "openai", "active_key": 0, "key_label": label,
-            "message": "GPT ใช้งานไม่ได้" if provider == "openai" else "Gemini และ GPT สำรองใช้งานไม่ได้"}
-        raise
+    for index, actual_provider in enumerate(candidates):
+        label = "Groq" if actual_provider == "groq" else "GPT"
+        if provider == "auto":
+            label += " สำรอง"
+        try:
+            parsed = openai_client.interpret_structured(system, content,
+                **({"provider": "groq"} if actual_provider == "groq" else {}))
+            break
+        except NeuralUnavailable as exc:
+            _last_api_status = {"status": "quota_exceeded" if isinstance(exc, NeuralQuotaExceeded) else "error", "online": False,
+                "provider": actual_provider, "active_key": 0, "key_label": label,
+                "message": f"{label} ใช้งานไม่ได้" if provider != "auto" else "บริการ AI ที่ตั้งค่าไว้ใช้งานไม่ได้"}
+            if index == len(candidates) - 1:
+                raise
     parsed.raw_text = text
     if provider == "openai":
         parsed.parser_mode = parsed.parser_mode.replace("openai_fallback:", "openai:", 1)
+    elif provider == "auto" and actual_provider == "groq":
+        parsed.parser_mode = parsed.parser_mode.replace("groq:", "groq_fallback:", 1)
     if enable_repair:
         parsed, _ = repair_parsed_command(parsed, world, state=state, raw_text=text)
     _last_api_status = {"status": "ready", "online": True,
-        "provider": "openai", "active_key": 0, "key_label": label,
+        "provider": actual_provider, "active_key": 0, "key_label": label,
         "model": parsed.parser_mode.split(":", 1)[-1],
-        "message": "กำลังใช้ GPT ตามที่เลือก" if provider == "openai" else "กำลังใช้ GPT สำรอง เนื่องจาก Gemini ใช้งานไม่ได้"}
+        "message": f"กำลังใช้ {label} ตามที่เลือก" if provider != "auto" else f"กำลังใช้ {label} เนื่องจากบริการก่อนหน้าใช้งานไม่ได้"}
     return parsed
 
 
