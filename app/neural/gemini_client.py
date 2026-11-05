@@ -52,6 +52,7 @@ STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
 _clients_cache: Optional[list] = None
+_last_env_mtime: float = 0.0
 _active_key_index: int = 1
 _last_api_status: Optional[dict] = None
 
@@ -69,16 +70,18 @@ def get_api_status() -> dict:
             "key_label": "ไม่มี Key",
             "message": "ไม่มี GEMINI_API_KEY",
         }
+    key_tag = f"Key {_active_key_index}/{total}" if total > 1 else f"Key {_active_key_index}"
     if _last_api_status is not None:
         st = dict(_last_api_status)
         st["total_keys"] = total
+        st["key_label"] = key_tag
         return st
     return {
         "status": "ready",
         "online": True,
         "active_key": _active_key_index,
         "total_keys": total,
-        "key_label": f"Key {_active_key_index}",
+        "key_label": key_tag,
         "message": "พร้อมใช้งาน",
     }
 
@@ -96,9 +99,11 @@ class NeuralQuotaExceeded(NeuralUnavailable):
 
 
 def _is_quota_error(e: Exception) -> bool:
-    """ตรวจสอบว่าข้อผิดพลาดเกิดจากโควตาเต็ม (Quota / Rate Limit) หรือไม่"""
+    """ตรวจสอบว่าข้อผิดพลาดเกิดจากโควตาเต็ม (Quota / Rate Limit) หรือไม่ ทั้งรายนาที (RPM) และรายวัน (RPD)"""
+    if getattr(e, "code", None) == 429 or getattr(e, "status_code", None) == 429:
+        return True
     text = str(e).upper()
-    return any(s in text for s in ("RESOURCE_EXHAUSTED", "429", "QUOTA_EXCEEDED", "RATE_LIMIT"))
+    return any(s in text for s in ("RESOURCE_EXHAUSTED", "429", "QUOTA_EXCEEDED", "RATE_LIMIT", "QUOTA"))
 
 
 def _is_transient(e: Exception) -> bool:
@@ -117,11 +122,15 @@ def _clients() -> list:
     ตั้งตัวแปรชื่ออื่นเพิ่มไม่มีผล เพราะไม่มีโค้ดตรงไหนอ่าน
 
     โควตาฟรีนับต่อโปรเจกต์ ไม่ใช่ต่อคีย์ คีย์สำรองจึงต้องมาจากโปรเจกต์อื่นถึงจะได้โควตาเพิ่ม
+    ตรวจจับการแก้ไขไฟล์ .env อัตโนมัติเพื่อรีโหลดคีย์ใหม่โดยไม่ต้องรีสตาร์ตเซิร์ฟเวอร์
     """
-    global _clients_cache
+    global _clients_cache, _last_env_mtime
     if not GENAI_AVAILABLE:
         return []
-    if _clients_cache is None:
+    current_mtime = ENV_PATH.stat().st_mtime if ENV_PATH.exists() else 0.0
+    if _clients_cache is None or current_mtime != _last_env_mtime:
+        load_dotenv(dotenv_path=ENV_PATH, override=True)
+        _last_env_mtime = current_mtime
         _clients_cache = [
             genai.Client(api_key=key)
             for key in (k.strip() for k in os.getenv("GEMINI_API_KEY", "").split(","))
@@ -235,12 +244,13 @@ def interpret(
                     raise RuntimeError("Gemini API คืนคำตอบว่าง")
 
                 _active_key_index = current_key_idx
+                key_tag = f"Key {_active_key_index}/{len(clients)}" if len(clients) > 1 else f"Key {_active_key_index}"
                 _last_api_status = {
                     "status": "ready",
                     "online": True,
                     "active_key": _active_key_index,
                     "total_keys": len(clients),
-                    "key_label": f"Key {_active_key_index}",
+                    "key_label": key_tag,
                     "message": "พร้อมใช้งาน",
                 }
                 parsed_result = ParsedCommand.model_validate_json(response.text)
@@ -280,22 +290,27 @@ def interpret(
                 last_error = e
                 # หากเป็น Quota error ไม่ต้องลองซ้ำที่คีย์เดิม ให้ข้ามไปลองคีย์ถัดไปทันที
                 if _is_quota_error(e):
+                    logger.warning("[Gemini Auto-Failover] Key %d ติดข้อจำกัดโควตา (429 Rate Limit / Quota): %s -> กำลังสลับไปคีย์สำรองถัดไปทันที", current_key_idx, e)
                     break
                 # หากเป็น transient error (เช่น timeout, 503) และยังเป็น attempt แรก ให้ลองซ้ำที่คีย์เดิม 1 ครั้ง
                 if attempt == 0 and _is_transient(e):
+                    logger.info("[Gemini Retry] Key %d เกิดข้อผิดพลาดชั่วคราว (%s) กำลังลองซ้ำอีก 1 ครั้ง...", current_key_idx, e)
                     continue
                 # หากลองซ้ำแล้วยังไม่สำเร็จ หรือเป็น error อื่นๆ ให้ข้ามไปลองคีย์ถัดไป
+                logger.warning("[Gemini Auto-Failover] Key %d ล้มเหลว (%s) -> กำลังสลับไปคีย์สำรองถัดไป...", current_key_idx, e)
                 break
     is_quota = _is_quota_error(last_error)
+    key_tag = f"Key {_active_key_index}/{len(clients)}" if len(clients) > 1 else f"Key {_active_key_index}"
     _last_api_status = {
         "status": "quota_exceeded" if is_quota else "error",
         "online": False,
         "active_key": _active_key_index,
         "total_keys": len(clients),
-        "key_label": f"Key {_active_key_index}",
+        "key_label": key_tag,
         "message": "โควตาเต็มชั่วคราว (Rate Limit / Quota)" if is_quota else "API ขัดข้องชั่วคราว",
         "error_detail": str(last_error)[:120],
     }
+    logger.error("[Gemini Auto-Failover] ทุกคีย์ในระบบ (%d คีย์) ไม่สามารถใช้งานได้ ข้อผิดพลาดล่าสุด: %s", len(clients), last_error)
     error_type = NeuralQuotaExceeded if is_quota else NeuralUnavailable
     raise error_type(
         f"เรียก Gemini API ล้มเหลว: {last_error}") from last_error
