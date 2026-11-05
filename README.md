@@ -129,3 +129,23 @@ CLI แยกการเริ่มจากสถานะอ้างอิ�
 - [แผนดำเนินงานและสถานะ](docs/implementation-plan-2026-10-09.md)
 - [รายงานนำเข้าเกม](docs/implementation-report-2026-10-12.md)
 - [กลไกกลาง](docs/research-mechanics-v1.md) และ [protocol](docs/research-protocol-2026-10-12.md)
+
+## GPT สำรอง (เลือกเปิดใช้)
+
+กดปุ่ม **เลือก API / ดูสถานะ** มุมขวาล่าง แล้วเลือก อัตโนมัติ, Gemini เท่านั้น หรือ GPT เท่านั้น
+ตัวเลือกเก็บแยกตาม session และใช้กับคำสั่งถัดไป รวมถึงการตีความซ้ำ (reflexion)
+โหมดเลือกเองไม่สลับข้ามผู้ให้บริการเมื่อเกิดข้อผิดพลาด; คำสั่ง Fast-Path ยังคงไม่เรียก API
+ปุ่มที่ยังไม่มีคีย์จะกดไม่ได้ และการรีสตาร์ตเซิร์ฟเวอร์จะคืนตัวเลือกเริ่มต้นเป็นอัตโนมัติ
+
+เพิ่ม `OPENAI_API_KEY` ใน `.env` ฝั่ง backend และตั้ง `OPENAI_MODEL=gpt-4.1-mini`
+พร้อม `OPENAI_FALLBACK_ENABLED=true` แล้วรีสตาร์ตเซิร์ฟเวอร์
+ระบบลอง Gemini ตามกลยุทธ์คีย์/โมเดลเดิมก่อน แล้วจึงเรียก GPT หนึ่งครั้งเมื่อ Gemini ล้มเหลว
+หากไม่มีคีย์ Gemini แต่มีคีย์ OpenAI จะใช้ GPT ได้เช่นกัน
+ค่าว่างของคีย์หรือ `OPENAI_FALLBACK_ENABLED=false` ปิดเส้นทางสำรองนี้
+ผลยังผ่าน ParsedCommand และ Symbolic engine เดิม; คำสั่งกำกวมหรือถูกกฎปฏิเสธไม่ทำให้สลับ provider
+สถานะ API แสดง GPT สำรอง และ parser_mode บันทึก `openai_fallback:<model>`
+GPT ใช้ HTTP timeout 15 วินาทีต่อการเชื่อมต่อ/อ่าน หลังเวลา retry ของ Gemini
+หากทั้งสองบริการล้มเหลวจะคืน service error โดยไม่เปลี่ยนสถานะเกม
+ไม่ใส่คีย์ใน frontend หรือ commit `.env` ขึ้น Git
+เส้นทางนี้ใช้กับตัวตีความคำสั่ง; Neural-only Game Master สำหรับวิจัยยังใช้ provider เดิมโดยไม่สลับอัตโนมัติ
+การทดลองที่ต้องตรึงโมเดลให้ตั้ง `OPENAI_FALLBACK_ENABLED=false`

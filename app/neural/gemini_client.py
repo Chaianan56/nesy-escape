@@ -30,6 +30,7 @@ from app.schemas import ActionType, GameState, ParsedCommand
 # นำเข้า Prompt Builder จาก prompts.py
 from app.neural.prompts import build_interpret_system_prompt
 from app.neural.repair import repair_parsed_command
+from app.neural import openai_client
 
 # โหลดตัวแปรสภาพแวดล้อมจาก .env
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
@@ -77,6 +78,17 @@ def get_api_status() -> dict:
     """คืนสถานะการเชื่อมต่อ API, หมายเลข Key ปัจจุบัน และรายการสถานะของแต่ละ Key"""
     clients = _clients()
     total = len(clients)
+    if _last_api_status and _last_api_status.get("provider") == "openai":
+        st = _last_api_status
+        return {**st, "total_keys": total + 1, "keys": [{
+            "index": 0, "label": st["key_label"], "is_active": st["online"],
+            "state": "ready" if st["online"] else "error",
+            "message": st["message"], "error": None,
+        }]}
+    if total == 0 and openai_client.configured():
+        return {"status": "ready", "online": True, "active_key": 0,
+                "total_keys": 0, "key_label": "GPT สำรอง", "keys": [],
+                "provider": "openai", "message": "ตั้งค่า GPT สำรองแล้ว"}
     if not GENAI_AVAILABLE or total == 0:
         return {
             "status": "offline",
@@ -187,14 +199,58 @@ def llm_online() -> bool:
     แค่ตรวจว่ามีคีย์และสร้างไคลเอนต์ได้ โควตาหมดแล้วมันก็ยังคืน True
     ถ้าอยากรู้ว่าเรียกได้จริงไหม ต้องลองเรียก interpret() แล้วดักข้อผิดพลาดเอง
     """
-    return get_genai_client() is not None
+    return get_genai_client() is not None or openai_client.configured()
 
 
 # ============================================================
 # PUBLIC API — main.py เรียกใช้แค่สองฟังก์ชันนี้
 # ============================================================
 
-def interpret(
+def interpret(text: str, state: GameState, prune: bool = True,
+              use_knn: bool = True, zero_shot: bool = False,
+              enable_repair: bool = True, use_mmr: bool = True,
+              provider: str = "auto") -> ParsedCommand:
+    """Try Gemini's key/model failover first, then GPT once if configured."""
+    global _last_api_status
+    if provider not in ("auto", "gemini", "openai"):
+        raise ValueError("Unknown API provider")
+    if provider != "openai":
+        try:
+            return _interpret_gemini(text, state, prune, use_knn, zero_shot, enable_repair, use_mmr)
+        except NeuralUnavailable:
+            if provider == "gemini" or not openai_client.configured():
+                raise
+    elif not openai_client.configured(fallback=False):
+        raise NeuralNotConfigured("ยังไม่ได้ตั้งค่า OPENAI_API_KEY")
+    label = "GPT" if provider == "openai" else "GPT สำรอง"
+    from app.cases import get_engine
+    world = get_engine(state.case_id).world
+    system = build_interpret_system_prompt(world, state=state, user_text=text,
+        prune=prune, use_knn=use_knn, zero_shot=zero_shot, use_mmr=use_mmr)
+    content = (f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
+               f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
+               f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
+               f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}")
+    try:
+        parsed = openai_client.interpret_structured(system, content)
+    except NeuralUnavailable as exc:
+        _last_api_status = {"status": "quota_exceeded" if isinstance(exc, NeuralQuotaExceeded) else "error", "online": False,
+            "provider": "openai", "active_key": 0, "key_label": label,
+            "message": "GPT ใช้งานไม่ได้" if provider == "openai" else "Gemini และ GPT สำรองใช้งานไม่ได้"}
+        raise
+    parsed.raw_text = text
+    if provider == "openai":
+        parsed.parser_mode = parsed.parser_mode.replace("openai_fallback:", "openai:", 1)
+    if enable_repair:
+        parsed, _ = repair_parsed_command(parsed, world, state=state, raw_text=text)
+    _last_api_status = {"status": "ready", "online": True,
+        "provider": "openai", "active_key": 0, "key_label": label,
+        "model": parsed.parser_mode.split(":", 1)[-1],
+        "message": "กำลังใช้ GPT ตามที่เลือก" if provider == "openai" else "กำลังใช้ GPT สำรอง เนื่องจาก Gemini ใช้งานไม่ได้"}
+    return parsed
+
+
+def _interpret_gemini(
     text: str,
     state: GameState,
     prune: bool = True,

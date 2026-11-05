@@ -19,6 +19,32 @@ import vm from "node:vm";
 
 const SRC = readFileSync(new URL("./chat.js", import.meta.url), "utf-8");
 
+test('provider selection saves only after success and preserves selection on failure', async () => {
+  let fail = false;
+  const calls = [];
+  const c = loadChat(async (url, options) => {
+    calls.push([url, options]);
+    return {ok: !fail, json: async () => ({selected: options.method === 'POST' ? 'openai' : 'auto',
+      available: {auto: true, gemini: false, openai: true}})};
+  });
+  for (const id of ['provider-auto', 'provider-gemini', 'provider-openai', 'providerSelectionMessage']) {
+    const node = c.dom.document.createElement();
+    node.attrs = {};
+    node.setAttribute = (name, value) => {node.attrs[name] = value;};
+    c.dom.byId.set(id, node);
+  }
+  await c.sandbox.loadProviderOptions();
+  assert.equal(c.el('provider-gemini').disabled, true);
+  assert.equal(c.el('provider-auto').attrs['aria-pressed'], 'true');
+  await c.sandbox.loadProviderOptions('openai');
+  assert.deepEqual(JSON.parse(calls[1][1].body), {provider: 'openai'});
+  assert.equal(c.el('provider-openai').attrs['aria-pressed'], 'true');
+  fail = true;
+  await c.sandbox.loadProviderOptions('auto');
+  assert.equal(c.el('provider-openai').attrs['aria-pressed'], 'true');
+  assert.match(c.el('providerSelectionMessage').textContent, /ไม่สำเร็จ/);
+});
+
 test("กล่าวหาไม่ต้องเปิดสมุดหรือแปลงเลขหลักฐาน", async () => {
   let body;
   let journalRequests = 0;

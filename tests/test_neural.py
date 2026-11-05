@@ -19,6 +19,13 @@ from app.neural.prompts import build_interpret_system_prompt
 from app.symbolic.engine import SymbolicEngine, apply_changes
 
 
+@pytest.fixture(autouse=True)
+def gemini_only_tests(monkeypatch):
+    # These tests exercise Gemini failures, never spend a configured GPT key.
+    from app.neural import openai_client
+    monkeypatch.setattr(openai_client, "configured", lambda **kwargs: False)
+
+
 def say(text: str, state: GameState = None) -> ParsedCommand:
     """ส่งข้อความไทยหนึ่งประโยคให้ Gemini ตีความจริง
 
