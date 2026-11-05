@@ -192,6 +192,7 @@ async function initGame() {
 
     // บันทึกสถานะตั้งต้นครบ 8 ฟิลด์และข้อมูลฉาก
     gameState = sceneData.initial_state;
+    initApiKeyPopup();
     if (sceneData.api_status) updateApiStatus(sceneData.api_status);
     if (sceneData.profile) updateProfilerHUD(sceneData.profile);
     if (sceneData.case_id) updateCaseEdition(sceneData.case_id);
@@ -366,8 +367,127 @@ function renderParserModeTag(parsed) {
   return `<span class="parser-mode-tag neural">🧠 Neural Few-Shot (${latency})</span>`;
 }
 
+let latestApiStatusInfo = null;
+
+function renderApiKeyPopupList(info) {
+  const listEl = document.getElementById("apiKeyList");
+  const summaryEl = document.getElementById("apiKeySummary");
+  if (!listEl) return;
+  if (!info || !info.keys || info.keys.length === 0) {
+    listEl.innerHTML = `
+      <div class="api-key-row is-active">
+        <div class="api-key-row-top">
+          <div class="api-key-row-left">
+            <span class="live-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #68ba82; box-shadow: 0 0 6px #68ba82;"></span>
+            <span class="api-key-name">${escapeHtml(info?.key_label || "Key 1")}</span>
+          </div>
+          <span class="api-key-role-badge active">กำลังใช้งาน</span>
+        </div>
+        <span class="api-key-desc">${escapeHtml(info?.message || "พร้อมใช้งาน")}</span>
+      </div>
+    `;
+    if (summaryEl) summaryEl.textContent = info?.total_keys ? `มีทั้งหมด ${info.total_keys} คีย์ในระบบ` : "ระบบสลับคีย์อัตโนมัติเมื่อติดโควตาหรือขัดข้อง";
+    return;
+  }
+
+  listEl.innerHTML = info.keys.map(k => {
+    let rowClass = "api-key-row";
+    let dotColor = "#68ba82";
+    if (k.is_active) rowClass += " is-active";
+    if (k.state === "quota_exceeded") {
+      rowClass += " is-quota";
+      dotColor = "#e58e26";
+    } else if (k.state === "transient_error" || k.state === "error") {
+      rowClass += " is-error";
+      dotColor = "#d8a18d";
+    }
+
+    const roleBadge = k.is_active
+      ? `<span class="api-key-role-badge active">กำลังใช้งาน</span>`
+      : `<span class="api-key-role-badge standby">สำรอง</span>`;
+
+    const errorLine = k.error ? `<div style="font-size: 10.5px; color: #ffa08f; margin-top: 2px;">⚠️ ${escapeHtml(k.error.slice(0, 80))}</div>` : "";
+
+    return `
+      <div class="${rowClass}">
+        <div class="api-key-row-top">
+          <div class="api-key-row-left">
+            <span class="live-dot" style="width: 8px; height: 8px; border-radius: 50%; background: ${dotColor}; box-shadow: 0 0 6px ${dotColor};"></span>
+            <span class="api-key-name">${escapeHtml(k.label)}</span>
+          </div>
+          ${roleBadge}
+        </div>
+        <span class="api-key-desc">${escapeHtml(k.message || "พร้อมใช้งาน")}</span>
+        ${errorLine}
+      </div>
+    `;
+  }).join("");
+
+  if (summaryEl) {
+    summaryEl.textContent = `มีทั้งหมด ${info.total_keys || info.keys.length} คีย์ • สลับคีย์อัตโนมัติเมื่อติดโควตาหรือขัดข้อง`;
+  }
+}
+
+function toggleApiKeyPopup(force) {
+  const popup = document.getElementById("apiKeyPopup");
+  if (!popup) return;
+  const isHidden = popup.classList ? popup.classList.contains("hidden") : true;
+  const shouldOpen = force !== undefined ? force : isHidden;
+  if (shouldOpen) {
+    if (popup.classList) popup.classList.remove("hidden");
+    if (typeof popup.setAttribute === "function") popup.setAttribute("aria-hidden", "false");
+    renderApiKeyPopupList(latestApiStatusInfo);
+  } else {
+    if (popup.classList) popup.classList.add("hidden");
+    if (typeof popup.setAttribute === "function") popup.setAttribute("aria-hidden", "true");
+  }
+}
+
+function initApiKeyPopup() {
+  const widget = document.getElementById("apiStatusWidget");
+  const closeBtn = document.getElementById("closeApiKeyPopup");
+  const popup = document.getElementById("apiKeyPopup");
+  if (widget && typeof widget.addEventListener === "function" && !widget._hasPopupEvent) {
+    widget._hasPopupEvent = true;
+    widget.addEventListener("click", (e) => {
+      if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+      toggleApiKeyPopup();
+    });
+    widget.addEventListener("keydown", (e) => {
+      if (e && (e.key === "Enter" || e.key === " ")) {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        toggleApiKeyPopup();
+      }
+    });
+  }
+  if (closeBtn && typeof closeBtn.addEventListener === "function" && !closeBtn._hasPopupEvent) {
+    closeBtn._hasPopupEvent = true;
+    closeBtn.addEventListener("click", (e) => {
+      if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+      toggleApiKeyPopup(false);
+    });
+  }
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function" && !document._hasPopupDismissEvent) {
+    document._hasPopupDismissEvent = true;
+    document.addEventListener("click", (e) => {
+      if (popup && popup.classList && !popup.classList.contains("hidden")) {
+        if (popup.contains && !popup.contains(e.target) && widget && widget.contains && !widget.contains(e.target)) {
+          toggleApiKeyPopup(false);
+        }
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e && e.key === "Escape" && popup && popup.classList && !popup.classList.contains("hidden")) {
+        toggleApiKeyPopup(false);
+      }
+    });
+  }
+}
+
 function updateApiStatus(info) {
   if (!info) return;
+  latestApiStatusInfo = info;
+  initApiKeyPopup();
   const statusText = document.getElementById("apiStatusText");
   const keyBadge = document.getElementById("apiKeyBadge");
   const dot = document.getElementById("apiStatusDot");
@@ -393,8 +513,9 @@ function updateApiStatus(info) {
   }
   if (widget) {
     const detail = info.error_detail ? ` • ${info.error_detail}` : '';
-    widget.title = `Gemini API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''}${detail}`;
+    widget.title = `Gemini API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''} (คลิกเพื่อดูรายการสถานะ)${detail}`;
   }
+  renderApiKeyPopupList(info);
 }
 
 // ============================================================
