@@ -49,11 +49,13 @@ logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
 
 def _get_fallback_model(current_model: str) -> str:
     """คืนชื่อโมเดลสำรองเมื่อโมเดลหลักเกิดภาวะทำงานหนักเกินไป (503 High Demand)"""
+    if "3.5" in current_model:
+        return "gemini-3.1-flash-lite"
     if "3.1" in current_model:
         return "gemini-flash-lite-latest"
     return "gemini-3.1-flash-lite" 
