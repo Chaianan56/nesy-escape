@@ -49,7 +49,20 @@ logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STORY_DATA: dict = json.loads((DATA_DIR / "story.json").read_text(encoding="utf-8"))
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
+
+
+def _get_fallback_model(current_model: str) -> str:
+    """คืนชื่อโมเดลสำรองเมื่อโมเดลหลักเกิดภาวะทำงานหนักเกินไป (503 High Demand)"""
+    if "3.1" in current_model:
+        return "gemini-flash-lite-latest"
+    return "gemini-3.1-flash-lite" 
+
+
+def _is_model_demand_error(e: Exception) -> bool:
+    """ตรวจสอบว่าข้อผิดพลาดเกิดจากโมเดลฝั่ง Google มีผู้ใช้งานหนาแน่นชั่วคราว (503 High Demand) หรือไม่"""
+    text = str(e).upper()
+    return any(s in text for s in ("503", "HIGH DEMAND", "SPIKES IN DEMAND", "CAPACITY", "OVERLOADED"))
 
 _clients_cache: Optional[list] = None
 _last_env_mtime: float = 0.0
@@ -231,8 +244,8 @@ def interpret(
 
         # หากมีคีย์สำรองอยู่และเกิดข้อผิดพลาด ให้สลับคีย์ทันทีเพื่อไม่ให้เสียเวลา deadline
         # หากเป็นคีย์เดียวที่เหลืออยู่ ให้ลองซ้ำได้ 1 ครั้ง
-        max_attempts = 1 if has_backup else 2
-        for attempt in range(max_attempts):
+        model_to_use = DEFAULT_MODEL
+        for attempt in range(2):
             remaining_ms = min(int((deadline - time.monotonic()) * 1000), 8000)
             if remaining_ms <= 500:
                 break
@@ -240,7 +253,7 @@ def interpret(
                 t_call_start = time.perf_counter()
                 # ส่งคำร้องขอไปยัง Gemini API โดยบังคับ Structured Output Schema ตาม ParsedCommand
                 response = client.models.generate_content(
-                    model=DEFAULT_MODEL,
+                    model=model_to_use,
                     contents=prompt_content,
                     config=types.GenerateContentConfig(
                         http_options=types.HttpOptions(
@@ -269,7 +282,7 @@ def interpret(
                 _active_key_index = current_key_idx
                 _key_statuses[current_key_idx] = {
                     "state": "ready",
-                    "message": "พร้อมใช้งาน",
+                    "message": f"พร้อมใช้งาน ({model_to_use})",
                     "error": None,
                 }
                 key_tag = f"Key {_active_key_index}"
@@ -329,12 +342,17 @@ def interpret(
                 if _is_transient(e):
                     _key_statuses[current_key_idx] = {
                         "state": "transient_error",
-                        "message": "เซิร์ฟเวอร์ขัดข้อง/ตอบช้า (503/Timeout)",
+                        "message": f"เซิร์ฟเวอร์ขัดข้อง/ตอบช้า ({model_to_use})",
                         "error": str(e)[:120],
                     }
-                    # หากไม่มีคีย์สำรอง และยังเป็น attempt แรก ให้ลองซ้ำอีกครั้ง
-                    if attempt == 0 and not has_backup:
-                        logger.info("[Gemini Retry] Key %d เกิดข้อผิดพลาดชั่วคราว (%s) กำลังลองซ้ำอีก 1 ครั้ง...", current_key_idx, e)
+                    # หากเกิด 503 High Demand ให้สลับไปใช้โมเดลสำรองในการลองครั้งที่ 2
+                    if attempt == 0:
+                        if _is_model_demand_error(e):
+                            fallback_m = _get_fallback_model(model_to_use)
+                            logger.warning("[Gemini Model-Fallback] โมเดล %s ติด 503 High Demand -> กำลังสลับไปใช้โมเดลสำรอง %s...", model_to_use, fallback_m)
+                            model_to_use = fallback_m
+                        else:
+                            logger.info("[Gemini Retry] Key %d เกิดข้อผิดพลาดชั่วคราว (%s) กำลังลองซ้ำอีก 1 ครั้ง...", current_key_idx, e)
                         continue
                 else:
                     _key_statuses[current_key_idx] = {
@@ -342,7 +360,7 @@ def interpret(
                         "message": "ข้อผิดพลาด",
                         "error": str(e)[:120],
                     }
-                # หากลองซ้ำแล้วหรือมีคีย์สำรอง ให้สลับไปลองคีย์ถัดไปทันที
+                # หากลองซ้ำแล้วหรือเป็น non-transient error ให้สลับไปลองคีย์ถัดไป
                 logger.warning("[Gemini Auto-Failover] Key %d ล้มเหลว (%s) -> กำลังสลับไปคีย์สำรองถัดไป...", current_key_idx, e)
                 break
     is_quota = _is_quota_error(last_error)
