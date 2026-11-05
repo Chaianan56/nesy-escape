@@ -55,10 +55,11 @@ _clients_cache: Optional[list] = None
 _last_env_mtime: float = 0.0
 _active_key_index: int = 1
 _last_api_status: Optional[dict] = None
+_key_statuses: dict[int, dict] = {}
 
 
 def get_api_status() -> dict:
-    """คืนสถานะการเชื่อมต่อ API และหมายเลข Key ที่กำลังใช้งานอยู่"""
+    """คืนสถานะการเชื่อมต่อ API, หมายเลข Key ปัจจุบัน และรายการสถานะของแต่ละ Key"""
     clients = _clients()
     total = len(clients)
     if not GENAI_AVAILABLE or total == 0:
@@ -69,20 +70,39 @@ def get_api_status() -> dict:
             "total_keys": 0,
             "key_label": "ไม่มี Key",
             "message": "ไม่มี GEMINI_API_KEY",
+            "keys": [],
         }
-    key_tag = f"Key {_active_key_index}/{total}" if total > 1 else f"Key {_active_key_index}"
+
+    keys_list = []
+    for idx in range(1, total + 1):
+        st = _key_statuses.get(idx, {"state": "ready", "message": "พร้อมใช้งาน", "error": None})
+        is_active = (idx == _active_key_index)
+        keys_list.append({
+            "index": idx,
+            "label": f"Key {idx}",
+            "is_active": is_active,
+            "role": "กำลังใช้งาน" if is_active else "สำรอง",
+            "state": st.get("state", "ready"),
+            "message": st.get("message", "พร้อมใช้งาน"),
+            "error": st.get("error"),
+        })
+
+    key_label = f"Key {_active_key_index}"
     if _last_api_status is not None:
         st = dict(_last_api_status)
         st["total_keys"] = total
-        st["key_label"] = key_tag
+        st["key_label"] = key_label
+        st["keys"] = keys_list
         return st
+
     return {
         "status": "ready",
         "online": True,
         "active_key": _active_key_index,
         "total_keys": total,
-        "key_label": key_tag,
+        "key_label": key_label,
         "message": "พร้อมใช้งาน",
+        "keys": keys_list,
     }
 
 
@@ -207,9 +227,12 @@ def interpret(
     for client in ordered_clients:
         current_key_idx = clients.index(client) + 1
         _active_key_index = current_key_idx
+        has_backup = (len(ordered_clients) > 1 and client != ordered_clients[-1])
 
-        # ให้โอกาสลองซ้ำที่คีย์เดิมได้ 1 ครั้งเฉพาะกรณี transient error ก่อนสลับคีย์
-        for attempt in range(2):
+        # หากมีคีย์สำรองอยู่และเกิดข้อผิดพลาด ให้สลับคีย์ทันทีเพื่อไม่ให้เสียเวลา deadline
+        # หากเป็นคีย์เดียวที่เหลืออยู่ ให้ลองซ้ำได้ 1 ครั้ง
+        max_attempts = 1 if has_backup else 2
+        for attempt in range(max_attempts):
             remaining_ms = min(int((deadline - time.monotonic()) * 1000), 8000)
             if remaining_ms <= 500:
                 break
@@ -244,7 +267,12 @@ def interpret(
                     raise RuntimeError("Gemini API คืนคำตอบว่าง")
 
                 _active_key_index = current_key_idx
-                key_tag = f"Key {_active_key_index}/{len(clients)}" if len(clients) > 1 else f"Key {_active_key_index}"
+                _key_statuses[current_key_idx] = {
+                    "state": "ready",
+                    "message": "พร้อมใช้งาน",
+                    "error": None,
+                }
+                key_tag = f"Key {_active_key_index}"
                 _last_api_status = {
                     "status": "ready",
                     "online": True,
@@ -288,19 +316,37 @@ def interpret(
                 return parsed_result
             except Exception as e:
                 last_error = e
-                # หากเป็น Quota error ไม่ต้องลองซ้ำที่คีย์เดิม ให้ข้ามไปลองคีย์ถัดไปทันที
+                # หากเป็น Quota error ไม่ต้องลองซ้ำที่คีย์เดิม บันทึกสถานะและสลับไปคีย์ถัดไปทันที
                 if _is_quota_error(e):
+                    _key_statuses[current_key_idx] = {
+                        "state": "quota_exceeded",
+                        "message": "ติดโควตา (Rate Limit / Quota)",
+                        "error": str(e)[:120],
+                    }
                     logger.warning("[Gemini Auto-Failover] Key %d ติดข้อจำกัดโควตา (429 Rate Limit / Quota): %s -> กำลังสลับไปคีย์สำรองถัดไปทันที", current_key_idx, e)
                     break
-                # หากเป็น transient error (เช่น timeout, 503) และยังเป็น attempt แรก ให้ลองซ้ำที่คีย์เดิม 1 ครั้ง
-                if attempt == 0 and _is_transient(e):
-                    logger.info("[Gemini Retry] Key %d เกิดข้อผิดพลาดชั่วคราว (%s) กำลังลองซ้ำอีก 1 ครั้ง...", current_key_idx, e)
-                    continue
-                # หากลองซ้ำแล้วยังไม่สำเร็จ หรือเป็น error อื่นๆ ให้ข้ามไปลองคีย์ถัดไป
+                # หากเป็น transient error (เช่น timeout, 503)
+                if _is_transient(e):
+                    _key_statuses[current_key_idx] = {
+                        "state": "transient_error",
+                        "message": "เซิร์ฟเวอร์ขัดข้อง/ตอบช้า (503/Timeout)",
+                        "error": str(e)[:120],
+                    }
+                    # หากไม่มีคีย์สำรอง และยังเป็น attempt แรก ให้ลองซ้ำอีกครั้ง
+                    if attempt == 0 and not has_backup:
+                        logger.info("[Gemini Retry] Key %d เกิดข้อผิดพลาดชั่วคราว (%s) กำลังลองซ้ำอีก 1 ครั้ง...", current_key_idx, e)
+                        continue
+                else:
+                    _key_statuses[current_key_idx] = {
+                        "state": "error",
+                        "message": "ข้อผิดพลาด",
+                        "error": str(e)[:120],
+                    }
+                # หากลองซ้ำแล้วหรือมีคีย์สำรอง ให้สลับไปลองคีย์ถัดไปทันที
                 logger.warning("[Gemini Auto-Failover] Key %d ล้มเหลว (%s) -> กำลังสลับไปคีย์สำรองถัดไป...", current_key_idx, e)
                 break
     is_quota = _is_quota_error(last_error)
-    key_tag = f"Key {_active_key_index}/{len(clients)}" if len(clients) > 1 else f"Key {_active_key_index}"
+    key_tag = f"Key {_active_key_index}"
     _last_api_status = {
         "status": "quota_exceeded" if is_quota else "error",
         "online": False,
