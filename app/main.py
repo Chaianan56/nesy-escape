@@ -11,7 +11,8 @@ main.py — Interaction Layer / ท่อเชื่อมระบบ
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
+from pydantic import BaseModel
 import logging
 import time
 
@@ -19,7 +20,7 @@ from dotenv import load_dotenv
 ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -139,6 +140,27 @@ from app.neural.typed_commands import interpret_game as interpret
 # ============================================================
 # จุดเชื่อมต่อ API (Endpoints)
 # ============================================================
+
+class ApiProviderRequest(BaseModel):
+    provider: Literal["auto", "gemini", "openai"]
+
+
+@app.get("/api-provider")
+def api_provider(session: Session = Depends(session_for)):
+    from app.neural.openai_client import configured
+    return {"selected": session.api_provider,
+            "available": {"auto": True, "gemini": bool(_clients()),
+                          "openai": configured(fallback=False)}}
+
+
+@app.post("/api-provider")
+def select_api_provider(req: ApiProviderRequest, session: Session = Depends(session_for)):
+    options = api_provider(session)
+    if not options["available"][req.provider]:
+        raise HTTPException(400, "ยังไม่ได้ตั้งค่าคีย์ API ของบริการนี้ใน .env")
+    session.api_provider = req.provider
+    return api_provider(session)
+
 
 @app.get("/health")
 def health(probe: bool = False):
@@ -368,7 +390,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     # ละเว้น snapshot จาก client เพื่อป้องกันการแทรกแซงสถานะ: ยึดสถานะบนเซิร์ฟเวอร์เป็นหลักเสมอ
     engine = engine_for_session(session)
     req.state = session.state.model_copy(deep=True)
-    result = _handle_command(req, engine=engine)
+    result = _handle_command(req, engine=engine, provider=session.api_provider)
     if result.decision.allowed and result.parsed.action == ActionType.INTERROGATE:
         result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
@@ -450,7 +472,7 @@ def export_research_data():
     return {"count": len(load_all_session_summaries()), "sessions": load_all_session_summaries()}
 
 
-def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
+def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None, provider: str = "auto"):
     """ข้อความไทยหนึ่งประโยค -> คำตัดสินหนึ่งครั้ง -> สถานะใหม่หนึ่งก้อน"""
     active_engine = engine or engine_for_state(req.state)
     req.state = sync_clock(req.state)
@@ -460,7 +482,7 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
     api_error_note = None
     service_error = None
     try:
-        parsed = interpret(req.text, req.state)
+        parsed = interpret(req.text, req.state, **({"provider": provider} if provider != "auto" else {}))
     except NeuralQuotaExceeded as e:
         logging.getLogger(__name__).warning("interpret quota exceeded: %s", e)
         parsed = ParsedCommand(
@@ -470,7 +492,7 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
             parser_mode="fallback",
         )
         service_error = "quota_exceeded"
-        api_error_note = "Gemini ยังไม่พร้อมรับคำสั่ง เนื่องจากติดข้อจำกัดการใช้งาน (Rate Limit / Quota) จึงยังไม่ได้ดำเนินการตามข้อความนี้ ไม่ได้หมายความว่าคุณพิมพ์ผิด กรุณารอสักครู่ก่อนลองใหม่ หากยังติดโควตาให้ตรวจโควตาของบัญชี ระหว่างนี้เปิดแฟ้มสืบสวนทบทวนข้อมูลได้"
+        api_error_note = "บริการ AI ยังไม่พร้อมรับคำสั่ง เนื่องจากติดข้อจำกัดการใช้งาน (Rate Limit / Quota) จึงยังไม่ได้ดำเนินการตามข้อความนี้ ไม่ได้หมายความว่าคุณพิมพ์ผิด กรุณารอสักครู่ก่อนลองใหม่ หากยังติดโควตาให้ตรวจโควตาของบัญชี ระหว่างนี้เปิดแฟ้มสืบสวนทบทวนข้อมูลได้"
     except NeuralUnavailable as e:
         logging.getLogger(__name__).warning("interpret failed: %s", e)
         parsed = ParsedCommand(
@@ -480,7 +502,7 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
             parser_mode="fallback",
         )
         service_error = "unavailable"
-        api_error_note = "บริการตีความ Gemini ขัดข้อง จึงยังไม่ได้ดำเนินการตามข้อความนี้ ไม่ได้หมายความว่าคุณพิมพ์ผิด กรุณารอสักครู่ก่อนลองใหม่ ระหว่างนี้เปิดแฟ้มสืบสวนทบทวนข้อมูลได้"
+        api_error_note = "บริการตีความ AI ขัดข้อง จึงยังไม่ได้ดำเนินการตามข้อความนี้ ไม่ได้หมายความว่าคุณพิมพ์ผิด กรุณารอสักครู่ก่อนลองใหม่ ระหว่างนี้เปิดแฟ้มสืบสวนทบทวนข้อมูลได้"
 
     # นับรวมเวลาที่ใช้รอการตอบกลับจาก Gemini โดยคำสั่งที่หมดอายุแล้วจะไม่สามารถแก้ไขสถานะของโลกในเกมได้
     req.state = sync_clock(req.state)
@@ -517,7 +539,7 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None):
             state=req.state,
             world_data=active_engine.world,
             decide_fn=lambda p, s: active_engine.decide(p, s),
-            interpret_remote_fn=interpret_remote if llm_online() else None,
+            interpret_remote_fn=(lambda *a, **k: interpret_remote(*a, **k, **({"provider": provider} if provider != "auto" else {}))) if llm_online() else None,
         )
         if parsed.confidence < 0.70 and parsed.action not in (ActionType.UNKNOWN, ActionType.AMBIGUOUS) and not decision.allowed:
             decision = decision.model_copy(

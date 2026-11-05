@@ -29,6 +29,7 @@ class Session:
     """โครงสร้างข้อมูลจัดเก็บสถานะของผู้เล่นแต่ละคนในหน่วยความจำ"""
     state: GameState = field(default_factory=new_game_state)
     case_id: str = "case_01_gideon"
+    api_provider: str = "auto"
     submitted_evidence: Optional[List[str]] = None
     inference_attempts: List[dict] = field(default_factory=list)
     touched: float = field(default_factory=time.monotonic)

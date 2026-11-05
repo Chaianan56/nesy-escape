@@ -167,6 +167,14 @@
     .api-key-popup.hidden {
         display: none !important;
     }
+    #apiKeyPopup button[id^="provider-"] {
+        padding: 10px; border: 1px solid #75613e; border-radius: 8px;
+        background: #211c16; color: #f7f3ea; text-align: left; cursor: pointer;
+        font: inherit;
+    }
+    #apiKeyPopup button[aria-pressed="true"] { background: #574326; border-color: #e3bf79; }
+    #apiKeyPopup button:disabled { opacity: .45; cursor: not-allowed; }
+    #apiKeyPopup button:focus-visible { outline: 2px solid #e3bf79; outline-offset: 2px; }
     .api-popup-header {
         display: flex !important;
         justify-content: space-between !important;
@@ -452,7 +460,7 @@
         </form>
     </div>
     <div class="dock-note" id="apiStatusDock">
-        <small>สถานะ API</small>
+        <small>เลือก API / ดูสถานะ</small>
         <div id="apiStatusWidget" class="hud-pill api-status-pill" title="คลิกเพื่อดูสถานะทุก API Key" role="button" tabindex="0">
             <span class="live-dot" id="apiStatusDot"></span>
             <span id="apiStatusText">พร้อมใช้งาน</span>
@@ -461,8 +469,14 @@
         <!-- Pop-up แสดงรายการสถานะของแต่ละ API Key -->
         <div id="apiKeyPopup" class="api-key-popup hidden" aria-hidden="true">
             <div class="api-popup-header">
-                <span class="api-popup-title">สถานะ Gemini API Keys</span>
+                <span class="api-popup-title">เลือกบริการ AI</span>
                 <button type="button" id="closeApiKeyPopup" class="api-popup-close" title="ปิด">&times;</button>
+            </div>
+            <div style="padding: 12px; display: grid; gap: 8px;" role="group" aria-label="เลือกบริการ AI">
+                <button type="button" id="provider-auto" aria-pressed="false">อัตโนมัติ · Gemini → GPT สำรอง</button>
+                <button type="button" id="provider-gemini" aria-pressed="false">ใช้ Gemini เท่านั้น</button>
+                <button type="button" id="provider-openai" aria-pressed="false">ใช้ GPT เท่านั้น</button>
+                <small id="providerSelectionMessage" role="status" aria-live="polite">กำลังโหลดตัวเลือก…</small>
             </div>
             <div id="apiKeyList" class="api-popup-list">
                 <!-- รายการคีย์แต่ละตัวจะถูกแสดงที่นี่ -->
