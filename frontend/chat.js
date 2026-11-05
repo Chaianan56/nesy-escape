@@ -364,6 +364,12 @@ function renderParserModeTag(parsed) {
     return `<span class="parser-mode-tag fallback">⚠️ Offline Fallback</span>`;
   }
   const latency = parsed.latency_ms != null ? parsed.latency_ms.toFixed(1) + 'ms' : '~3000ms';
+  if (parsed.parser_mode.startsWith('groq_fallback:')) {
+    return `<span class="parser-mode-tag neural">🧠 Groq สำรอง (${latency})</span>`;
+  }
+  if (parsed.parser_mode.startsWith('groq:')) {
+    return `<span class="parser-mode-tag neural">🧠 Groq (${latency})</span>`;
+  }
   if (parsed.parser_mode.startsWith('openai:')) {
     return `<span class="parser-mode-tag neural">🧠 GPT (${latency})</span>`;
   }
@@ -436,7 +442,7 @@ function renderApiKeyPopupList(info) {
 
 let providerSelectionBusy = false;
 let providerOptions = null;
-const providerLabels = { auto: 'อัตโนมัติ', gemini: 'Gemini เท่านั้น', openai: 'GPT เท่านั้น' };
+const providerLabels = { auto: 'อัตโนมัติ', gemini: 'Gemini เท่านั้น', openai: 'GPT เท่านั้น', groq: 'Groq เท่านั้น' };
 
 function renderProviderOptions() {
   for (const name of Object.keys(providerLabels)) {
@@ -565,7 +571,7 @@ function updateApiStatus(info) {
   }
   if (widget) {
     const detail = info.error_detail ? ` • ${info.error_detail}` : '';
-    widget.title = `${info.provider === 'openai' ? 'OpenAI' : 'Gemini'} API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''} (คลิกเพื่อดูรายการสถานะ)${detail}`;
+    widget.title = `${info.provider === 'groq' ? 'Groq' : info.provider === 'openai' ? 'OpenAI' : 'Gemini'} API: ${info.message || 'พร้อมใช้งาน'} · กำลังใช้งาน ${info.key_label || 'Key 1'}${info.total_keys ? ` (มีทั้งหมด ${info.total_keys} คีย์)` : ''} (คลิกเพื่อดูรายการสถานะ)${detail}`;
   }
   renderApiKeyPopupList(info);
 }
@@ -929,7 +935,7 @@ async function submit(text, opts = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text }),
-      signal: AbortSignal.timeout(60000), // Allow Gemini retries followed by one GPT backup request.
+      signal: AbortSignal.timeout(90000), // Allow Gemini retries, then Groq and GPT backup requests.
     });
     if (gameOver) return null;
     if (!res.ok) {

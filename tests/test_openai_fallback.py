@@ -9,6 +9,7 @@ from app.schemas import GameState, ParsedCommand
 
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):
+    monkeypatch.setattr(gpt, "groq_configured", lambda: False)
     monkeypatch.setenv("OPENAI_API_KEY", "test-secret")
     monkeypatch.setenv("OPENAI_FALLBACK_ENABLED", "true")
     monkeypatch.setattr(gemini, "_last_api_status", None)
