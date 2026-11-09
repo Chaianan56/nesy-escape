@@ -13,7 +13,7 @@
 branch `frontend` ได้รับการผสาน (Merge) เข้าสู่ `main` อย่างสมบูรณ์แล้ว พร้อมคุณสมบัติต่อไปนี้:
 
 1. **Zero-Hallucination Policy**: กำจัดตัวจำลองที่แต่ง reasoning chain ปลอมออกทั้งหมด หาก Backend เชื่อมต่อไม่ได้จะรายงานข้อผิดพลาดตรงไปตรงมา ไม่มีการแต่งรหัสกฎย้อนหลัง
-2. **Server-Owned Sessions**: ควบคุมสถานะเกมที่ Backend 100% ผ่าน Session Cookie ป้องกันการโกงสถานะจากฝั่ง Client
+2. **Server-Side Session Isolation**: จัดการสถานะเกมแยกอิสระในแต่ละเซสชัน เพื่อรองรับการเล่นหลายคดีพร้อมกันโดยสถานะไม่ปนเปื้อน
 3. **Stylized Art & Novel Scenes**: มีภาพประกอบหลักฐาน ฉากเหตุการณ์ และระบบเล่าเรื่องสไตล์นิยายภาพ (`frontend/novel.js`, `frontend/art.js`, `frontend/narrative.js`)
 4. **Case Board & Evidence Journal**: กระดานสำนวนคดีและสมุดบันทึกหลักฐานตามสเปก 4 เสา
 5. **Confirmation Recovery & Timeout Handling**: ป้องกันการส่งคำสั่งซ้ำ, มีปุ่มกดยืนยันการกระทำสำคัญ และแสดงผลฉากจบเมื่อหมดเวลาอย่างถูกต้องในหน้าต่างเดียวกัน
