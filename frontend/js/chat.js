@@ -1,5 +1,5 @@
 /**
- * frontend/chat.js — ตัวควบคุมการสื่อสารและจัดการหน้าจอหลัก (Main Game Controller & UI Manager)
+ * frontend/js/chat.js — ตัวควบคุมการสื่อสารและจัดการหน้าจอหลัก (Main Game Controller & UI Manager)
  * 
  * หน้าที่หลัก:
  * 1. รับและส่งคำสั่งภาษาไทยของผู้เล่นผ่าน POST /command ไปยังเซิร์ฟเวอร์

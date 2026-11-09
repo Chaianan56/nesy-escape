@@ -13,7 +13,7 @@ function setup(){
   const context=vm.createContext({busy:false,suspectsMap:{gideon_hart:'กิเดียน ฮาร์ต (Gideon Hart)'},setBusy(){},
     document:{getElementById(id){if(!nodes.has(id))nodes.set(id,{hidden:true,scrollIntoView(){}});return nodes.get(id);},
       addEventListener(event,callback){handler=callback;},querySelector(){return null;}}});
-  vm.runInContext(readFileSync(new URL('./novel.js',import.meta.url),'utf8'),context);
+  vm.runInContext(readFileSync(new URL('./js/novel.js',import.meta.url),'utf8'),context);
   return {ui:vm.runInContext('NovelUI',context),nodes,key(event){handler(event);}};
 }
 test('Enter advances one page and cannot submit; narration has its own label',()=>{

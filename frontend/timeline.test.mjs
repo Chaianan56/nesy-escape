@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('./pixel.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('./js/pixel.js', import.meta.url), 'utf8');
 const renderer = source.slice(source.indexOf('  function renderTimelineTab('), source.indexOf('  // Journal Dispatcher'));
 function render(data) {
   const element = () => ({innerHTML:'', children:[], append(child){this.children.push(child);}});

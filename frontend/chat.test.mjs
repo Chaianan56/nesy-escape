@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const SRC = readFileSync(new URL("./chat.js", import.meta.url), "utf-8");
+const SRC = readFileSync(new URL("./js/chat.js", import.meta.url), "utf-8");
 
 test('provider selection saves only after success and preserves selection on failure', async () => {
   let fail = false;

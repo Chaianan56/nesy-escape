@@ -56,7 +56,7 @@ function pixelSetup() {
     querySelectorAll: () => [tab],
     addEventListener: (_, fn) => { init = fn; },
   }});
-  vm.runInContext(readFileSync(new URL('./pixel.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(readFileSync(new URL('./js/pixel.js', import.meta.url), 'utf8'), context);
   init(); tab.onclick();
   return {feed, wrap, ui: vm.runInContext('PixelUI', context)};
 }
@@ -88,7 +88,7 @@ test('rebuilt header history button opens the original log and restores it on cl
   nodes.latestChatHost.append(nodes.chatFeed);
   let init;
   const handlers = {};
-  vm.runInNewContext(readFileSync(new URL('./history.js', import.meta.url), 'utf8'), {
+  vm.runInNewContext(readFileSync(new URL('./js/history.js', import.meta.url), 'utf8'), {
     window: {addEventListener: (_, fn) => { init = fn; }},
     document: {
       getElementById: id => nodes[id],

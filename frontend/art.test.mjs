@@ -7,7 +7,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import vm from 'node:vm';
-const source=readFileSync(new URL('./art.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('./js/art.js',import.meta.url),'utf8');
 function setup(){
   const nodes=Object.fromEntries(['sceneImage','sceneLabel','sceneStatus','artStatus'].map(id=>[id,{}]));
   const context=vm.createContext({document:{getElementById:id=>nodes[id],createElement:()=>({})}});

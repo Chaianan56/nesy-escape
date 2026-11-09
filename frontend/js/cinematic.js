@@ -1,5 +1,5 @@
 /**
- * frontend/cinematic.js — ระบบตกแต่งการแสดงผลแบบ Cinematic Noir UI
+ * frontend/js/cinematic.js — ระบบตกแต่งการแสดงผลแบบ Cinematic Noir UI
  * 
  * หน้าที่:
  * 1. ปรับปรุงการจัดวางองค์ประกอบบนหน้าเว็บให้เป็นรูปแบบภาพยนตร์สืบสวน (Cinematic)
