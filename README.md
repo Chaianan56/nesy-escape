@@ -94,7 +94,6 @@ Neural ในหน้าเว็บแปลภาษาเป็นคำส�
 
 ```powershell
 .venv\Scripts\python.exe -m pytest -m "not llm" -q
-node --test frontend/chat.test.mjs frontend/art.test.mjs frontend/novel.test.mjs
 .venv\Scripts\python.exe scripts/evaluate_modes.py --mode symbolic --output logs/research/symbolic-smoke.json
 ```
 

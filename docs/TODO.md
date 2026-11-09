@@ -157,10 +157,9 @@ Render ยัง auto-deploy จาก branch `draft1` ซึ่งเป็น�
 ```bash
 git pull
 python -m pytest -m "not llm" -q
-node --test frontend/chat.test.mjs frontend/art.test.mjs frontend/novel.test.mjs
 ```
 
-ต้องได้ 245 passed (5 skipped สำหรับ LLM marker) และ node tests 37 pass 100% ถ้าแดงแปลว่าของที่แก้ไปชนกับส่วนอื่น
+ต้องได้ 245 passed (5 skipped สำหรับ LLM marker) ถ้าแดงแปลว่าของที่แก้ไปชนกับส่วนอื่น
 (ไม่ได้ตั้ง `GEMINI_API_KEY` ข้อที่เรียก Gemini จริง 5 ข้อจะขึ้น skipped ซึ่งถือว่าปกติ)
 
 เทสที่ควรรู้จักไว้สามข้อ เพราะมันจับปัญหาที่มองด้วยตาไม่เห็น
