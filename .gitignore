@@ -9,7 +9,21 @@ __pycache__/
 # พอเปลี่ยนฉากทั้งฉาก prompt ก็เปลี่ยนตาม ของเก่าจึงใช้ไม่ได้สักรายการ ไม่มีเหตุให้เก็บอีก
 logs/
 
-# ผลการทดลองที่ต้องอ้างอิงในงานให้ย้ายมาไว้ที่ results/ ซึ่งเก็บลง git
+# Local exports and raw experiment results; publish selected reports separately.
+/output/
+/results/
+/.cache/
+
+# Local development tool settings.
+/.claude/
+/GEMINI.md
+
+# Keep video files on this computer.
+*.[mM][pP]4
+*.[mM][oO][vV]
+*.[wW][eE][bB][mM]
+*.[mM][kK][vV]
+*.[aA][vV][iI]
 
 # telemetry logs จากการเล่นจริงและทดสอบ
 data/telemetry/*.json
