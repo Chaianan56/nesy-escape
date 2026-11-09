@@ -1,5 +1,5 @@
 /**
- * frontend/art.js — ตัวจัดการภาพประกอบฉากและหลักฐาน (GameArt)
+ * frontend/js/art.js — ตัวจัดการภาพประกอบฉากและหลักฐาน (GameArt)
  * 
  * หน้าที่:
  * 1. แสดงผลภาพฉากห้องบนรถไฟ (Train Room Scenes) และภาพบุคคล (Suspect Portraits)

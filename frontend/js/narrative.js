@@ -1,5 +1,5 @@
 /**
- * frontend/narrative.js — ระบบฉากบรรยายและฉากเผชิญหน้า (StoryScenes)
+ * frontend/js/narrative.js — ระบบฉากบรรยายและฉากเผชิญหน้า (StoryScenes)
  * 
  * หน้าที่:
  * 1. แสดงหน้าต่างไดอะล็อกสำหรับฉากสำคัญในเนื้อเรื่อง (Narrative Dialog)

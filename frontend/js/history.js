@@ -1,5 +1,5 @@
 /**
- * frontend/history.js — ระบบบันทึกประวัติการสืบสวนย้อนหลัง (Investigation History)
+ * frontend/js/history.js — ระบบบันทึกประวัติการสืบสวนย้อนหลัง (Investigation History)
  * 
  * หน้าที่:
  * 1. ย้าย DOM ของข้อความสนทนา (chatFeed) เข้าสู่หน้าต่างประวัติแบบเต็ม (History Dialog)

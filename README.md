@@ -67,7 +67,7 @@ Neural ในหน้าเว็บแปลภาษาเป็นคำส�
 |`app/case_notes.py`|หลักฐาน คำให้การ และคำถาม|
 |`data/story.json`, `data/documents/`|เรื่อง วัตถุ บท ข้อสรุป ฉากจบ และเอกสาร|
 |`data/walkthrough.json`, `app/walkthrough.py`|เส้นทางแกนและชุดยื่นสามทาง|
-|`frontend/` (`novel.js`, `art.js`, `narrative.js`)|ฉาก แผนที่ สมุด หน้าต่างกล่าวหา ภาพประกอบ และนิยายภาพ|
+|`frontend/` (`index.html`, `css/`, `js/`)|ฉาก แผนที่ สมุด หน้าต่างกล่าวหา ภาพประกอบ และนิยายภาพ|
 |`assets/nocturne-stylized-v2/`|ไฟล์ภาพประกอบหลักฐานและฉากจบแบบ Stylized Vector Art|
 |`app/neural/game_master.py`|ตัวตัดสิน neural สำหรับทดลองเปรียบเทียบ baseline|
 |`scripts/evaluate_modes.py`, `data/research/`|CLI และคำตอบอ้างอิงชุดพัฒนา (adjudication corpus)|

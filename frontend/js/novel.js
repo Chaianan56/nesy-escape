@@ -1,5 +1,5 @@
 /**
- * frontend/novel.js — ระบบแสดงบทสนทนาและบทนำสไตล์ Visual Novel (NovelUI)
+ * frontend/js/novel.js — ระบบแสดงบทสนทนาและบทนำสไตล์ Visual Novel (NovelUI)
  * 
  * หน้าที่:
  * 1. แสดงกล่องข้อความบทสนทนาแบบ Visual Novel ทีละหน้า (Pagination) เมื่อมีการสอบปากคำ
