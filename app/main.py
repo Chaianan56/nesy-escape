@@ -387,7 +387,7 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     4. ปรับแต่งข้อความตอบสนองเชิงพลวัต (Dynamic Adaptation Engine)
     5. อัปเดตสถานะเกม (GameState) และส่งผลลัพธ์กลับสู่หน้าเว็บ
     """
-    # ละเว้น snapshot จาก client เพื่อป้องกันการแทรกแซงสถานะ: ยึดสถานะบนเซิร์ฟเวอร์เป็นหลักเสมอ
+    # ดึงสถานะปัจจุบันของสภาพแวดล้อม (Environment State) ประจำเซสชันมาใช้ประมวลผลคำสั่ง
     engine = engine_for_session(session)
     req.state = session.state.model_copy(deep=True)
     result = _handle_command(req, engine=engine, provider=session.api_provider)
