@@ -101,6 +101,22 @@ def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedComma
         return command(ActionType.EXAMINE, state.current_location)
     if value.strip().lower() in ('ชันสูตร', 'ชันสูตรศพ', 'ตรวจศพ', 'ดูศพ', 'autopsy', 'examine corpse'):
         return command(ActionType.EXAMINE, 'cassian_reed')
+    if value.strip().lower() in ('ตรวจโต๊ะ', 'ดูโต๊ะ', 'สำรวจโต๊ะ', 'โต๊ะ', 'โต๊ะทำงาน', 'examine desk'):
+        if 'first_class_desk' in world.get('objects', {}):
+            return command(ActionType.EXAMINE, 'first_class_desk')
+    if value.strip().lower() in ('ตรวจหน้าต่าง', 'ดูหน้าต่าง', 'สำรวจหน้าต่าง', 'หน้าต่าง', 'เตาผิง', 'examine window'):
+        if 'first_class_window' in world.get('objects', {}):
+            return command(ActionType.EXAMINE, 'first_class_window')
+    if value.strip().lower() in (
+        'ตรวจชายมีพิรุธ', 'ดูชายมีพิรุธ', 'สำรวจชายมีพิรุธ', 'ชายมีพิรุธ',
+        'ตรวจชายมีพิลุด', 'ดูชายมีพิลุด', 'สำรวจชายมีพิลุด', 'ชายมีพิลุด',
+        'ตรวจชายในเสื้อโค้ต', 'ดูชายในเสื้อโค้ต', 'สำรวจชายในเสื้อโค้ต', 'ชายในเสื้อโค้ต',
+        'ตรวจคนมีพิรุธ', 'ดูคนมีพิรุธ', 'สำรวจคนมีพิรุธ', 'คนมีพิรุธ',
+        'ตรวจวินเซนต์', 'ดูวินเซนต์', 'สำรวจวินเซนต์', 'วินเซนต์',
+        'examine suspicious man', 'examine vincent'
+    ):
+        if 'suspicious_man' in world.get('objects', {}):
+            return command(ActionType.EXAMINE, 'suspicious_man')
     # "<action> <id>" ที่หน้าเว็บส่งมาทีละขั้นของคำสั่งพ่วง ไม่ต้องถาม Gemini ซ้ำ
     parts = value.split()
     if len(parts) == 2 and parts[0] == 'infer' and parts[1] in world.get('claims', {}):

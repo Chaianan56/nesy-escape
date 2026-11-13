@@ -102,6 +102,7 @@ def test_fast_input_still_obeys_location_rules(monkeypatch):
         assert not result['decision']['allowed']
         result = client.post('/command', json={'text':'ไปตู้ 4'}).json()
         assert result['new_state']['current_location'] == 'first_class_car'
+        client.post('/command', json={'text':'ตรวจศพ'})
         result = client.post('/command', json={'text':'ตรวจนาฬิกาพกกลไก'}).json()
         assert 'pocket_watch' in result['new_state']['discovered_evidence']
 
@@ -205,7 +206,8 @@ def test_medical_room_door_and_dossier_bag_interactions():
     assert not dec.allowed
     assert dec.violated_rule_id == 'R010_UNLOCK_REQUIREMENTS'
 
-    # ทดสอบรูปแบบคำสั่งการปลดล็อกกระเป๋าเอกสารด้วยรหัสผ่านหลากหลายรูปแบบ
+    # ทดสอบรูปแบบคำสั่งการปลดล็อกกระเป๋าเอกสารด้วยรหัสผ่านหลากหลายรูปแบบ (ต้องสำรวจโต๊ะก่อน)
+    state_bag = GameState(current_location='first_class_car', inventory=['medical_key'], examined_objects=['first_class_desk'])
     for text in [
         'เปิดกระเป๋า 1923',
         'ปลดล็อกกระเป๋า 1923',
@@ -214,15 +216,15 @@ def test_medical_room_door_and_dossier_bag_interactions():
         'ใส่รหัส 1923',
         'รหัส 1923',
     ]:
-        parsed_bag = parse_typed_command(text, state_med, world)
+        parsed_bag = parse_typed_command(text, state_bag, world)
         assert parsed_bag is not None, f"Failed to parse bag cmd '{text}'"
         assert parsed_bag.target == 'dossier_bag'
         assert parsed_bag.code == '1923'
-        assert main.engine.decide(parsed_bag, state_med).allowed
+        assert main.engine.decide(parsed_bag, state_bag).allowed
 
     # การใส่รหัสกระเป๋าผิดจะต้องถูกปฏิเสธ
-    wrong_code_cmd = parse_typed_command('เปิดกระเป๋า 9999', state_med, world)
-    assert not main.engine.decide(wrong_code_cmd, state_med).allowed
+    wrong_code_cmd = parse_typed_command('เปิดกระเป๋า 9999', state_bag, world)
+    assert not main.engine.decide(wrong_code_cmd, state_bag).allowed
 
 
 def test_cassian_body_examination_commands():

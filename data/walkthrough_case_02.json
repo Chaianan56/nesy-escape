@@ -12,11 +12,15 @@
     ],
     [
       "examine",
+      "cassian_reed"
+    ],
+    [
+      "examine",
       "pocket_watch"
     ],
     [
       "examine",
-      "cassian_reed"
+      "first_class_desk"
     ],
     [
       "examine",
@@ -42,6 +46,10 @@
     [
       "examine",
       "dossier_missing_file_c"
+    ],
+    [
+      "examine",
+      "first_class_window"
     ],
     [
       "examine",
@@ -129,6 +137,10 @@
       "interrogate",
       "vincent_gray",
       "arrival"
+    ],
+    [
+      "examine",
+      "suspicious_man"
     ],
     [
       "examine",

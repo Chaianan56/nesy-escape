@@ -178,9 +178,10 @@ const PixelUI = (() => {
 
   function openPersonDetail(person) {
     const personName = person.name.split(' (')[0];
-    const testimonies = data.evidence.filter(item => item.kind === 'testimony' && (
-      item.source?.includes(personName) || item.source_note?.includes(personName) ||
-      (person.id && item.id?.includes(person.id.split('_')[0]))
+    const prefix = person.id ? person.id.split('_')[0] : '';
+    const testimonies = data.evidence.filter(item => (
+      (item.kind === 'testimony' && (item.source?.includes(personName) || item.source_note?.includes(personName))) ||
+      (prefix && item.id?.startsWith(prefix) && (item.kind === 'testimony' || item.id.includes('alibi')))
     ));
     const role = person.accusable === false ? 'พยาน / บุคลากร' : 'ผู้ต้องสงสัย';
     const location = locationsMap[person.location] || person.location || 'บนขบวน';
@@ -899,9 +900,10 @@ const PixelUI = (() => {
 
       card.className = 'person-card' + (p.here ? ' person-here' : '');
       const personName = p.name.split(' (')[0];
-      const testimonies = data.evidence.filter(e => e.kind === 'testimony' && (
-        e.source?.includes(personName) || e.source_note?.includes(personName) ||
-        (p.id && e.id?.includes(p.id.split('_')[0]))
+      const prefix = p.id ? p.id.split('_')[0] : '';
+      const testimonies = data.evidence.filter(e => (
+        (e.kind === 'testimony' && (e.source?.includes(personName) || e.source_note?.includes(personName))) ||
+        (prefix && e.id?.startsWith(prefix) && (e.kind === 'testimony' || e.id.includes('alibi')))
       ));
       const image = imageSlot('person', p.id, p.name, false);
       makeCardClickable(card, () => openPersonDetail(p), `เปิดข้อมูลบุคคล: ${p.name}`);
@@ -941,9 +943,35 @@ const PixelUI = (() => {
     container.append(header);
     const rail = document.createElement('div');
     rail.className = 'timeline-rail';
-    const timeIds = new Set(['pocket_watch', 'wall_clock', 'tunnel_schedule', 'maintenance_log', 'staff_service_record', 'staff_impact_testimony', 'vincent_ticket', 'vincent_station_alibi', 'liora_patient_log', 'liora_patient_witness']);
-    const timeNotes = evidence.filter(e => timeIds.has(e.id));
-    rail.innerHTML = timeNotes.length ? timeNotes.map(e => `<div class="timeline-event-node"><span class="timeline-node-title">${escape(e.name)}</span><div class="timeline-node-sub">${escape(e.description)}</div><small>${escape(e.source)}</small></div>`).join('') : '<p>ยังไม่มีหลักฐานเวลาในสมุดคดี</p>';
+    const timeIds = new Set(['pocket_watch', 'wall_clock', 'tunnel_schedule', 'maintenance_log', 'staff_service_record', 'staff_impact_testimony', 'vincent_ticket', 'vincent_station_alibi', 'liora_patient_log', 'liora_patient_witness', 'vincent_blackout_confession', 'gideon_blackout_alibi']);
+    const timeNotes = evidence.filter(e => timeIds.has(e.id) || e.timestamp);
+
+    const timeOrder = {
+      'staff_service_record': 1,
+      'vincent_ticket': 2,
+      'vincent_station_alibi': 3,
+      'tunnel_schedule': 4,
+      'liora_patient_log': 5,
+      'staff_impact_testimony': 6,
+      'pocket_watch': 7,
+      'wall_clock': 8,
+      'maintenance_log': 9,
+      'vincent_blackout_confession': 10,
+      'gideon_blackout_alibi': 11,
+      'liora_patient_witness': 12
+    };
+    timeNotes.sort((a, b) => (timeOrder[a.id] || 99) - (timeOrder[b.id] || 99));
+
+    rail.innerHTML = timeNotes.length ? timeNotes.map(e => `
+      <div class="timeline-event-node">
+        <div class="timeline-node-head">
+          <span class="timeline-node-title">${escape(e.name)}</span>
+          ${e.timestamp ? `<span class="time-pill">⏱ ${escape(e.timestamp)}</span>` : ''}
+        </div>
+        <div class="timeline-node-sub">${escape(e.description)}</div>
+        <small class="timeline-node-source">${escape(e.source)}</small>
+      </div>
+    `).join('') : '<p>ยังไม่มีหลักฐานเวลาในสมุดคดี</p>';
     container.append(rail);
     const grid = document.createElement('div');
     grid.className = 'timeline-suspects-grid';
@@ -965,6 +993,85 @@ const PixelUI = (() => {
     wrap.append(container);
   }
 
+  function renderNotesTab(wrap) {
+    const container = document.createElement('div');
+    container.className = 'notes-tab-container';
+
+    const header = document.createElement('div');
+    header.className = 'notes-tab-header';
+    header.innerHTML = `
+      <div class="notes-headline">
+        <strong>สมุดจดบันทึกนักสืบ</strong>
+        <small>จดบันทึกข้อสังเกต สมมติฐาน และเบาะแสส่วนตัว · ข้อมูลจะถูกบันทึกอัตโนมัติ</small>
+      </div>
+      <div class="notes-actions">
+        <button type="button" class="notes-btn" id="copyNotesBtn" title="คัดลอกข้อความ">📋 คัดลอก</button>
+        <button type="button" class="notes-btn notes-btn-danger" id="clearNotesBtn" title="ล้างข้อความ">🗑 ล้าง</button>
+      </div>
+    `;
+    container.append(header);
+
+    const paper = document.createElement('div');
+    paper.className = 'notes-paper';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'notes-textarea';
+    textarea.placeholder = 'จดบันทึกข้อสงสัย ลำดับเวลา หรือประเด็นที่ต้องตรวจสอบเพิ่มเติมที่นี่...';
+
+    const savedNotes = localStorage.getItem('nocturne_detective_notes') || '';
+    textarea.value = savedNotes;
+
+    const foot = document.createElement('div');
+    foot.className = 'notes-foot';
+    foot.innerHTML = `
+      <span class="notes-status-text" id="notesStatusText">✓ บันทึกอัตโนมัติแล้ว</span>
+      <span class="notes-char-count" id="notesCharCount">${savedNotes.length} ตัวอักษร</span>
+    `;
+
+    textarea.addEventListener('input', () => {
+      localStorage.setItem('nocturne_detective_notes', textarea.value);
+      const counter = container.querySelector('#notesCharCount');
+      if (counter) counter.textContent = `${textarea.value.length} ตัวอักษร`;
+      const status = container.querySelector('#notesStatusText');
+      if (status) {
+        status.textContent = '✓ บันทึกอัตโนมัติแล้ว';
+      }
+    });
+
+    paper.append(textarea);
+    container.append(paper);
+    container.append(foot);
+
+    const copyBtn = header.querySelector('#copyNotesBtn');
+    if (copyBtn) {
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(textarea.value);
+          const origText = copyBtn.textContent;
+          copyBtn.textContent = '✓ คัดลอกแล้ว';
+          setTimeout(() => { copyBtn.textContent = origText; }, 1500);
+        } catch {
+          textarea.select();
+          document.execCommand('copy');
+        }
+      };
+    }
+
+    const clearBtn = header.querySelector('#clearNotesBtn');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        if (!textarea.value.trim() || confirm('คุณต้องการล้างข้อความในสมุดบันทึกทั้งหมดใช่หรือไม่?')) {
+          textarea.value = '';
+          localStorage.removeItem('nocturne_detective_notes');
+          const counter = container.querySelector('#notesCharCount');
+          if (counter) counter.textContent = '0 ตัวอักษร';
+        }
+      };
+    }
+
+    wrap.append(container);
+  }
+
   // Journal Dispatcher
   function journal() {
     const wrap = $('journalContent');
@@ -974,6 +1081,11 @@ const PixelUI = (() => {
     // Chat history is already on the page and does not depend on /journal.
     if (activeTab === 'chat') {
       renderChatTab(wrap);
+      return;
+    }
+
+    if (activeTab === 'notes') {
+      renderNotesTab(wrap);
       return;
     }
 
@@ -1071,7 +1183,12 @@ const PixelUI = (() => {
           sampleButtonsCount++;
         }
 
+        const examined = gameState?.examined_objects || [];
+        const interrogated = gameState?.interrogated_suspects || [];
         const peopleHere = (data.people || []).filter(person => {
+          if (person.id === 'vincent_gray' && !examined.includes('suspicious_man') && !interrogated.includes('vincent_gray')) {
+            return false;
+          }
           const isEnc = Boolean(
             person.encountered !== undefined
               ? person.encountered

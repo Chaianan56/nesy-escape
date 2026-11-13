@@ -261,6 +261,7 @@ def _requirements_met(requirements, state, world):
     return (_condition_met(requirements, set(state.discovered_evidence), deductions_held(state, world))
             and set(requirements.get("requires_unlocked", [])) <= set(state.unlocked_objects)
             and set(requirements.get("requires_inventory", [])) <= set(state.inventory)
+            and set(requirements.get("requires_examined", [])) <= set(state.examined_objects)
             and all(_claim_held(cid, state, world) for cid in requirements.get("requires_claims", [])))
 
 
@@ -576,6 +577,8 @@ class SymbolicEngine:
         if people:
             entries = []
             for sid, person in people:
+                if sid == 'vincent_gray' and 'suspicious_man' not in state.examined_objects and sid not in state.interrogated_suspects:
+                    continue
                 name = person.get("name_th", sid)
                 role = f" ({person['role']})" if person.get("role") else ""
                 topics = self.dialogue_options(sid, state)
@@ -584,9 +587,10 @@ class SymbolicEngine:
                 if topic_labels:
                     entry += f" — ถามได้: {topic_labels}"
                 entries.append(entry)
-            who = "\n".join(entries)
-            lines.append(f"คนที่อยู่ในตู้นี้:\n{who}")
-            lines.append('ถามได้โดยพิมพ์ “สอบปากคำ <ชื่อคน> เรื่อง <หัวข้อ>” หรือสอบปากคำตามชื่อ')
+            if entries:
+                who = "\n".join(entries)
+                lines.append(f"คนที่อยู่ในตู้นี้:\n{who}")
+                lines.append('ถามได้โดยพิมพ์ “สอบปากคำ <ชื่อคน> เรื่อง <หัวข้อ>” หรือสอบปากคำตามชื่อ')
         return "\n".join(lines)
 
     def offerable(self, target: str, state: GameState) -> bool:

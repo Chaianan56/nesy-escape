@@ -397,13 +397,13 @@ def test_alternatives_survive_when_the_player_can_already_see_them(fake_llm):
 
 def test_sequence_keeps_steps_the_player_named_in_another_car(fake_llm):
     """"ไปตู้ ก แล้วตรวจ ข" — ข ยังมองไม่เห็นจนกว่าจะเดินไปถึง ขั้นนั้นต้องไม่ถูกตัดทิ้ง"""
-    steps = ["move first_class_car", "examine pocket_watch"]
+    steps = ["move first_class_car", "examine cassian_reed"]
     fake_llm(ActionType.AMBIGUOUS, alternatives=steps, sequence=True)
     body = post("ไปแล้วตรวจ", GameState()).json()
     assert body["parsed"]["action"] == "sequence"
     assert body["parsed"]["sequence"] is False
     assert body["new_state"]["current_location"] == "first_class_car"
-    assert "pocket_watch" in body["new_state"]["discovered_evidence"]
+    assert "cassian_reed" in body["new_state"]["discovered_evidence"]
     assert body["pending_steps"] == []
 
 
@@ -440,14 +440,14 @@ def test_sequential_commands_execute_all_steps_in_single_roundtrip(fake_llm):
     """คำสั่ง sequence ต้องถูกรันต่อกันจนครบทุกขั้นใน request เดียว"""
     fake_llm(
         ActionType.SEQUENCE,
-        alternatives=["move first_class_car", "examine pocket_watch"]
+        alternatives=["move first_class_car", "examine cassian_reed"]
     )
     initial_state = GameState(current_location="lounge_car")
-    body = post("ไปตู้ชั้นหนึ่งแล้วตรวจนาฬิกาพก", initial_state).json()
+    body = post("ไปตู้ชั้นหนึ่งแล้วตรวจศพ", initial_state).json()
 
     assert body["decision"]["allowed"] is True
     assert body["new_state"]["current_location"] == "first_class_car"
-    assert "pocket_watch" in body["new_state"]["discovered_evidence"]
+    assert "cassian_reed" in body["new_state"]["discovered_evidence"]
     assert len(body["decision"]["reasoning_chain"]) >= 2
 
 
@@ -610,7 +610,7 @@ def test_presentation_route_works_without_remote_ai(monkeypatch):
     commands = [
         'สอบปากคำกิเดียน', 'ไปตู้ 3', 'หยิบกุญแจห้องระบบไฟ', 'ไปตู้ 2',
         'ใช้กุญแจห้องระบบไฟกับประตูห้องระบบไฟ', 'ตรวจสายทองแดงที่ถูกตัด',
-        'ไปตู้ 6', 'ตรวจคีมตัดสายไฟด้ามยาง', 'ตรวจคราบเลือดบนปลายแขนเสื้อวินเซนต์',
+        'ไปตู้ 6', 'ตรวจชายมีพิรุธ', 'ตรวจคีมตัดสายไฟด้ามยาง', 'ตรวจคราบเลือดบนปลายแขนเสื้อวินเซนต์',
     ]
     for index, text in enumerate(commands):
         response = client.post('/command', json={'text':text})

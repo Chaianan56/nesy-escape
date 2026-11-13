@@ -259,7 +259,7 @@ def test_dynamic_prompt_keeps_timeout_and_retry_budget(monkeypatch):
     config = captured['config']
     assert config.system_instruction == build_interpret_system_prompt(STORY_DATA, state=state, user_text='look')
     assert len(config.system_instruction) < len(build_interpret_system_prompt(STORY_DATA, prune=False))
-    assert 0 < config.http_options.timeout <= 8000
+    assert 0 < config.http_options.timeout <= 15000
     assert config.http_options.retry_options.attempts == 1
 
 

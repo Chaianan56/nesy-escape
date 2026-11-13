@@ -84,6 +84,7 @@ def test_provider_failure_preserves_progress_and_recovers(client,monkeypatch,cas
     client.get('/scene',params={'case_id':case_id})
     client.post('/start')
     command(client,'move first_class_car')
+    command(client,'examine cassian_reed')
     command(client,'examine pocket_watch')
     before=snapshot(client)
     tracker = main.get_tracker(before['session_id'])

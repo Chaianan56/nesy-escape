@@ -47,7 +47,7 @@ def validate_world(rules: list, world: dict, checkers: dict, actions: set):
     def requirements(cond, label):
         require(isinstance(cond, dict), label + ' must be an object')
         for name, known in [('evidence', evidence), ('deductions', deductions),
-                            ('unlocked', objects), ('inventory', objects), ('claims', claims)]:
+                            ('unlocked', objects), ('inventory', objects), ('examined', objects), ('claims', claims)]:
             refs(cond.get('requires_' + name, []), known, label + '.requires_' + name)
 
     limit = world.get('time_limit_seconds', 3600)

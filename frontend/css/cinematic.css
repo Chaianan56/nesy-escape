@@ -3,9 +3,9 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .monogram{border-radius:0;transform:rotate(45deg);font-size:18px;width:35px;height:35px;cursor:pointer;transition:all 0.2s ease;user-select:none}
 .monogram:hover{border-color:#eed29c;box-shadow:0 0 16px rgba(217,183,117,0.45);transform:rotate(45deg) scale(1.08)}
 .monogram:active{transform:rotate(45deg) scale(0.96)}
-.wordmark{position:static;transform:none;align-items:center;white-space:nowrap;flex-shrink:0}
-.wordmark>span{color:var(--gold);font-size:25px;letter-spacing:5px}.wordmark small{color:#b9ab91;letter-spacing:3px}
-.masthead{margin:0 24px;max-width:none;width:auto}
+.wordmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;white-space:nowrap;pointer-events:none}
+.wordmark>span{color:var(--gold);font-size:23px;letter-spacing:3.5px}.wordmark small{color:#b9ab91;letter-spacing:3px}
+.masthead{position:relative;margin:0 24px;max-width:none;width:auto}
 .header-left{display:inline-flex;align-items:center;position:relative;z-index:10;padding-right:8px}
 .header-left .edition,.edition{position:absolute;left:56px;top:50%;transform:translateY(-50%) translateX(-8px);border:1px solid #776446;background:rgba(10,16,24,0.96);color:var(--gold);padding:6px 14px;font-size:12px;display:inline-flex;align-items:center;letter-spacing:1px;white-space:nowrap;font-family:inherit;font-weight:600;box-sizing:border-box;border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,0.7),0 0 10px rgba(217,183,117,0.15);opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.22s cubic-bezier(0.16,1,0.3,1),transform 0.22s cubic-bezier(0.16,1,0.3,1),visibility 0.22s}
 .header-left:hover .edition,.monogram:hover + .edition,.monogram:focus-visible + .edition,.header-left .edition:hover{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0);pointer-events:auto}
@@ -122,7 +122,7 @@ body{background:radial-gradient(ellipse at top,#172332,var(--bg) 65%);font-size:
 .intro-screen{background:linear-gradient(90deg,#08111bf5,#08111b80),url('/game-art/scene-05-lounge.png') center/cover}.intro-copy{background:#0d1722d9}
 @media(min-width:1600px){.game-layout{max-width:none;height:clamp(560px,calc(100vh - 210px),980px)}}
 @media(max-width:1000px){.wordmark>span{font-size:19px;letter-spacing:2px}.wordmark small{font-size:8px;letter-spacing:1px}.train-map{width:360px}.command-dock{gap:14px}.dock-note{width:95px}.utility-button,.header-right .history-open{padding:10px}.monogram{display:none}}
-@media(max-width:700px){.masthead{height:100px;margin:0 14px;align-items:flex-end;padding-bottom:10px}.wordmark{top:14px;width:100%}.header-right{margin:0 auto;gap:8px}.utility-button,.header-right .history-open,.header-right .profiler-pill{padding:6px 12px;font-size:12px}.game-layout{padding:0 12px;margin:12px auto 0;display:flex;flex-direction:column}.scene-art{height:450px}.scene-topline>span:first-child{display:block}.scene-topline{font-size:11px;padding:10px}.scene-caption{font-size:10px}.scene-dialogue,.dialogue-panel{left:8px;right:8px;bottom:6px;padding:12px}.dialogue-panel{padding:0}.dialogue-panel .section-bar{padding:6px 10px 0}.dialogue-panel #latestChatHost .chat-feed{max-height:92px;padding:5px 10px 8px}.dialogue-panel #latestChatHost .msg-system{font-size:12px;line-height:1.55}.dialogue-text{font-size:14px;max-height:180px}.dialogue-speaker{font-size:16px}.dialogue-progress{font-size:10px}.interaction-strip{font-size:10px}.command-dock{position:static;display:grid;grid-template-columns:1fr auto;padding:8px 12px 20px;gap:14px}.command-body{grid-column:1/-1;grid-row:1}.train-map{width:min(245px,100%)}.dock-note{width:85px}.hud-pill{font-size:23px}.chat-input-bar input{font-size:13px;padding:12px 8px}.quick-actions{display:block}.casebook-dialog .history-header{padding:18px;gap:10px}.casebook-dialog .history-header h2{font-size:23px}.casebook-dialog .history-close{white-space:nowrap}}
+@media(max-width:700px){.masthead{height:100px;margin:0 14px;align-items:flex-end;padding-bottom:10px}.wordmark{top:14px;left:0;transform:none;width:100%}.header-right{margin:0 auto;gap:8px}.utility-button,.header-right .history-open,.header-right .profiler-pill{padding:6px 12px;font-size:12px}.game-layout{padding:0 12px;margin:12px auto 0;display:flex;flex-direction:column}.scene-art{height:450px}.scene-topline>span:first-child{display:block}.scene-topline{font-size:11px;padding:10px}.scene-caption{font-size:10px}.scene-dialogue,.dialogue-panel{left:8px;right:8px;bottom:6px;padding:12px}.dialogue-panel{padding:0}.dialogue-panel .section-bar{padding:6px 10px 0}.dialogue-panel #latestChatHost .chat-feed{max-height:92px;padding:5px 10px 8px}.dialogue-panel #latestChatHost .msg-system{font-size:12px;line-height:1.55}.dialogue-text{font-size:14px;max-height:180px}.dialogue-speaker{font-size:16px}.dialogue-progress{font-size:10px}.interaction-strip{font-size:10px}.command-dock{position:static;display:grid;grid-template-columns:1fr auto;padding:8px 12px 20px;gap:14px}.command-body{grid-column:1/-1;grid-row:1}.train-map{width:min(245px,100%)}.dock-note{width:85px}.hud-pill{font-size:23px}.chat-input-bar input{font-size:13px;padding:12px 8px}.quick-actions{display:block}.casebook-dialog .history-header{padding:18px;gap:10px}.casebook-dialog .history-header h2{font-size:23px}.casebook-dialog .history-close{white-space:nowrap}}
 @media(max-width:700px){.scene-art{height:420px}.scene-art>img{object-position:center top}}
 .ending-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.ending-controls [hidden]{display:none}.ending-controls button{white-space:normal}.ending-controls:has(:not([hidden])){padding-bottom:10px}
 .evidence-source{display:block;color:var(--gold);margin:10px 0;line-height:1.7}.case-question{padding:16px;margin:12px 0;border:1px solid var(--line);background:#15212d}.case-question small{color:var(--gold)}.journal-tabs{flex-wrap:wrap}.conversation-summary li{margin:12px 0}.conversation-summary>p{color:var(--muted)}
@@ -1072,6 +1072,12 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
 
 
 
+
+@media (max-width: 1320px) {
+  .header-right { gap: 8px; }
+  .header-right .profiler-pill, .header-right .clock-pill, .utility-button, .header-right .history-open { padding: 9px 12px; font-size: 12.5px; }
+  .wordmark>span { font-size: 20px; letter-spacing: 2.5px; }
+}
 
 /* Keep the command input usable when the map and API status need another row. */
 @media (max-width: 1200px) {
