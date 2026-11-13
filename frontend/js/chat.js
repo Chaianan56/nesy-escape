@@ -281,6 +281,7 @@ function executeInitialLookAround() {
 function returnToRoom() {
   if (typeof window !== 'undefined') {
     window.__lastExaminedItem = null;
+    window.__canReturnToRoom = false;
   }
   if (typeof GameArt !== 'undefined' && typeof GameArt.resetToRoom === 'function') {
     GameArt.resetToRoom();
@@ -1022,7 +1023,7 @@ async function sendMessage(e) {
     NovelUI.close();
   }
   if (!text) {
-    if (typeof window !== 'undefined' && window.__lastExaminedItem) {
+    if (typeof window !== 'undefined' && (window.__canReturnToRoom || window.__lastExaminedItem)) {
       if (typeof window.returnToRoom === 'function') {
         window.returnToRoom();
         return;
@@ -1033,6 +1034,7 @@ async function sendMessage(e) {
 
   if (typeof window !== 'undefined') {
     window.__lastExaminedItem = null;
+    window.__canReturnToRoom = false;
   }
 
   let steps = [], sequence = false;
@@ -1220,7 +1222,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false, serviceError 
 
   const steps = decision.reasoning_chain || [];
   let statusBadge = "";
-  const isItemExamine = Boolean(!isRoomLook && decision.allowed && parsed?.action === 'examine' && isItemTarget(parsed?.target));
+  const isAdvanceable = Boolean(!isRoomLook && decision.allowed);
 
   if (serviceError) {
     statusBadge = `<span class="badge info">⚠ บริการตีความยังไม่พร้อม</span>`;
@@ -1232,7 +1234,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false, serviceError 
     statusBadge = `<span class="badge denied">✗ ปฏิเสธ (DENIED)</span>`;
   }
 
-  const advanceHintHtml = isItemExamine
+  const advanceHintHtml = isAdvanceable
     ? `<div class="seq-advance-hint item-advance-hint" style="cursor:pointer;" title="คลิกเพื่อกลับสู่หน้าเดิม"><span>คลิกเพื่อไปต่อ</span> <span class="blink-arrow">▼</span></div>`
     : "";
 
@@ -1289,8 +1291,13 @@ function renderSystem(decision, parsed = null, isRoomLook = false, serviceError 
     ${advanceHintHtml}
   `;
 
-  if (isItemExamine) {
-    if (typeof window !== 'undefined') window.__lastExaminedItem = parsed.target;
+  if (isAdvanceable) {
+    if (typeof window !== 'undefined') {
+      window.__canReturnToRoom = true;
+      if (parsed?.action === 'examine') {
+        window.__lastExaminedItem = parsed.target;
+      }
+    }
     if (card.classList && card.classList.add) card.classList.add('item-advance-card');
     if (card.style) card.style.cursor = 'pointer';
     if (card.addEventListener) {
@@ -1303,7 +1310,10 @@ function renderSystem(decision, parsed = null, isRoomLook = false, serviceError 
       });
     }
   } else if (isRoomLook) {
-    if (typeof window !== 'undefined') window.__lastExaminedItem = null;
+    if (typeof window !== 'undefined') {
+      window.__lastExaminedItem = null;
+      window.__canReturnToRoom = false;
+    }
   }
 
   feed.appendChild(card);
@@ -1313,7 +1323,7 @@ function renderSystem(decision, parsed = null, isRoomLook = false, serviceError 
 // Global Escape Key to Return to Room View
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && typeof window !== 'undefined' && window.__lastExaminedItem) {
+    if (e.key === 'Escape' && typeof window !== 'undefined' && (window.__canReturnToRoom || window.__lastExaminedItem)) {
       if (typeof window.returnToRoom === 'function') {
         window.returnToRoom();
       }
@@ -1355,11 +1365,21 @@ function escapeHtml(t) {
 function renderConversationSummary(summaries) {
   for (const summary of summaries) {
     const card = document.createElement('div');
-    card.className = 'msg-system conversation-summary';
+    card.className = 'msg-system conversation-summary item-advance-card';
+    card.style.cursor = 'pointer';
     card.innerHTML = `<div class="card-header-bar"><strong>ข้อมูลใหม่จาก ${escapeHtml(summary.person)}</strong></div>` +
       '<p>บันทึกจากการสอบปากคำ ไม่ใช่ข้อสรุปว่าใครพูดจริงหรือเป็นคนร้าย</p>' +
       '<ul>' + summary.entries.map(entry => `<li><strong>${escapeHtml(entry.name)}</strong><br>${escapeHtml(entry.description)}</li>`).join('') + '</ul>' +
-      '<p>เปิดสมุดคดี → ประเด็นค้าง เพื่อทบทวนสิ่งที่ยังต้องตรวจสอบ</p>';
+      '<p>เปิดสมุดคดี → ประเด็นค้าง เพื่อทบทวนสิ่งที่ยังต้องตรวจสอบ</p>' +
+      '<div class="seq-advance-hint item-advance-hint" style="cursor:pointer;" title="คลิกเพื่อกลับสู่หน้าเดิม"><span>คลิกเพื่อไปต่อ</span> <span class="blink-arrow">▼</span></div>';
+    card.addEventListener('click', (e) => {
+      if (window.getSelection && window.getSelection().toString().trim().length > 0) return;
+      if (e.target.closest && e.target.closest('button, a, input, select, summary')) return;
+      if (typeof window !== 'undefined' && typeof window.returnToRoom === 'function') {
+        window.returnToRoom();
+      }
+    });
+    if (typeof window !== 'undefined') window.__canReturnToRoom = true;
     document.getElementById('chatFeed').appendChild(card);
   }
 }

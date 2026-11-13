@@ -52,6 +52,7 @@ def test_independent_players_do_not_share_progress_or_restart(case_id):
         assert a.cookies[COOKIE]!=b.cookies[COOKIE]
         a.post('/start')
         send(a,'move first_class_car')
+        send(a,'examine cassian_reed')
         send(a,'examine pocket_watch')
         untouched=scene(b)
         assert untouched['current_location']=='lounge_car'
@@ -84,13 +85,13 @@ def test_shared_cookie_tabs_serialize_commands_and_keep_journal_responsive(monke
                 journal=pool.submit(b.post,'/journal',json={}).result(timeout=2)
                 assert journal.status_code==200
                 assert {e['id'] for e in journal.json()['evidence']}==set(initial_evidence(case_id))
-                examine=pool.submit(send,b,'examine pocket_watch')
+                examine=pool.submit(send,b,'examine cassian_reed')
             finally:
                 release.set()
             assert move.result(timeout=5)['decision']['allowed']
             assert examine.result(timeout=5)['decision']['allowed']
         assert scene(a)['discovered_evidence']==scene(b)['discovered_evidence']
-        assert scene(a)['discovered_evidence'].count('pocket_watch')==1
+        assert scene(a)['discovered_evidence'].count('cassian_reed')==1
         b.post('/new-game',json={'case_id':case_id})
         assert scene(a)['discovered_evidence']==initial_evidence(case_id)
         assert scene(a)['started_at'] is None

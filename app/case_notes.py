@@ -35,6 +35,7 @@ def evidence_entry(world: dict, eid: str) -> dict:
         "description": obj.get("description", ""),
         "kind": "testimony" if owner else "observation",
         "source": world["suspects"][owner]["name_th"] if owner else "สิ่งที่ตรวจพบ",
+        "timestamp": obj.get("timestamp"),
         "source_note": (
             "ข้อมูลจากการสอบปากคำ ยังไม่ใช่การยืนยันความจริงทุกประเด็น"
             if owner

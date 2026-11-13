@@ -64,7 +64,7 @@ def test_move_to_open_car(engine):
 
 
 def test_examine_evidence_in_same_car(engine):
-    s = apply_changes(GameState(), {"move_to": "first_class_car"})
+    s = apply_changes(GameState(), {"move_to": "first_class_car", "examined_add": "cassian_reed"})
     d = engine.decide(cmd(ActionType.EXAMINE, "pocket_watch"), s)
     assert d.allowed
     assert d.state_changes["discovered_evidence_add"] == "pocket_watch"
@@ -72,7 +72,7 @@ def test_examine_evidence_in_same_car(engine):
 
 def test_examining_never_unlocks(engine):
     """ตรวจคือดู ปลดล็อกต้องมาจากคำสั่งปลดล็อกเท่านั้น"""
-    s = apply_changes(GameState(), {"move_to": "first_class_car"})
+    s = apply_changes(GameState(), {"move_to": "first_class_car", "examined_add": "cassian_reed"})
     d = engine.decide(cmd(ActionType.EXAMINE, "pocket_watch"), s)
     assert "unlocked_add" not in d.state_changes
     assert apply_changes(s, d.state_changes).unlocked_objects == []
@@ -537,7 +537,7 @@ def _an_object_in(engine, loc):
 @pytest.mark.parametrize("action", UNSUPPORTED)
 def test_ordinary_evidence_cannot_be_taken_used_unlocked_or_burned(engine, action):
     """การมีประตูและกุญแจไม่เปิดสิทธิ์ให้หยิบหรือทำลายหลักฐานทุกชิ้น"""
-    s = GameState(current_location='first_class_car')
+    s = GameState(current_location='first_class_car', examined_objects=['cassian_reed'])
     d = engine.decide(cmd(action, 'pocket_watch'), s)
     assert not d.allowed, f"{action.value} ไม่ควรผ่าน"
     assert d.violated_rule_id == "R007_ACTION_SUPPORTED"
@@ -556,7 +556,7 @@ def test_a_scene_can_re_enable_an_action_without_touching_the_code(engine):
 
     ข้อนี้คือหลักฐานว่ากฎ R007 ไม่ได้ปิดตายสี่คำสั่งนั้นไว้ในโค้ด
     """
-    s = GameState(current_location='first_class_car')
+    s = GameState(current_location='first_class_car', examined_objects=['cassian_reed'])
     oid = 'pocket_watch'
     engine.world["objects"][oid]["supports"] = ["take"]
     try:

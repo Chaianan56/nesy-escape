@@ -309,31 +309,68 @@ def journal(session: Session = Depends(session_for)):
                     if not state.ending_id and obj.get("location") == state.current_location
                     and engine.offerable(eid, state)],
         "people": [{"id": sid, "name": sus["name_th"],
-                    "here": sus.get("location") == state.current_location,
+                    "here": sus.get("location") == state.current_location and (
+                        sid != 'vincent_gray' or (
+                            'suspicious_man' in state.examined_objects or sid in state.interrogated_suspects
+                        )
+                    ),
                     "location": sus.get("location"),
                     "accusable": sus.get("accusable", True),
                     "interrogated": sid in state.interrogated_suspects,
                     "encountered": bool(
                         state.ending_id
-                        or sus.get("location") == state.current_location
-                        or sus.get("location") in state.visited_locations
-                        or sid in state.interrogated_suspects
-                        or any(d.startswith(sid) for d in state.dialogue_history)
+                        or (
+                            sid == 'vincent_gray' and (
+                                'suspicious_man' in state.examined_objects
+                                or sid in state.interrogated_suspects
+                                or any(d.startswith(sid) for d in state.dialogue_history)
+                            )
+                        )
+                        or (
+                            sid != 'vincent_gray' and (
+                                sus.get("location") == state.current_location
+                                or sus.get("location") in state.visited_locations
+                                or sid in state.interrogated_suspects
+                                or any(d.startswith(sid) for d in state.dialogue_history)
+                            )
+                        )
                     ),
                     "discovered": bool(
                         state.ending_id
-                        or sus.get("location") == state.current_location
-                        or sus.get("location") in state.visited_locations
-                        or sid in state.interrogated_suspects
-                        or any(d.startswith(sid) for d in state.dialogue_history)
+                        or (
+                            sid == 'vincent_gray' and (
+                                'suspicious_man' in state.examined_objects
+                                or sid in state.interrogated_suspects
+                                or any(d.startswith(sid) for d in state.dialogue_history)
+                            )
+                        )
+                        or (
+                            sid != 'vincent_gray' and (
+                                sus.get("location") == state.current_location
+                                or sus.get("location") in state.visited_locations
+                                or sid in state.interrogated_suspects
+                                or any(d.startswith(sid) for d in state.dialogue_history)
+                            )
+                        )
                     ),
                     "topics": engine.dialogue_options(sid, state) if (
                         not state.ending_id and bool(
                             state.ending_id
-                            or sus.get("location") == state.current_location
-                            or sus.get("location") in state.visited_locations
-                            or sid in state.interrogated_suspects
-                            or any(d.startswith(sid) for d in state.dialogue_history)
+                            or (
+                                sid == 'vincent_gray' and (
+                                    'suspicious_man' in state.examined_objects
+                                    or sid in state.interrogated_suspects
+                                    or any(d.startswith(sid) for d in state.dialogue_history)
+                                )
+                            )
+                            or (
+                                sid != 'vincent_gray' and (
+                                    sus.get("location") == state.current_location
+                                    or sus.get("location") in state.visited_locations
+                                    or sid in state.interrogated_suspects
+                                    or any(d.startswith(sid) for d in state.dialogue_history)
+                                )
+                            )
                         )
                     ) else []}
                    for sid, sus in w["suspects"].items()],
