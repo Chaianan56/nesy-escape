@@ -77,6 +77,26 @@ def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedComma
                       and key not in state.burned_objects
                       and not entity.get('visible_requirements')]
         return candidates[0] if len(candidates) == 1 else None
+    # A time clause describes the question, not a second requested action.
+    # Only resolve this bounded question form with one local addressee and an
+    # authored topic for that time period. Other questions need normal interpretation.
+    question = re.sub(r'\s+', '', value)
+    if re.fullmatch(
+        r'(?:คุณอยู่(?:ที่)?ไหน(?:ตอน|ช่วง)(?:เกิดเหตุ|ไฟดับ)|'
+        r'(?:ตอน|ช่วง)(?:เกิดเหตุ|ไฟดับ)คุณอยู่(?:ที่)?ไหน)'
+        r'(?:ครับ|คะ|ค่ะ|เหรอ)?[?？]*', question
+    ):
+        local_people = [(sid, person) for sid, person in world.get('suspects', {}).items()
+                        if person.get('location') == state.current_location]
+        if len(local_people) == 1:
+            sid, person = local_people[0]
+            topic = 'blackout' if 'ไฟดับ' in question else 'account'
+            if any(node.get('topic') == topic for node in person.get('dialogue_nodes', [])):
+                # 'blackout' can mean confrontation for another character. Only
+                # use this shortcut when the authored label describes whereabouts.
+                matching = [n for n in person['dialogue_nodes'] if n.get('topic') == topic]
+                if topic == 'account' or any('ที่อยู่ตอนไฟดับ' in n.get('label', '') for n in matching):
+                    return command(ActionType.INTERROGATE, sid, topic=topic)
     if value.lower() in ('สำรวจ', 'มองรอบ ๆ', 'มองรอบๆ', 'มองไปรอบๆ', 'ดูรอบๆ', 'ดูรอบ ๆ', 'ตรวจรอบๆ', 'สำรวจห้อง', 'look around', 'look', 'search room', 'examine room'):
         return command(ActionType.EXAMINE, state.current_location)
     if value.strip().lower() in ('ชันสูตร', 'ชันสูตรศพ', 'ตรวจศพ', 'ดูศพ', 'autopsy', 'examine corpse'):

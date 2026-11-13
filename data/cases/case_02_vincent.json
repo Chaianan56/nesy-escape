@@ -87,6 +87,13 @@
             "burnt_folder_c",
             "file_c_initials"
           ]
+        },
+        {
+          "id": "blackout",
+          "topic": "blackout",
+          "label": "ที่อยู่ตอนไฟดับ 21:15–21:18",
+          "text": "“ตอนไฟดับช่วง 21:15 ถึง 21:18 ผมนั่งอยู่กับคุณที่ตู้เลานจ์ตลอด คุณเห็นผมอยู่ตรงนั้นครับ”",
+          "grants_evidence": []
         }
       ],
       "grants_evidence": [
