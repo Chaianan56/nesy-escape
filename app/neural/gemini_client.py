@@ -319,8 +319,9 @@ def _interpret_gemini(
         # หากเป็นคีย์เดียวที่เหลืออยู่ ให้ลองซ้ำได้ 1 ครั้ง
         model_to_use = DEFAULT_MODEL
         for attempt in range(2):
-            remaining_ms = min(int((deadline - time.monotonic()) * 1000), 8000)
-            if remaining_ms <= 500:
+            remaining_ms = min(int((deadline - time.monotonic()) * 1000), 15000)
+            # Gemini rejects deadlines below 10s before attempting inference.
+            if remaining_ms < 10000:
                 break
             try:
                 t_call_start = time.perf_counter()
