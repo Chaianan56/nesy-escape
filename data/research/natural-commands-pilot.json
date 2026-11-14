@@ -20,7 +20,7 @@
     {
       "id": "door_without_key",
       "text": "เปิดประตูห้องระบบไฟให้หน่อย",
-      "before_walkthrough_step": 20,
+      "before_walkthrough_step": 23,
       "remove_inventory": ["staff_key"],
       "expected_command": {"action": "unlock", "target": "electrical_room_door"},
       "expected_allowed": false
@@ -28,21 +28,21 @@
     {
       "id": "door_with_key",
       "text": "เปิดประตูห้องระบบไฟให้หน่อย",
-      "before_walkthrough_step": 20,
+      "before_walkthrough_step": 23,
       "expected_command": {"action": "unlock", "target": "electrical_room_door"},
       "expected_allowed": true
     },
     {
       "id": "unlock_bag_only",
       "text": "เปิดกระเป๋าสำนวนด้วยรหัส 1923",
-      "before_walkthrough_step": 7,
+      "before_walkthrough_step": 10,
       "expected_command": {"action": "unlock", "target": "dossier_bag", "code": "1923"},
       "expected_allowed": true
     },
     {
       "id": "inspect_document",
       "text": "ขอตรวจหนังสือนำส่งสำนวนในกระเป๋าหน่อย",
-      "before_walkthrough_step": 10,
+      "before_walkthrough_step": 13,
       "expected_command": {"action": "examine", "target": "judicial_transfer_order"},
       "expected_allowed": true
     }

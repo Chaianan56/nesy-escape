@@ -26,13 +26,13 @@ def test_complete_offline_pipeline(monkeypatch, tmp_path):
     out = tmp_path/'run'
     runner.main(['--live','--pause-seconds','0','--output',str(out)])
     summary=json.loads((out/'summary.json').read_text())
-    assert len(calls)==75
+    assert len(calls)==len(commands) * 3
     assert all(e['completed_reference_solution'] for e in summary['episodes'])
     assert all(e['own_state_transition_disagreements']==0 for e in summary['episodes'])
     for mode in ['neural','neuro-symbolic']:
         rows=[json.loads(l) for l in (out/mode/'turns.jsonl').read_text(encoding='utf-8').splitlines()]
-        assert len(rows)==25
-        assert all(rows[i]['state_before']==rows[i-1]['output']['new_state'] for i in range(1,25))
+        assert len(rows)==len(commands)
+        assert all(rows[i]['state_before']==rows[i-1]['output']['new_state'] for i in range(1,len(commands)))
 
 
 def test_transient_retry_logs_same_request(monkeypatch):
@@ -55,6 +55,8 @@ def test_transient_retry_logs_same_request(monkeypatch):
 
 def test_resume_preserves_states_and_error_logs(monkeypatch,tmp_path):
     _,_,commands,_,oracle,bundle=runner.prepare('A')
+    total_steps = len(commands)
+    total_calls = total_steps * 3 + 2
     lookup={c.raw_text:c for c in runner.natural_commands(commands,bundle['world'])}
     calls=[]
     class Fake:
@@ -74,16 +76,16 @@ def test_resume_preserves_states_and_error_logs(monkeypatch,tmp_path):
     assert [e['valid_responses'] for e in first['episodes']]==[2,1]
     runner.main(args+['--resume'])
     final=json.loads((output/'summary.json').read_text())
-    assert final['actual_provider_calls']==77
+    assert final['actual_provider_calls']==total_calls
     assert all(e['completed_reference_solution'] for e in final['episodes'])
     assert all(e['service_interruptions']==1 for e in final['episodes'])
     rebuilt=summarize(output)
-    assert rebuilt['actual_provider_calls']==77
+    assert rebuilt['actual_provider_calls']==total_calls
     assert rebuilt['provider_errors']==2
-    assert all(e['state_matches']==25 for e in rebuilt['episodes'])
-    assert sum(e['provider_calls'] for e in rebuilt['episodes'])==77
+    assert all(e['state_matches']==total_steps for e in rebuilt['episodes'])
+    assert sum(e['provider_calls'] for e in rebuilt['episodes'])==total_calls
     for mode in ['neural','neuro-symbolic']:
         rows=[json.loads(l) for l in (output/mode/'turns.jsonl').read_text(encoding='utf-8').splitlines()]
         ok=[r for r in rows if r['status']=='ok']
-        assert [r['step'] for r in ok]==list(range(1,26))
-        assert all(ok[i]['state_before']==ok[i-1]['output']['new_state'] for i in range(1,25))
+        assert [r['step'] for r in ok]==list(range(1,total_steps + 1))
+        assert all(ok[i]['state_before']==ok[i-1]['output']['new_state'] for i in range(1,total_steps))

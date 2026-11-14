@@ -13,6 +13,9 @@ def read_rows(path):
 def summarize(folder):
     requests = read_rows(folder/'requests.jsonl')
     metrics=[]
+    manifest_file = folder / 'manifest.json'
+    manifest = json.loads(manifest_file.read_text(encoding='utf-8')) if manifest_file.exists() else {}
+    planned_turns = manifest.get('planned_turns', 28)
     for mode in ['neural','neuro-symbolic']:
         rows=read_rows(folder/mode/'turns.jsonl')
         valid=[r for r in rows if r['status']=='ok']
@@ -29,7 +32,7 @@ def summarize(folder):
         for r in calls:
             usage.update({k:v for k,v in r.get('usage',{}).items() if isinstance(v,(int,float)) and not isinstance(v,bool)})
         final=valid[-1] if valid else None
-        metrics.append(dict(mode=mode,planned_turns=25,valid_turns=len(valid),
+        metrics.append(dict(mode=mode,planned_turns=planned_turns,valid_turns=len(valid),
             ending_id=final['output']['new_state']['ending_id'] if final else None,
             final_state_matches_reference=final['reference_trajectory']['state'] if final else False,
             final_action_matches_rules=bool(final and final.get('own_state_rule_audit') and final['own_state_rule_audit']['allowed'] and final['own_state_rule_audit']['state']),
@@ -60,7 +63,7 @@ def summarize(folder):
            '|---|---:|---|---:|---:|---:|---:|']
     for m in metrics:
         n=m['valid_turns']
-        lines.append(f"| {m['mode']} | {n}/25 | {m['ending_id']} | {m['allowed_matches']}/{n} | {m['state_matches']}/{n} | {m['visible_objects_matches']}/{n} | {m['own_state_transition_disagreements']}/{m['own_state_auditable_turns']} |")
+        lines.append(f"| {m['mode']} | {n}/{m['planned_turns']} | {m['ending_id']} | {m['allowed_matches']}/{n} | {m['state_matches']}/{n} | {m['visible_objects_matches']}/{n} | {m['own_state_transition_disagreements']}/{m['own_state_auditable_turns']} |")
     lines += ['',f"เรียก API รวม {len(requests)} ครั้ง รวมข้อผิดพลาดบริการ {result['provider_errors']} ครั้ง ไม่ได้นับข้อผิดพลาดบริการเป็นการตอบผิดกฎ",'',
               '## ตัวอย่างความแตกต่างของการเปลี่ยนสถานะ']
     for mode in ['neural','neuro-symbolic']:

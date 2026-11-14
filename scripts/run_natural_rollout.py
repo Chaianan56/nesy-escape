@@ -119,7 +119,8 @@ def main(argv=None):
          commands=[c.model_dump(mode='json') for c in commands], bundle=bundle))
     save(args.output/'reference.json', [r.model_dump(mode='json') for r in refs])
     manifest = dict(live=args.live, design='independent API parsers; same texts; persistent own states',
-                    planned_calls=75, maximum_calls=150, retry='one retry for transient service failures only',
+                    planned_calls=len(commands)*3, maximum_calls=len(commands)*6, planned_turns=len(commands),
+                    retry='one retry for transient service failures only',
                     fallback=False, semantic_repair=False, reference='same-engine; not independent truth',
                     input_origin='Thai templates from development walkthrough; not held-out human participants',
                     clock='fixed elapsed_seconds=0; no wall-clock game timeout',
@@ -140,7 +141,7 @@ def main(argv=None):
         manifest['hashes'][source] = digest(contents)
     save(args.output/'manifest.json', manifest)
     if not args.live:
-        print('Validated 25 commands; no API calls.')
+        print(f'Validated {len(commands)} commands; no API calls.')
         return 0
     summary = dict(status='running', live=True, episodes=[])
     prior_requests = [json.loads(l) for l in (args.output/'requests.jsonl').read_text(encoding='utf-8').splitlines()] if args.resume else []
@@ -175,9 +176,10 @@ def main(argv=None):
                 result = run_episode(mode,'A',1,current,commands[offset:],refs[offset:],actor,oracle,record)
                 valid=[r for r in rows if r['status']=='ok']
                 audits=[r['own_state_rule_audit'] for r in valid if r['own_state_rule_audit'] is not None]
-                result.update(planned_turns=25,attempted_turns=len(rows),valid_responses=len(valid),
-                              unexecuted_turns=25-len({r['step'] for r in rows}),
-                              completed_reference_solution=len(valid)==25 and result['final_state_matches_reference'],
+                total_commands = len(commands)
+                result.update(planned_turns=total_commands,attempted_turns=len(rows),valid_responses=len(valid),
+                              unexecuted_turns=total_commands-len({r['step'] for r in rows}),
+                              completed_reference_solution=len(valid)==total_commands and result['final_state_matches_reference'],
                               service_interruptions=sum(r['status']=='error' for r in rows),
                               trajectory_state_matches=sum(r['reference_trajectory']['state'] for r in valid),
                               trajectory_allowed_matches=sum(r['reference_trajectory']['allowed'] for r in valid),
@@ -194,14 +196,15 @@ def main(argv=None):
     save(args.output/'summary.json',summary)
     manifest.update(status='finished',actual_provider_calls=provider.calls)
     save(args.output/'manifest.json',manifest)
+    total_commands = len(commands)
     lines=['# Natural-language continuous rollout: case A', '',
-           'Same 25 Thai texts; each mode uses its own persistent state and an independent Gemini parse.',
+           f'Same {total_commands} Thai texts; each mode uses its own persistent state and an independent Gemini parse.',
            'Neural uses Gemini for adjudication. NeSy uses Symbolic rules. No fast-path or semantic repair.',
            'One retry allowed only for transient service failures; all attempts in requests.jsonl.', '',
            '| Mode | Valid turns | Ending claimed | Final state matches reference | Own-state transition disagreements |',
            '|---|---:|---|---|---:|']
     for e in summary['episodes']:
-        lines.append(f"| {e['mode']} | {e['valid_responses']}/25 | {e['ending_id']} | {e['final_state_matches_reference']} | {e['own_state_transition_disagreements']} |")
+        lines.append(f"| {e['mode']} | {e['valid_responses']}/{total_commands} | {e['ending_id']} | {e['final_state_matches_reference']} | {e['own_state_transition_disagreements']} |")
     lines += ['', 'Reference uses the same Symbolic engine, not independent ground truth.',
               'Development walkthrough, one run, no prose leakage assessment or statistical claim.',
               'Own-state audit uses the actual API-parsed command; trajectory comparison uses the intended walkthrough.',
