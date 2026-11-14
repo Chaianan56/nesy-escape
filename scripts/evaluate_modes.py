@@ -30,9 +30,9 @@ DEFAULT_CORPUS = ROOT / "data/research/adjudication-corpus-v1.json"
 
 class SymbolicAdjudicator:
     """Comparator only. This object is never constructed in neural-only runs."""
-    def __init__(self):
+    def __init__(self, engine=None):
         from app.symbolic.engine import SymbolicEngine
-        self.engine = SymbolicEngine()
+        self.engine = engine if engine is not None else SymbolicEngine()
 
     def adjudicate(self, command, state, submitted_evidence=None):
         from app.symbolic.engine import accusation_submission, apply_changes
