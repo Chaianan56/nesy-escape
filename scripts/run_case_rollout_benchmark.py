@@ -13,7 +13,7 @@ from pathlib import Path
 import sys
 import time
 
-from pydantic import create_model
+from pydantic import BaseModel, create_model
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -68,9 +68,80 @@ def compare(actual, reference):
     }
 
 
+class ResilientGeminiProvider:
+    """Gemini Provider with bounded retry for transient server/network errors and multi-key rotation."""
+    def __init__(self, model=None, timeout_ms=60000, max_retries=2, retry_delay=4.0):
+        from app.neural.gemini_client import DEFAULT_MODEL
+        self.model = model or DEFAULT_MODEL
+        self.timeout_ms = timeout_ms
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+
+    def __call__(self, system: str, content: str, schema: type[BaseModel]):
+        from app.neural.gemini_client import _clients, _is_quota_error, _is_transient, types, NeuralNotConfigured
+        from app.neural.game_master import _pydantic_schema_for_gemini, ProviderReply
+
+        clients = _clients()
+        if not clients:
+            raise NeuralNotConfigured("Configure Gemini before running the neural game master")
+
+        sanitized_schema = _pydantic_schema_for_gemini(schema)
+        queue = list(clients)
+        last_error = None
+
+        while queue:
+            client = queue[0]
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    response = client.models.generate_content(
+                        model=self.model,
+                        contents=content,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system,
+                            response_mime_type="application/json",
+                            response_schema=sanitized_schema,
+                            temperature=0,
+                            http_options=types.HttpOptions(
+                                timeout=self.timeout_ms,
+                                retry_options=types.HttpRetryOptions(attempts=1),
+                            ),
+                        ),
+                    )
+                    usage = getattr(response, "usage_metadata", None)
+                    return ProviderReply(
+                        text=response.text or "",
+                        usage=usage.model_dump(mode="json") if usage is not None else {},
+                        model_version=getattr(response, "model_version", None),
+                    )
+                except Exception as exc:
+                    last_error = exc
+                    exc_name = type(exc).__name__
+                    is_quota = _is_quota_error(exc)
+                    is_trans = _is_transient(exc) or exc_name in {
+                        "ServerError", "ReadTimeout", "ConnectTimeout", "ConnectError", "Timeout", "RemoteProtocolError"
+                    }
+                    if is_quota:
+                        queue.pop(0)
+                        if queue:
+                            print(f"\n  [Provider: Quota hit on active key, switching to backup key...]", flush=True)
+                            time.sleep(1.0)
+                        break
+                    elif is_trans and attempt < self.max_retries:
+                        print(f"\n  [Provider: Transient {exc_name}, retrying in {self.retry_delay:.0f}s (attempt {attempt+1}/{self.max_retries})...]", flush=True)
+                        time.sleep(self.retry_delay)
+                        continue
+                    else:
+                        raise exc
+
+        if last_error:
+            raise last_error
+
+
 class CompleteStateGameMaster(NeuralGameMaster):
     """Reject missing state fields rather than accepting the legacy adapter's defaults."""
     def __init__(self, *args, **kwargs):
+        if "provider" not in kwargs and (len(args) < 2 or args[1] is None):
+            kwargs["provider"] = ResilientGeminiProvider(model=kwargs.get("model"))
         super().__init__(*args, **kwargs)
         provider = self.provider
         self.provider = lambda system, content, schema: provider(system, content, RequiredGameOutput)
@@ -227,8 +298,10 @@ def main(argv=None):
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--model", default=None)
     parser.add_argument("--repetitions", type=int, default=1)
-    parser.add_argument("--max-provider-calls", type=int, default=25)
-    parser.add_argument("--pause-seconds", type=float, default=1)
+    parser.add_argument("--max-provider-calls", type=int, default=None,
+                        help="Maximum allowed provider calls (default: planned calls for selected cases + 10)")
+    parser.add_argument("--pause-seconds", type=float, default=10,
+                        help="Pause seconds between neural turns to prevent rate limits (default: 10)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.repetitions < 1 or not 0 <= args.pause_seconds <= 60:
@@ -239,8 +312,9 @@ def main(argv=None):
         parser.error("use a new output directory; existing results are never overwritten")
     prepared = {letter: prepare(letter) for letter in args.cases}
     planned = sum(len(p[2]) for p in prepared.values()) * args.repetitions if args.live else 0
-    if planned > args.max_provider_calls:
-        parser.error(f"planned {planned} provider calls exceeds --max-provider-calls")
+    max_provider_calls = args.max_provider_calls if args.max_provider_calls is not None else (planned + 10)
+    if planned > max_provider_calls:
+        parser.error(f"planned {planned} provider calls exceeds --max-provider-calls ({max_provider_calls})")
     args.output.mkdir(parents=True)
     from app.neural.gemini_client import DEFAULT_MODEL
     model = args.model or DEFAULT_MODEL
@@ -253,6 +327,7 @@ def main(argv=None):
                 "reference_basis": "same-engine replay, not independently authored truth",
                 "live": args.live, "model": model if args.live else None, "temperature": 0,
                 "cases": args.cases, "repetitions": args.repetitions, "planned_provider_calls": planned,
+                "max_provider_calls": max_provider_calls, "pause_seconds": args.pause_seconds,
                 "retry": "none", "clock": "fixed elapsed_seconds=0, started_at=null",
                 "schema_policy": "all state fields required; no semantic repair",
                 "response_schema_sha256": digest(RequiredGameOutput.model_json_schema()),
@@ -292,6 +367,49 @@ def main(argv=None):
     save(args.output / "summary.json", summary)
     (args.output / "report.md").write_text(report(summary), encoding="utf-8")
     print(f"Saved: {args.output.resolve()}")
+
+    # บันทึกสรุปสถิติลงไฟล์ log รวมส่วนกลาง (Centralized Benchmark History)
+    history_log_path = ROOT / "logs" / "research" / "rollout_benchmark_history.jsonl"
+    history_log_path.parent.mkdir(parents=True, exist_ok=True)
+    history_entry = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "output_dir": str(args.output.resolve()),
+        "live": args.live,
+        "model": model if args.live else None,
+        "cases": args.cases,
+        "repetitions": args.repetitions,
+        "pause_seconds": args.pause_seconds,
+        "planned_provider_calls": planned,
+        "max_provider_calls": max_provider_calls,
+        "status": summary["status"],
+        "episodes": [
+            {
+                "case": ep.get("case"),
+                "mode": ep.get("mode"),
+                "repetition": ep.get("repetition"),
+                "planned_turns": ep.get("planned_turns"),
+                "attempted_turns": ep.get("attempted_turns"),
+                "valid_responses": ep.get("valid_responses"),
+                "unexecuted_turns": ep.get("unexecuted_turns"),
+                "stop_reason": ep.get("stop_reason"),
+                "ending_id": ep.get("ending_id"),
+                "claimed_true_ending": ep.get("claimed_true_ending"),
+                "final_state_matches_reference": ep.get("final_state_matches_reference"),
+                "completed_reference_solution": ep.get("completed_reference_solution"),
+                "first_state_divergence_step": ep.get("first_state_divergence_step"),
+                "trajectory_state_matches": ep.get("trajectory_state_matches"),
+                "trajectory_allowed_matches": ep.get("trajectory_allowed_matches"),
+                "total_latency_ms": ep.get("total_latency_ms"),
+                "provider_attempts": ep.get("provider_attempts"),
+                "usage": ep.get("usage"),
+                "errors": ep.get("errors"),
+            }
+            for ep in summary.get("episodes", [])
+        ],
+    }
+    with history_log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(history_entry, ensure_ascii=False) + "\n")
+    print(f"Appended history summary to: {history_log_path.resolve()}")
     return 0
 
 
