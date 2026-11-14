@@ -1,50 +1,93 @@
 {
-  "id": "natural-commands-pilot-v1",
+  "id": "natural-commands-pilot-v2",
   "case": "A",
   "description": "หกกรณีแยกอิสระ ตั้งสถานะก่อนแต่ละข้อจาก walkthrough; ไม่ใช่เล่นหกคำสั่งต่อกัน",
   "cases": [
     {
       "id": "blackout_direct",
       "text": "คุณอยู่ที่ไหนตอนไฟดับ",
-      "before_walkthrough_step": 1,
-      "expected_command": {"action": "interrogate", "target": "gideon_hart", "topic": "blackout"},
-      "expected_allowed": true
+      "expected_command": {
+        "action": "interrogate",
+        "target": "gideon_hart",
+        "topic": "blackout"
+      },
+      "expected_allowed": true,
+      "before_command": {
+        "action": "interrogate",
+        "target": "gideon_hart",
+        "topic": "account"
+      }
     },
     {
       "id": "blackout_paraphrase",
       "text": "ช่วงไฟดับคุณอยู่ตรงไหนครับ",
-      "before_walkthrough_step": 1,
-      "expected_command": {"action": "interrogate", "target": "gideon_hart", "topic": "blackout"},
-      "expected_allowed": true
+      "expected_command": {
+        "action": "interrogate",
+        "target": "gideon_hart",
+        "topic": "blackout"
+      },
+      "expected_allowed": true,
+      "before_command": {
+        "action": "interrogate",
+        "target": "gideon_hart",
+        "topic": "account"
+      }
     },
     {
       "id": "door_without_key",
       "text": "เปิดประตูห้องระบบไฟให้หน่อย",
-      "before_walkthrough_step": 23,
-      "remove_inventory": ["staff_key"],
-      "expected_command": {"action": "unlock", "target": "electrical_room_door"},
-      "expected_allowed": false
+      "remove_inventory": [
+        "staff_key"
+      ],
+      "expected_command": {
+        "action": "unlock",
+        "target": "electrical_room_door"
+      },
+      "expected_allowed": false,
+      "before_command": {
+        "action": "unlock",
+        "target": "electrical_room_door"
+      }
     },
     {
       "id": "door_with_key",
       "text": "เปิดประตูห้องระบบไฟให้หน่อย",
-      "before_walkthrough_step": 23,
-      "expected_command": {"action": "unlock", "target": "electrical_room_door"},
-      "expected_allowed": true
+      "expected_command": {
+        "action": "unlock",
+        "target": "electrical_room_door"
+      },
+      "expected_allowed": true,
+      "before_command": {
+        "action": "unlock",
+        "target": "electrical_room_door"
+      }
     },
     {
       "id": "unlock_bag_only",
       "text": "เปิดกระเป๋าสำนวนด้วยรหัส 1923",
-      "before_walkthrough_step": 10,
-      "expected_command": {"action": "unlock", "target": "dossier_bag", "code": "1923"},
-      "expected_allowed": true
+      "expected_command": {
+        "action": "unlock",
+        "target": "dossier_bag",
+        "code": "1923"
+      },
+      "expected_allowed": true,
+      "before_command": {
+        "action": "unlock",
+        "target": "dossier_bag"
+      }
     },
     {
       "id": "inspect_document",
       "text": "ขอตรวจหนังสือนำส่งสำนวนในกระเป๋าหน่อย",
-      "before_walkthrough_step": 13,
-      "expected_command": {"action": "examine", "target": "judicial_transfer_order"},
-      "expected_allowed": true
+      "expected_command": {
+        "action": "examine",
+        "target": "judicial_transfer_order"
+      },
+      "expected_allowed": true,
+      "before_command": {
+        "action": "examine",
+        "target": "judicial_transfer_order"
+      }
     }
   ]
 }

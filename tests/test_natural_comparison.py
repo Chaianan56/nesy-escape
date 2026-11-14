@@ -76,3 +76,19 @@ def test_one_suite_writes_two_separate_result_sets_without_network(monkeypatch,t
         summary=json.loads((output/mode/'summary.json').read_text(encoding='utf-8'))
         assert summary['paired_cases']==6
     assert len((output/'parser.jsonl').read_text(encoding='utf-8').splitlines())==6
+    import csv
+    cases=list(csv.DictReader((output/'cases.csv').open(encoding='utf-8-sig')))
+    assert len(cases)==12 and all(c['result']=='ผ่าน' for c in cases)
+
+
+def test_case_reason_names_failed_stage():
+    spec={'id':'x','text':'t','expected_command':{'action':'unlock','target':'door'},'expected_allowed':True}
+    ok_parse={'status':'ok','parsed':{'action':'unlock','target':'box'}}
+    row={'status':'ok','mode':'neural','output':{'allowed':False},
+         'checks':{'allowed':False,'state':False,'state_differences':['inventory'],'pillar_status':False}}
+    c=benchmark.case_reason(spec,ok_parse,row)
+    assert c['result']=='ไม่ผ่าน' and c['problem_at']=='parser + adjudication'
+    assert "target ได้ 'box'" in c['reason'] and 'inventory' in c['reason'] and 'สถานะเสาหลักฐาน' in c['reason']
+    err=benchmark.case_reason(spec,{'status':'error','error_kind':'provider','exception_type':'ServerError'},
+                              {'status':'not_run'})
+    assert err['result']=='ไม่ได้รัน' and 'ServerError' in err['reason']

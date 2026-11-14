@@ -29,7 +29,14 @@ def load_suite(filename):
         if spec['id'] in ids:
             raise ValueError('Duplicate test ID')
         ids.add(spec['id'])
-        step = spec['before_walkthrough_step']
+        if 'before_command' in spec:
+            matches = [i+1 for i, c in enumerate(commands)
+                       if all(c.model_dump(mode='json').get(k) == v for k,v in spec['before_command'].items())]
+            if len(matches) != 1:
+                raise ValueError(f"Fixture anchor must match one command: {spec['id']}")
+            step = matches[0]
+        else:
+            step = spec['before_walkthrough_step']
         if not isinstance(step, int) or not 1 <= step <= len(commands):
             raise ValueError('Invalid walkthrough fixture step')
         state = (initial if step == 1 else refs[step-2].new_state).model_copy(deep=True)
@@ -87,6 +94,52 @@ def evaluate_case(spec, state, reference, parsed, actor):
     return row
 
 
+CHECK_LABELS = {'allowed': 'ผลอนุญาต/ปฏิเสธ', 'state': 'สถานะเกม', 'visible_objects': 'วัตถุที่มองเห็น',
+                'visible_people': 'คนที่มองเห็น', 'deductions': 'ข้อสรุป', 'pillar_status': 'สถานะเสาหลักฐาน'}
+
+
+def case_reason(spec, parser_record, row):
+    """One CSV row per case and mode: did it pass, which stage failed, and why."""
+    out = {'id': spec['id'], 'text': spec['text'], 'mode': row.get('mode', ''),
+           'result': 'ผ่าน', 'problem_at': '', 'reason': ''}
+    reasons, stages = [], []
+    if parser_record['status'] != 'ok':
+        stages.append('parser')
+        reasons.append(f"parser ล้มเหลว ({parser_record.get('error_kind')}"
+                       f"{': ' + parser_record['exception_type'] if parser_record.get('exception_type') else ''})")
+    else:
+        got = parser_record['parsed']
+        wrong = [f"{k} ได้ {got.get(k)!r} คาดว่า {v!r}" for k, v in spec['expected_command'].items() if got.get(k) != v]
+        if wrong:
+            stages.append('parser')
+            reasons.append('parser ตีความผิด: ' + ', '.join(wrong))
+    if row['status'] == 'not_run':
+        out['result'] = 'ไม่ได้รัน'
+    elif row['status'] == 'error':
+        out['result'] = 'error'
+        stages.append('adjudication')
+        meta = row.get('metadata') or {}
+        detail = meta.get('exception_type') or ', '.join(meta.get('missing_fields', []))
+        reasons.append(f"ส่วนตัดสินล้มเหลว ({row.get('error_kind')}{': ' + detail if detail else ''})")
+    else:
+        checks = row['checks']
+        failed = [k for k in CHECK_LABELS if not checks.get(k, True)]
+        if failed:
+            stages.append('adjudication')
+        for k in failed:
+            if k == 'allowed':
+                reasons.append(f"ผลอนุญาตผิด: ได้ {row['output']['allowed']} คาดว่า {spec['expected_allowed']}")
+            elif k == 'state':
+                reasons.append('สถานะเกมต่าง: ' + ', '.join(checks.get('state_differences', [])))
+            else:
+                reasons.append(f'{CHECK_LABELS[k]}ไม่ตรง reference')
+    if reasons and out['result'] == 'ผ่าน':
+        out['result'] = 'ไม่ผ่าน'
+    out['problem_at'] = ' + '.join(dict.fromkeys(stages))
+    out['reason'] = '; '.join(reasons)
+    return out
+
+
 def run_pair(spec, state, reference, parsed, actors):
     return {mode: evaluate_case(spec, state, reference, parsed, actor) for mode, actor in actors.items()}
 
@@ -134,6 +187,7 @@ def main(argv=None):
     logs = {}
     all_rows = {m: [] for m in actors}
     parser_rows = []
+    case_rows = []
     try:
         for mode in actors:
             folder = args.output/mode
@@ -156,7 +210,9 @@ def main(argv=None):
                 for mode,row in pair.items():
                     all_rows[mode].append(row)
                     logs[mode].write(json.dumps(row, ensure_ascii=False)+'\n');logs[mode].flush()
-                print(spec['id'], {m:r['status'] for m,r in pair.items()}, flush=True)
+                    case_rows.append(case_reason(spec, record, {**row, 'mode': mode}))
+                    c = case_rows[-1]
+                    print(f"{spec['id']} [{mode}] {c['result']}" + (f" — {c['reason']}" if c['reason'] else ''), flush=True)
     finally:
         for log in logs.values():
             log.close()
@@ -175,6 +231,8 @@ def main(argv=None):
         comparison.append(summary)
     with (args.output/'comparison.csv').open('w',encoding='utf-8-sig',newline='') as f:
         writer=csv.DictWriter(f,fieldnames=list(comparison[0]));writer.writeheader();writer.writerows(comparison)
+    with (args.output/'cases.csv').open('w',encoding='utf-8-sig',newline='') as f:
+        writer=csv.DictWriter(f,fieldnames=list(case_rows[0]));writer.writeheader();writer.writerows(case_rows)
     manifest['status']='finished'
     save(args.output/'manifest.json',manifest)
     text = ['# เปรียบเทียบข้อความชุดเดียวกัน', '',
