@@ -180,7 +180,7 @@ def prepare(letter):
         raise ValueError(f"Walkthrough does not solve case {letter}")
     bundle = load_game_bundle()
     bundle["world"] = engine.world
-    bundle["mechanics"] = (ROOT / "docs/research-mechanics-v2.md").read_text(encoding="utf-8")
+    bundle["mechanics"] = (ROOT / "docs/research-mechanics-v3.md").read_text(encoding="utf-8")
     return cid, initial, commands, references, adjudicator, bundle
 
 
@@ -320,7 +320,7 @@ def main(argv=None):
     model = args.model or DEFAULT_MODEL
     sources = ["scripts/run_case_rollout_benchmark.py", "scripts/evaluate_modes.py",
                "app/neural/game_master.py", "app/symbolic/engine.py", "app/schemas.py",
-               "docs/research-mechanics-v2.md"]
+               "docs/research-mechanics-v3.md"]
     manifest = {"created_at_utc": datetime.now(timezone.utc).isoformat(),
                 "protocol_version": "case-rollout-1.1-required-state-schema",
                 "boundary": "parsed-command-full-case-rollout", "status": "development-pilot-not-held-out",
