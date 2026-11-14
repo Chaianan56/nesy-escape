@@ -10,6 +10,62 @@ def read_rows(path):
     return [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
 
 
+LABELS = {'allowed':'ผลอนุญาต','state':'สถานะเกม','visible_objects':'วัตถุที่มองเห็น',
+          'visible_people':'คนที่มองเห็น','deductions':'ข้อสรุป','pillar_status':'สถานะเสาหลักฐาน'}
+
+
+def turn_row(row, parser):
+    """One readable CSV row per turn. result uses parser + allowed + state;
+    other output mismatches are listed separately in other_mismatches."""
+    cmd = (parser or {}).get('parsed') or row.get('command') or {}
+    out = {'mode':row['mode'],'step':row['step'],'text':(row.get('command') or {}).get('raw_text',''),
+           'parsed':' '.join(str(cmd.get(k)) for k in ['action','target','topic','code'] if cmd.get(k)),
+           'allowed':(row.get('output') or {}).get('allowed',''),
+           'ending_id':((row.get('output') or {}).get('new_state') or {}).get('ending_id') or '',
+           'result':'ผ่าน','problem_at':'','reason':'','other_mismatches':'',
+           'carried_over_divergence':'ใช่' if row.get('previous_state_divergence') else ''}
+    stages, reasons, minor = [], [], []
+    if parser and parser.get('expected_field_matches'):
+        wrong = [f"{k}={cmd.get(k)!r}" for k,v in parser['expected_field_matches'].items() if not v]
+        if wrong:
+            stages.append('parser'); reasons.append('parser ตีความผิด: ' + ', '.join(wrong))
+    if row['status'] != 'ok':
+        meta = row.get('metadata') or {}
+        out['result'] = 'error'
+        stages.append('parser' if str(row.get('error_kind','')).startswith('parser') else 'adjudication')
+        reasons.append(f"{row.get('error_kind')} {meta.get('exception_type') or ', '.join(meta.get('missing_fields',[]))}".strip())
+    else:
+        for name, checks in [('ขัดกฎจากสถานะของตัวเอง', row.get('own_state_rule_audit')),
+                             ('ต่างจากเส้นทางอ้างอิง', row.get('reference_trajectory'))]:
+            if not checks:
+                continue
+            bad = [LABELS[k] + (f" ({', '.join(checks['state_differences'])})" if k=='state' else '')
+                   for k in ['allowed','state'] if not checks.get(k, True)]
+            if bad:
+                stages.append('adjudication'); reasons.append(f"{name}: " + '; '.join(bad))
+            minor += [LABELS[k] for k in ['visible_objects','visible_people','deductions','pillar_status']
+                      if not checks.get(k, True) and LABELS[k] not in minor]
+        if row.get('audit_error'):
+            reasons.append(f"ตรวจกฎไม่ได้: {row['audit_error']}")
+    if reasons and out['result'] == 'ผ่าน':
+        out['result'] = 'ไม่ผ่าน'
+    out.update(problem_at=' + '.join(dict.fromkeys(stages)), reason=' | '.join(reasons),
+               other_mismatches=', '.join(minor))
+    return out
+
+
+def write_turns_csv(folder):
+    rows = []
+    for mode in ['neural','neuro-symbolic']:
+        parsers = {}
+        for p in read_rows(folder/mode/'parser.jsonl'):
+            parsers[p['step']] = p
+        rows += [turn_row(r, parsers.get(r['step'])) for r in read_rows(folder/mode/'turns.jsonl')]
+    with (folder/'turns.csv').open('w',encoding='utf-8-sig',newline='') as f:
+        w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
+    return rows
+
+
 def summarize(folder):
     requests = read_rows(folder/'requests.jsonl')
     metrics=[]
@@ -54,6 +110,7 @@ def summarize(folder):
     flat=[{k:v for k,v in m.items() if k!='usage'} for m in metrics]
     with (folder/'comparison.csv').open('w',encoding='utf-8-sig',newline='') as f:
         w=csv.DictWriter(f,fieldnames=list(flat[0]));w.writeheader();w.writerows(flat)
+    write_turns_csv(folder)
     lines=['# ผลทดลองเล่นคดี A ต่อเนื่องผ่าน Gemini API','',
            'ใช้ข้อความภาษาไทย 25 ข้อชุดเดียวกัน แต่ละระบบเริ่มจากสถานะเดียวกันและนำสถานะของตัวเองไปใช้ในตาถัดไป',
            'แต่ละฝั่งเรียก Gemini ตีความจากสถานะของตัวเอง จึงไม่ได้ใช้ผลตีความร่วมกันเหมือนชุดทดลอง 6 กรณี',
