@@ -11,6 +11,7 @@ logs/
 
 # Local exports and raw experiment results; publish selected reports separately.
 /output/
+/outputs/
 /results/
 /.cache/
 
