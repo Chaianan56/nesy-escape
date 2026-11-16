@@ -23,3 +23,18 @@ def test_interrogating_vincent_lets_you_see_his_sleeve(case):
     assert talk.allowed
     state = apply_changes(state, talk.state_changes)
     assert engine.decide(cmd(ActionType.EXAMINE, 'vincent_blood'), state).allowed
+
+
+@pytest.mark.parametrize('case', CASES)
+def test_asking_vincent_about_the_blood(case):
+    """"แกเป็นใคร แล้วทำไมเสื้อมีรอยเลือด" แตกเป็นถามสองครั้ง ครั้งที่สองต้องได้เรื่องเลือด ไม่ใช่คำตอบเดิมซ้ำ"""
+    engine = get_engine(case)
+    state = new_game_state(engine.world, case).model_copy(update={'current_location': 'second_class_car'})
+    first = engine.decide(cmd(ActionType.INTERROGATE, 'vincent_gray'), state)
+    state = apply_changes(state, first.state_changes)
+    second = engine.decide(cmd(ActionType.INTERROGATE, 'vincent_gray'), state)
+    assert second.allowed and second.message != first.message
+    assert 'แผล' in second.message
+    state = apply_changes(state, second.state_changes)
+    assert 'vincent_blood' in state.discovered_evidence
+    assert engine.decide(cmd(ActionType.INTERROGATE, 'vincent_gray', 'blood'), state).allowed
