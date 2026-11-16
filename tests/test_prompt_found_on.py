@@ -39,6 +39,16 @@ def test_repair_keeps_a_real_choice_between_two_items_in_the_room():
     assert repaired.alternatives == ['pocket_watch', 'obsidian_cufflink']
 
 
+def test_prompt_tells_the_model_what_players_call_car_4():
+    """From car 6, "พาผมไปห้องคุณรีด" came back ambiguous: nothing linked Reed's room to car 4."""
+    for case in ('case_01_gideon', 'case_02_vincent', 'case_03_liora'):
+        world = get_engine(case).world
+        state = new_game_state(world, case).model_copy(update={'current_location': 'second_class_car'})
+        prompt = build_interpret_system_prompt(world, state=state, user_text='พาผมไปห้องคุณรีด', use_knn=False)
+        line = next(l for l in prompt.splitlines() if "ID: 'first_class_car'" in l)
+        assert 'ห้องคุณรีด' in line, case
+
+
 def test_found_on_stays_hidden_until_the_parent_is_examined():
     """Listing it earlier would tell the player what the body holds before they look."""
     prompt = _prompt([])

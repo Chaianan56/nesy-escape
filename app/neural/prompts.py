@@ -199,6 +199,7 @@ def build_interpret_system_prompt(
     )
     locations_text = "\n".join(
         f"  - ID: '{k}' | ชื่อไทย: '{v.get('name_th', '')}'"
+        + (f" | ชื่อเรียกอื่น: {', '.join(v['aliases'])}" if v.get('aliases') else "")
         for k, v in locations.items()
     )
 
