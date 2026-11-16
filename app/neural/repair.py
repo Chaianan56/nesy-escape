@@ -68,7 +68,11 @@ def repair_parsed_command(
     # แต่ LLM สกัดเป็น ambiguous เนื่องจากพบว่ามีกุญแจหลายดอกในโลก (เช่น medical_key, staff_key)
     # หากวัตถุประเภทนั้นมีอยู่ในห้องปัจจุบันเพียงชิ้นเดียว ให้ปรับเป็น action และ target ที่ถูกต้องอัตโนมัติ
     # ==========================================================================
-    if parsed.action == ActionType.AMBIGUOUS and state:
+    # ถ้า LLM เสนอของในห้องนี้ตั้งแต่สองชิ้น ("ไอนั่นจากศพ" -> นาฬิกาพก/กระดุม) คือกำกวมจริง ห้ามเลือกแทนผู้เล่น
+    in_room_choices = [alt.split()[-1] for alt in parsed.alternatives
+                       if alt.split() and objects.get(alt.split()[-1], {}).get("location")
+                       == (state.current_location if state else None)]
+    if parsed.action == ActionType.AMBIGUOUS and state and len(in_room_choices) < 2:
         inferred_action = None
         if any(w in raw for w in ("หยิบ", "เก็บ", "เอา", "take", "pick up", "grab", "get")):
             inferred_action = ActionType.TAKE
