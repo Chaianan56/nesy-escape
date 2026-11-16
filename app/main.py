@@ -623,6 +623,11 @@ def _handle_command(req: CommandRequest, engine: SymbolicEngine | None = None, p
         parts = a.split()
         if len(parts) == 1 and parts[0] in {v.value for v in ActionType}:
             normalized_alts.append(f"{parts[0]} null")
+        # LLM บางครั้งส่งแค่ id มา ถ้าทิ้งไปผู้เล่นจะไม่เหลือปุ่มให้เลือก ตู้รถหมายถึงเดินไป นอกนั้นหมายถึงตรวจ
+        elif len(parts) == 1 and parts[0] in active_engine.world["locations"]:
+            normalized_alts.append(f"move {parts[0]}")
+        elif len(parts) == 1 and (parts[0] in active_engine.world["objects"] or parts[0] in active_engine.world["suspects"]):
+            normalized_alts.append(f"examine {parts[0]}")
         elif len(parts) == 2:
             normalized_alts.append(a)
     parsed.alternatives = [a for a in normalized_alts

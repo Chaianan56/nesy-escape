@@ -49,6 +49,26 @@ def test_prompt_tells_the_model_what_players_call_car_4():
         assert 'ห้องคุณรีด' in line, case
 
 
+def test_bare_id_alternatives_become_examine_choices(monkeypatch):
+    """Gemini sometimes returns ['pocket_watch', ...] without a verb; dropping them left no buttons."""
+    from fastapi.testclient import TestClient
+    from app import main
+    from app.schemas import ActionType, ParsedCommand
+    with TestClient(main.app) as client:
+        client.get('/scene')
+        client.post('/command', json={'text': 'ไปตู้ 4'})
+        client.post('/command', json={'text': 'ตรวจศพ'})
+        monkeypatch.setattr(main, 'interpret', lambda text, state, **kw: ParsedCommand(
+            action=ActionType.AMBIGUOUS, raw_text=text, alternatives=['pocket_watch', 'obsidian_cufflink']))
+        alts = client.post('/command', json={'text': 'เก็บไอนั่นจากศพขึ้นมาดู'}).json()['parsed']['alternatives']
+    assert alts == ['examine pocket_watch', 'examine obsidian_cufflink']
+
+
+def test_prompt_says_both_items_means_do_all_of_them():
+    prompt = _prompt(['cassian_reed'])
+    assert 'ทั้งสอง' in prompt and 'action="sequence"' in prompt.split('พบที่: \'<id>\'', 1)[1].split('⚠️', 1)[0]
+
+
 def test_found_on_stays_hidden_until_the_parent_is_examined():
     """Listing it earlier would tell the player what the body holds before they look."""
     prompt = _prompt([])
