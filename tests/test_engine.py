@@ -89,20 +89,20 @@ def test_cannot_examine_evidence_in_another_car(engine):
     # ยืนอยู่ตู้เลานจ์ (lounge_car) แต่จะตรวจนาฬิกาพกในตู้ 4 (first_class_car) ต้องไม่ผ่าน
     d = engine.decide(cmd(ActionType.EXAMINE, "pocket_watch"), GameState())
     assert not d.allowed
-    assert d.violated_rule_id == "R005_SAME_LOCATION"
+    assert d.violated_rule_id == "R007_SAME_LOCATION"
 
 
 def test_unknown_object_denied(engine):
     d = engine.decide(cmd(ActionType.EXAMINE, "non_existent_item"), GameState())
     assert not d.allowed
-    assert d.violated_rule_id == "R002_TARGET_EXISTS"
+    assert d.violated_rule_id == "R003_TARGET_EXISTS"
 
 
 def test_time_limit_enforced(engine):
     s = GameState(elapsed_seconds=5460)  # เกิน 5400 วินาที
     d = engine.decide(cmd(ActionType.MOVE, "first_class_car"), s)
     assert not d.allowed
-    assert d.violated_rule_id == "R014_TIME_LIMIT"
+    assert d.violated_rule_id == "R001_TIME_LIMIT"
 
 
 # ---------- ชั้น Deduction ----------
@@ -247,7 +247,7 @@ def test_incomplete_proof_can_still_reach_cold_justice(engine):
     d = engine.decide(cmd(ActionType.ACCUSE, "gideon_hart"), state)
     assert d.allowed
     assert d.state_changes["ending"] == "cold_justice"
-    assert not next(x for x in d.reasoning_chain if x.rule_id == "R013_ACCUSE_FOUR_PILLARS").passed
+    assert not next(x for x in d.reasoning_chain if x.rule_id == "R016_ACCUSE_FOUR_PILLARS").passed
 
 
 @pytest.mark.parametrize('route', ['button_wax', 'tea_button', 'tea_wax'])
@@ -277,7 +277,7 @@ def test_vincent_needs_all_three_clues(engine, mask):
     if mask == 7:
         assert decision.state_changes["ending"] == "the_scapegoat"
     else:
-        assert decision.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
+        assert decision.violated_rule_id == "R015_ACCUSE_ENDING_REQUIREMENTS"
         assert decision.state_changes == {}
         assert engine.decide(cmd(ActionType.MOVE, "first_class_car"), state).allowed
 
@@ -428,7 +428,7 @@ def test_locomotive_is_on_the_map_but_cannot_be_entered(engine):
     for lid in restricted:
         d = engine.decide(cmd(ActionType.MOVE, lid), GameState())
         assert not d.allowed
-        assert d.violated_rule_id == "R006_LOCATION_RESTRICTED"
+        assert d.violated_rule_id == "R005_LOCATION_RESTRICTED"
         assert not any(o.get("location") == lid for o in engine.world["objects"].values()), \
             f"{lid} เข้าไม่ได้ แต่มีหลักฐานวางอยู่ ผู้เล่นจะเก็บไม่ได้"
         assert not any(s["location"] == lid for s in engine.world["suspects"].values())
@@ -540,7 +540,7 @@ def test_ordinary_evidence_cannot_be_taken_used_unlocked_or_burned(engine, actio
     s = GameState(current_location='first_class_car', examined_objects=['cassian_reed'])
     d = engine.decide(cmd(action, 'pocket_watch'), s)
     assert not d.allowed, f"{action.value} ไม่ควรผ่าน"
-    assert d.violated_rule_id == "R007_ACTION_SUPPORTED"
+    assert d.violated_rule_id == "R010_ACTION_SUPPORTED"
 
 
 def test_burning_something_in_another_car_is_caught_by_the_location_rule(engine):
@@ -548,13 +548,13 @@ def test_burning_something_in_another_car_is_caught_by_the_location_rule(engine)
     far = next(oid for oid, o in engine.world["objects"].items()
                if o.get("location") and o["location"] != GameState().current_location)
     d = engine.decide(cmd(ActionType.BURN, far), GameState())
-    assert d.violated_rule_id == "R005_SAME_LOCATION"
+    assert d.violated_rule_id == "R007_SAME_LOCATION"
 
 
 def test_a_scene_can_re_enable_an_action_without_touching_the_code(engine):
     """กฎอ่านจากข้อมูล ฉากไหนอยากมีของที่หยิบได้ก็เติม supports ลง story.json พอ
 
-    ข้อนี้คือหลักฐานว่ากฎ R007 ไม่ได้ปิดตายสี่คำสั่งนั้นไว้ในโค้ด
+    ข้อนี้คือหลักฐานว่ากฎ R010 ไม่ได้ปิดตายสี่คำสั่งนั้นไว้ในโค้ด
     """
     s = GameState(current_location='first_class_car', examined_objects=['cassian_reed'])
     oid = 'pocket_watch'
@@ -578,7 +578,7 @@ def test_the_last_minute_of_the_clock_is_playable_and_the_next_one_is_not(engine
 
     over = GameState(elapsed_seconds=limit)
     d = engine.decide(cmd(ActionType.EXAMINE, over.current_location), over)
-    assert d.violated_rule_id == "R014_TIME_LIMIT"
+    assert d.violated_rule_id == "R001_TIME_LIMIT"
     assert engine.is_out_of_time(over)
 
 
@@ -598,7 +598,7 @@ def test_time_runs_out_before_the_command_is_even_inspected(engine):
     """
     over = GameState(elapsed_seconds=engine.world["time_limit_seconds"])
     d = engine.decide(cmd(ActionType.EXAMINE, "ของที่ไม่มีอยู่จริง"), over)
-    assert d.violated_rule_id == "R014_TIME_LIMIT"
+    assert d.violated_rule_id == "R001_TIME_LIMIT"
 
 @pytest.mark.parametrize('case_id', ['case_01_gideon', 'case_02_vincent', 'case_03_liora'])
 def test_room_description_tracks_unlock_and_restored_state(case_id):

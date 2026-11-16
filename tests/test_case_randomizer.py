@@ -169,7 +169,7 @@ def test_all_cases_block_turn1_accusation():
             cmd = ParsedCommand(action=ActionType.ACCUSE, target=target, raw_text=f"กล่าวหา {target}")
             dec = eng.decide(cmd, empty_state)
             assert dec.allowed is False, f"{case_id} allowed accusing {target} with zero evidence!"
-            assert dec.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS"
+            assert dec.violated_rule_id == "R015_ACCUSE_ENDING_REQUIREMENTS"
 
 
 @pytest.mark.parametrize("case_id,evidence,forbidden", [

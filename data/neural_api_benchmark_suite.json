@@ -610,8 +610,8 @@
     "expected_action": "accuse",
     "expected_target": "vincent_gray",
     "expected_allowed": false,
-    "description": "กล่าวหาโดยไม่มีหลักฐานครบถ้วน ต้องถูกปฏิเสธด้วย R012",
-    "expected_rule": "R012_ACCUSE_ENDING_REQUIREMENTS"
+    "description": "กล่าวหาโดยไม่มีหลักฐานครบถ้วน ต้องถูกปฏิเสธด้วย R015",
+    "expected_rule": "R015_ACCUSE_ENDING_REQUIREMENTS"
   },
   {
     "id": "TC43_en_accuse_gideon",
@@ -682,8 +682,8 @@
     "expected_action": "accuse",
     "expected_target": "dr_liora_venn",
     "expected_allowed": false,
-    "description": "กล่าวหาโดยไม่มีหลักฐานครบถ้วน ต้องถูกปฏิเสธด้วย R012",
-    "expected_rule": "R012_ACCUSE_ENDING_REQUIREMENTS"
+    "description": "กล่าวหาโดยไม่มีหลักฐานครบถ้วน ต้องถูกปฏิเสธด้วย R015",
+    "expected_rule": "R015_ACCUSE_ENDING_REQUIREMENTS"
   },
   {
     "id": "TC45_th_restricted_locomotive",
@@ -696,8 +696,8 @@
     "expected_action": "move",
     "expected_target": "locomotive",
     "expected_allowed": false,
-    "expected_rule": "R006_LOCATION_RESTRICTED",
-    "description": "พยายามเข้าตู้ 1 หัวรถจักร ซึ่งเป็นพื้นที่จำกัด ต้องติด R006"
+    "expected_rule": "R005_LOCATION_RESTRICTED",
+    "description": "พยายามเข้าตู้ 1 หัวรถจักร ซึ่งเป็นพื้นที่จำกัด ต้องติด R005"
   },
   {
     "id": "TC46_en_restricted_locomotive",
@@ -710,8 +710,8 @@
     "expected_action": "move",
     "expected_target": "locomotive",
     "expected_allowed": false,
-    "expected_rule": "R006_LOCATION_RESTRICTED",
-    "description": "Attempt to enter locomotive in English, must trigger R006"
+    "expected_rule": "R005_LOCATION_RESTRICTED",
+    "description": "Attempt to enter locomotive in English, must trigger R005"
   },
   {
     "id": "TC47_th_spatial_violation_examine_cross_car",
@@ -724,8 +724,8 @@
     "expected_action": "examine",
     "expected_target": "burnt_folder_c",
     "expected_allowed": false,
-    "expected_rule": "R005_SAME_LOCATION",
-    "description": "สั่งตรวจของข้ามตู้ (อยู่ตู้ 5 ตรวจของตู้ 4) ต้องติด R005"
+    "expected_rule": "R007_SAME_LOCATION",
+    "description": "สั่งตรวจของข้ามตู้ (อยู่ตู้ 5 ตรวจของตู้ 4) ต้องติด R007"
   },
   {
     "id": "TC48_en_spatial_violation_examine_cross_car",
@@ -738,8 +738,8 @@
     "expected_action": "examine",
     "expected_target": "cassian_reed",
     "expected_allowed": false,
-    "expected_rule": "R005_SAME_LOCATION",
-    "description": "Examine victim cross-car in English, must trigger R005"
+    "expected_rule": "R007_SAME_LOCATION",
+    "description": "Examine victim cross-car in English, must trigger R007"
   },
   {
     "id": "TC49_th_unlock_no_key_violation",
@@ -752,8 +752,8 @@
     "expected_action": "unlock",
     "expected_target": "medical_room_door",
     "expected_allowed": false,
-    "expected_rule": "R010_UNLOCK_REQUIREMENTS",
-    "description": "พยายามเปิดห้องแพทย์โดยไม่มีกุญแจ ต้องติด R010"
+    "expected_rule": "R011_UNLOCK_REQUIREMENTS",
+    "description": "พยายามเปิดห้องแพทย์โดยไม่มีกุญแจ ต้องติด R011"
   },
   {
     "id": "TC50_en_unlock_no_key_violation",
@@ -766,8 +766,8 @@
     "expected_action": "unlock",
     "expected_target": "electrical_room_door",
     "expected_allowed": false,
-    "expected_rule": "R010_UNLOCK_REQUIREMENTS",
-    "description": "Unlock door without key in English, must trigger R010"
+    "expected_rule": "R011_UNLOCK_REQUIREMENTS",
+    "description": "Unlock door without key in English, must trigger R011"
   },
   {
     "id": "TC51_th_unlock_wrong_code",
@@ -780,7 +780,7 @@
     "expected_action": "unlock",
     "expected_target": "dossier_bag",
     "expected_allowed": false,
-    "expected_rule": "R010_UNLOCK_REQUIREMENTS",
+    "expected_rule": "R011_UNLOCK_REQUIREMENTS",
     "description": "ใส่รหัสผิดกับกระเป๋าเอกสาร ต้องถูกปฏิเสธ"
   },
   {
@@ -794,8 +794,8 @@
     "expected_action": "burn",
     "expected_target": "pocket_watch",
     "expected_allowed": false,
-    "expected_rule": "R007_ACTION_SUPPORTED",
-    "description": "Attempt to burn non-burnable object, must trigger R007"
+    "expected_rule": "R010_ACTION_SUPPORTED",
+    "description": "Attempt to burn non-burnable object, must trigger R010"
   },
   {
     "id": "TC53_th_unknown_action_punch",

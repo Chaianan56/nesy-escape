@@ -120,7 +120,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R006_LOCATION_RESTRICTED",
+        "rule_id": "R005_LOCATION_RESTRICTED",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -185,7 +185,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R006_LOCATION_RESTRICTED",
+        "rule_id": "R005_LOCATION_RESTRICTED",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -250,7 +250,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R005_SAME_LOCATION",
+        "rule_id": "R007_SAME_LOCATION",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -532,7 +532,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R010_UNLOCK_REQUIREMENTS",
+        "rule_id": "R011_UNLOCK_REQUIREMENTS",
         "new_state": {
           "started_at": null,
           "current_location": "first_class_car",
@@ -675,7 +675,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R010_UNLOCK_REQUIREMENTS",
+        "rule_id": "R011_UNLOCK_REQUIREMENTS",
         "new_state": {
           "started_at": null,
           "current_location": "first_class_car",
@@ -993,7 +993,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R011_DIALOGUE_AVAILABLE",
+        "rule_id": "R012_DIALOGUE_AVAILABLE",
         "new_state": {
           "started_at": null,
           "current_location": "dining_car_staff",
@@ -1147,7 +1147,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R016_ACCUSABLE",
+        "rule_id": "R014_ACCUSABLE",
         "new_state": {
           "started_at": null,
           "current_location": "dining_car_staff",
@@ -1388,7 +1388,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R015_INFERENCE_SUPPORTED",
+        "rule_id": "R013_INFERENCE_SUPPORTED",
         "new_state": {
           "started_at": null,
           "current_location": "first_class_car",
@@ -1474,7 +1474,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R015_INFERENCE_SUPPORTED",
+        "rule_id": "R013_INFERENCE_SUPPORTED",
         "new_state": {
           "started_at": null,
           "current_location": "first_class_car",
@@ -1713,7 +1713,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R015_INFERENCE_SUPPORTED",
+        "rule_id": "R013_INFERENCE_SUPPORTED",
         "new_state": {
           "started_at": null,
           "current_location": "luggage_van_electrical",
@@ -2936,7 +2936,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R016_ACCUSABLE",
+        "rule_id": "R014_ACCUSABLE",
         "new_state": {
           "started_at": null,
           "current_location": "second_class_car",
@@ -3107,7 +3107,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R012_ACCUSE_ENDING_REQUIREMENTS",
+        "rule_id": "R015_ACCUSE_ENDING_REQUIREMENTS",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -3175,7 +3175,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R012_ACCUSE_ENDING_REQUIREMENTS",
+        "rule_id": "R015_ACCUSE_ENDING_REQUIREMENTS",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -3243,7 +3243,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R014_TIME_LIMIT",
+        "rule_id": "R001_TIME_LIMIT",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -3308,7 +3308,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R001_GAME_NOT_OVER",
+        "rule_id": "R000_GAME_NOT_OVER",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -3378,7 +3378,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R000_KNOWN_ACTION",
+        "rule_id": "R002_KNOWN_ACTION",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -3702,7 +3702,7 @@
       },
       "expected": {
         "allowed": false,
-        "rule_id": "R011_DIALOGUE_AVAILABLE",
+        "rule_id": "R012_DIALOGUE_AVAILABLE",
         "new_state": {
           "started_at": null,
           "current_location": "lounge_car",
@@ -4143,7 +4143,7 @@
           },
           "expected": {
             "allowed": false,
-            "rule_id": "R010_UNLOCK_REQUIREMENTS",
+            "rule_id": "R011_UNLOCK_REQUIREMENTS",
             "new_state": {
               "started_at": null,
               "current_location": "first_class_car",
@@ -4505,7 +4505,7 @@
           },
           "expected": {
             "allowed": false,
-            "rule_id": "R015_INFERENCE_SUPPORTED",
+            "rule_id": "R013_INFERENCE_SUPPORTED",
             "new_state": {
               "started_at": null,
               "current_location": "first_class_car",

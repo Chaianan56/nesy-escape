@@ -319,7 +319,7 @@ class DynamicAdaptationEngine:
         """ให้คำแนะนำเชิงบริบท (Contextual Scaffolding Nudge) เมื่อระบบตรวจพบว่าผู้เล่นเริ่มติดขัด"""
 
         # 1. ผู้เล่นทำผิดกฎเรื่องระยะทางติดต่อกัน (พยายามสั่งตรวจของข้ามตู้รถ)
-        if not decision.allowed and decision.violated_rule_id == "R005_SAME_LOCATION":
+        if not decision.allowed and decision.violated_rule_id == "R007_SAME_LOCATION":
             if recent_violation_count >= 2:
                 return (
                     "💡 *[ข้อสังเกตของผู้สืบสวน]*: ขบวนรถไฟแบ่งพื้นที่ออกเป็นตู้โดยสารหลายตู้ "
@@ -327,7 +327,7 @@ class DynamicAdaptationEngine:
                 )
 
         # 2. ผู้เล่นพยายามใช้คำสั่งที่ไม่รองรับ (เช่น take, use, burn ใส่ของที่ห้ามหยิบ)
-        if not decision.allowed and decision.violated_rule_id == "R007_ACTION_SUPPORTED":
+        if not decision.allowed and decision.violated_rule_id == "R010_ACTION_SUPPORTED":
             return (
                 "💡 *[ข้อสังเกตของผู้สืบสวน]*: วัตถุชิ้นนี้เป็นพยานหลักฐานที่ไม่ควรเคลื่อนย้ายหรือแตะต้อง "
                 "การ 'ตรวจดู' รายละเอียด หรือสอบถามพยานที่เกี่ยวข้อง จะให้ข้อมูลที่เป็นประโยชน์มากกว่า"
@@ -346,7 +346,7 @@ class DynamicAdaptationEngine:
             )
 
         # 4. ผู้เล่นพยายามกล่าวหา (accuse) แต่หลักฐานยังห่างไกล
-        if not decision.allowed and decision.violated_rule_id == "R012_ACCUSE_ENDING_REQUIREMENTS":
+        if not decision.allowed and decision.violated_rule_id == "R015_ACCUSE_ENDING_REQUIREMENTS":
             return (
                 "💡 *[ข้อสังเกตของผู้สืบสวน]*: ตรวจรายการเงื่อนไขที่ยังขาดของคดีนี้ในข้อความด้านบน "
                 "เปิดแฟ้มสืบสวนเพื่อทบทวนหลักฐานและไทม์ไลน์ แล้วค้นข้อมูลหรือสอบถามพยานเพิ่มเติม"

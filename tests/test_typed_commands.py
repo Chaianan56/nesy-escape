@@ -171,7 +171,7 @@ def test_unlock_door_with_carried_key_resolves_and_succeeds():
     state_without_key = GameState(current_location='luggage_van_electrical', inventory=[])
     decision3 = main.engine.decide(bare_cmd, state_without_key)
     assert not decision3.allowed
-    assert decision3.violated_rule_id == 'R010_UNLOCK_REQUIREMENTS'
+    assert decision3.violated_rule_id == 'R011_UNLOCK_REQUIREMENTS'
 
 
 def test_medical_room_door_and_dossier_bag_interactions():
@@ -204,7 +204,7 @@ def test_medical_room_door_and_dossier_bag_interactions():
     parsed_no_key = parse_typed_command('เปิดห้องพยาบาล', state_no_key, world)
     dec = main.engine.decide(parsed_no_key, state_no_key)
     assert not dec.allowed
-    assert dec.violated_rule_id == 'R010_UNLOCK_REQUIREMENTS'
+    assert dec.violated_rule_id == 'R011_UNLOCK_REQUIREMENTS'
 
     # ทดสอบรูปแบบคำสั่งการปลดล็อกกระเป๋าเอกสารด้วยรหัสผ่านหลากหลายรูปแบบ (ต้องสำรวจโต๊ะก่อน)
     state_bag = GameState(current_location='first_class_car', inventory=['medical_key'], examined_objects=['first_class_desk'])
@@ -256,9 +256,9 @@ def test_cassian_body_examination_commands():
         decision = main.engine.decide(parsed, state_car4)
         assert decision.allowed, f"Should be allowed in Car 4 for '{cmd_text}'"
 
-    # หากอยู่ในตู้ 5 (lounge_car) การตรวจศพแคสเซียนในตู้ 4 จะต้องติดกฎ R005_SAME_LOCATION
+    # หากอยู่ในตู้ 5 (lounge_car) การตรวจศพแคสเซียนในตู้ 4 จะต้องติดกฎ R007_SAME_LOCATION
     parsed_car5 = parse_typed_command('look cassian', state_car5, world)
     decision_car5 = main.engine.decide(parsed_car5, state_car5)
     assert not decision_car5.allowed
-    assert decision_car5.violated_rule_id == 'R005_SAME_LOCATION'
+    assert decision_car5.violated_rule_id == 'R007_SAME_LOCATION'
 

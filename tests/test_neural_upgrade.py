@@ -184,7 +184,7 @@ def test_knn_mmr_diversity():
 
 
 def test_reflexion_spatial_violation_retry():
-    """ทดสอบ Closed-Loop NeSy Reflexion: แก้ไข R005 Spatial Indirection (สั่งเดินไปหาของ -> เปลี่ยนเป็นตู้รถ)"""
+    """ทดสอบ Closed-Loop NeSy Reflexion: แก้ไข R007 Spatial Indirection (สั่งเดินไปหาของ -> เปลี่ยนเป็นตู้รถ)"""
     from app.neural.reflexion import execute_reflexion_retry, should_attempt_reflexion
 
     state = GameState(current_location="lounge_car")
@@ -195,11 +195,11 @@ def test_reflexion_spatial_violation_retry():
         raw_text="เดินไปที่นาฬิกาพก",
         confidence=0.8,
     )
-    # Symbolic Engine ปฏิเสธด้วย R005
+    # Symbolic Engine ปฏิเสธด้วย R007
     denied = Decision(
         allowed=False,
         message="เป้าหมายไม่อยู่ในสถานที่ปัจจุบัน",
-        violated_rule_id="R005_SAME_LOCATION",
+        violated_rule_id="R007_SAME_LOCATION",
     )
 
     assert should_attempt_reflexion(cmd, denied) is True
@@ -208,7 +208,7 @@ def test_reflexion_spatial_violation_retry():
     def mock_decide(p, s):
         if p.action == ActionType.MOVE and p.target == "first_class_car":
             return Decision(allowed=True, message="เดินสำเร็จ")
-        return Decision(allowed=False, message="ไม่อนุญาต", violated_rule_id="R005_SAME_LOCATION")
+        return Decision(allowed=False, message="ไม่อนุญาต", violated_rule_id="R007_SAME_LOCATION")
 
     repaired_cmd, new_dec, note = execute_reflexion_retry(
         raw_text="เดินไปที่นาฬิกาพก",
@@ -239,7 +239,7 @@ def test_reflexion_preserves_genuine_violations():
     denied = Decision(
         allowed=False,
         message="วัตถุนี้ห้ามหยิบ",
-        violated_rule_id="R007_ACTION_SUPPORTED",
+        violated_rule_id="R010_ACTION_SUPPORTED",
     )
     # raw_text เป็น 'หยิบ' ไม่ใช่การตีความผิด -> Reflexion ต้องไม่แทรกแซง
     assert should_attempt_reflexion(cmd, denied) is False

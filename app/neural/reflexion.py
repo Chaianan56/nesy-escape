@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 # รายการกฎที่เป็น Semantic Invariant ซึ่ง Neural Layer สามารถแก้ไขเจตนาได้
 CORRECTABLE_RULES = {
-    "R005_SAME_LOCATION",      # วัตถุอยู่นอกตู้ปัจจุบัน (ควรเป็น move ตู้รถ หรือเปลี่ยน target)
-    "R007_ACTION_SUPPORTED",   # กระทำกริยาไม่รองรับ (เช่น unlock บนของที่ไม่มีล็อก, take บนของที่ห้ามหยิบ)
+    "R007_SAME_LOCATION",      # วัตถุอยู่นอกตู้ปัจจุบัน (ควรเป็น move ตู้รถ หรือเปลี่ยน target)
+    "R010_ACTION_SUPPORTED",   # กระทำกริยาไม่รองรับ (เช่น unlock บนของที่ไม่มีล็อก, take บนของที่ห้ามหยิบ)
     "R003_ENTITY_EXISTS",      # วัตถุหรือบุคคลไม่มีอยู่จริงในทะเบียน
 }
 
@@ -40,11 +40,11 @@ def should_attempt_reflexion(parsed: ParsedCommand, decision: Decision) -> bool:
     if not raw:
         return False
 
-    if decision.violated_rule_id == "R005_SAME_LOCATION":
+    if decision.violated_rule_id == "R007_SAME_LOCATION":
         # ผู้เล่นเอ่ยถึงการเคลื่อนที่ ("ไป", "เดิน") แต่ target ถูกตีความผิดเป็นวัตถุนอกห้อง
         return any(w in raw for w in ("ไป", "เดิน", "หา", "เข้า", "มุ่งหน้า"))
 
-    if decision.violated_rule_id == "R007_ACTION_SUPPORTED":
+    if decision.violated_rule_id == "R010_ACTION_SUPPORTED":
         # ผู้เล่นเอ่ยถึงการสำรวจ ("ดู", "ตรวจ", "อ่าน", "ส่อง") แต่ LLM เผลอส่ง action เป็น unlock/take/use
         return any(w in raw for w in ("ดู", "ตรวจ", "อ่าน", "ส่อง", "เปิดดู", "ค้น", "เช็ค"))
 
@@ -115,14 +115,14 @@ def execute_reflexion_retry(
 
     # 1. ลองใช้ Symbolic Repair ด้วย Hint จาก Critique ก่อน (Fast-Path Correction)
     candidate_parsed = parsed.model_copy()
-    if decision.violated_rule_id == "R005_SAME_LOCATION" and parsed.target:
+    if decision.violated_rule_id == "R007_SAME_LOCATION" and parsed.target:
         # หากเป้าหมายอยู่นอกห้อง ตรวจสอบว่าเป็นชื่อตู้รถหรือไม่
         obj_target = world_data.get("objects", {}).get(parsed.target)
         if obj_target and obj_target.get("location"):
             candidate_parsed = parsed.model_copy(
                 update={"action": ActionType.MOVE, "target": obj_target.get("location")}
             )
-    elif decision.violated_rule_id == "R007_ACTION_SUPPORTED":
+    elif decision.violated_rule_id == "R010_ACTION_SUPPORTED":
         if parsed.action in (ActionType.UNLOCK, ActionType.TAKE, ActionType.USE):
             candidate_parsed = parsed.model_copy(update={"action": ActionType.EXAMINE})
 

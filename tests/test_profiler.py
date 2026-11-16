@@ -31,7 +31,7 @@ def test_behavior_tracker_records_turns_and_calculates_metrics():
 
     # เทิร์นที่ 2: สั่งผิดกฎ (ไม่ผ่าน)
     parsed2 = ParsedCommand(action=ActionType.EXAMINE, target="burnt_folder_c", raw_text="ตรวจแฟ้ม")
-    dec2 = Decision(allowed=False, message="อยู่คนละตู้", violated_rule_id="R005_SAME_LOCATION")
+    dec2 = Decision(allowed=False, message="อยู่คนละตู้", violated_rule_id="R007_SAME_LOCATION")
     prof2 = tracker.record_turn("ตรวจแฟ้ม", parsed2, dec2, state)
 
     assert prof2.total_turns == 2
@@ -79,7 +79,7 @@ def test_archetype_classification_maverick_trailblazer():
 
     for _ in range(4):
         parsed = ParsedCommand(action=ActionType.BURN, target="item", raw_text="เผาทิ้ง")
-        dec = Decision(allowed=False, message="ไม่อนุญาต", violated_rule_id="R007_ACTION_SUPPORTED")
+        dec = Decision(allowed=False, message="ไม่อนุญาต", violated_rule_id="R010_ACTION_SUPPORTED")
         profile = tracker.record_turn("เผาทิ้ง", parsed, dec, state)
 
     assert profile.primary_archetype == PlayerArchetype.MAVERICK_TRAILBLAZER
@@ -131,11 +131,11 @@ def test_dynamic_adaptation_scaffolding_nudge():
         state,
     )
 
-    # ละเมิดกฎ R007_ACTION_SUPPORTED (เช่น พยายามหยิบของที่ห้ามหยิบ)
+    # ละเมิดกฎ R010_ACTION_SUPPORTED (เช่น พยายามหยิบของที่ห้ามหยิบ)
     denied_decision = Decision(
         allowed=False,
         message="วัตถุนี้ไม่ได้ประกาศว่ารองรับ take",
-        violated_rule_id="R007_ACTION_SUPPORTED",
+        violated_rule_id="R010_ACTION_SUPPORTED",
     )
     cmd = ParsedCommand(action=ActionType.TAKE, target="clock", raw_text="หยิบนาฬิกา")
 
@@ -233,7 +233,7 @@ def test_interrogate_different_topics_not_looping():
 
 
 def test_r012_scaffolding_nudge_triggered():
-    """ตรวจว่าเมื่อผิดกฎ R012_ACCUSE_ENDING_REQUIREMENTS จะได้รับคำแนะนำอ้างอิงเงื่อนไขของคดีและแฟ้มสืบสวน"""
+    """ตรวจว่าเมื่อผิดกฎ R015_ACCUSE_ENDING_REQUIREMENTS จะได้รับคำแนะนำอ้างอิงเงื่อนไขของคดีและแฟ้มสืบสวน"""
     adaptation = DynamicAdaptationEngine()
     state = GameState(current_location="lounge_car")
     tracker = BehaviorTracker(session_id="test_r012")
@@ -247,7 +247,7 @@ def test_r012_scaffolding_nudge_triggered():
     denied = Decision(
         allowed=False,
         message="ยังไม่พร้อมกล่าวหา",
-        violated_rule_id="R012_ACCUSE_ENDING_REQUIREMENTS",
+        violated_rule_id="R015_ACCUSE_ENDING_REQUIREMENTS",
     )
     cmd = ParsedCommand(action=ActionType.ACCUSE, target="gideon_hart", raw_text="กล่าวหากิเดียน")
     adapted, note = adaptation.adapt(denied, cmd, state, profile)
@@ -365,9 +365,9 @@ def test_adapt_turn_encapsulates_recent_violation_count_and_scaffolding():
     tracker = BehaviorTracker(session_id="test_adapt_turn_viol")
     state = GameState(current_location="lounge_car", visited_locations=["lounge_car"])
 
-    # จำลอง 2 เทิร์นแรกที่ทำผิดกฎ R005_SAME_LOCATION (อยู่คนละตู้)
+    # จำลอง 2 เทิร์นแรกที่ทำผิดกฎ R007_SAME_LOCATION (อยู่คนละตู้)
     parsed_err = ParsedCommand(action=ActionType.EXAMINE, target="pocket_watch", raw_text="ตรวจนาฬิกาพก")
-    dec_err = Decision(allowed=False, message="วัตถุไม่ได้อยู่ในห้องปัจจุบัน", violated_rule_id="R005_SAME_LOCATION")
+    dec_err = Decision(allowed=False, message="วัตถุไม่ได้อยู่ในห้องปัจจุบัน", violated_rule_id="R007_SAME_LOCATION")
     tracker.record_turn("ตรวจนาฬิกาพก", parsed_err, dec_err, state)
     tracker.record_turn("ตรวจนาฬิกาพก", parsed_err, dec_err, state)
 
@@ -487,12 +487,12 @@ def test_adapt_turn_auto_retrieves_profile_when_omitted():
 
 
 def test_adapt_turn_level2_scaffolding_on_non_r005_violations():
-    """ทดสอบว่า adapt_turn ซิงค์ scaffolding triggers เมื่อเกิด Level 2 Assistance Chip บนกฎที่ไม่ใช่ R005"""
+    """ทดสอบว่า adapt_turn ซิงค์ scaffolding triggers เมื่อเกิด Level 2 Assistance Chip บนกฎที่ไม่ใช่ R007"""
     adaptation = DynamicAdaptationEngine()
     tracker = BehaviorTracker(session_id="test_non_r005_scaffolding")
     state = GameState(current_location="lounge_car")
 
-    # จำลองการละเมิดกฎที่ไม่ใช่ R005 (เช่น R006_ITEM_AVAILABLE) ติดต่อกัน 3 ครั้ง
+    # จำลองการละเมิดกฎที่ไม่ใช่ R007 (เช่น R006_ITEM_AVAILABLE) ติดต่อกัน 3 ครั้ง
     # ใน 2 ครั้งแรกยังไม่ถึงเกณฑ์ recent_violation_count >= 3 และไม่มี Level 1 nudge
     for i in range(1, 3):
         cmd = ParsedCommand(action=ActionType.EXAMINE, target=f"nonexistent_{i}", raw_text=f"ตรวจ {i}")

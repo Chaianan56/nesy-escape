@@ -1,7 +1,7 @@
 {
   "rules": [
     {
-      "id": "R001_GAME_NOT_OVER",
+      "id": "R000_GAME_NOT_OVER",
       "description": "คดียังไม่ปิด",
       "applies_to": [
         "*"
@@ -10,7 +10,7 @@
       "message_fail": "คดีนี้ปิดไปแล้ว ไม่สามารถดำเนินการต่อได้"
     },
     {
-      "id": "R014_TIME_LIMIT",
+      "id": "R001_TIME_LIMIT",
       "description": "ต้องอยู่ภายในกรอบเวลาการสืบสวน",
       "applies_to": [
         "*"
@@ -19,7 +19,7 @@
       "message_fail": "หมดเวลาการสืบสวนแล้ว!"
     },
     {
-      "id": "R000_KNOWN_ACTION",
+      "id": "R002_KNOWN_ACTION",
       "description": "คำสั่งต้องเป็นหนึ่งในกริยาที่ระบบรู้จัก",
       "applies_to": [
         "*"
@@ -28,7 +28,7 @@
       "message_fail": "ไม่เข้าใจคำสั่งนี้"
     },
     {
-      "id": "R002_TARGET_EXISTS",
+      "id": "R003_TARGET_EXISTS",
       "description": "เป้าหมายต้องมีอยู่จริงในฉาก",
       "applies_to": [
         "examine",
@@ -43,7 +43,7 @@
       "message_fail": "ไม่พบสิ่งที่อ้างถึงบนขบวนรถไฟนี้"
     },
     {
-      "id": "R003_LOCATION_EXISTS",
+      "id": "R004_LOCATION_EXISTS",
       "description": "ตู้รถไฟจุดหมายต้องมีอยู่จริง",
       "applies_to": [
         "move"
@@ -52,7 +52,7 @@
       "message_fail": "ไม่มีตู้รถไฟนี้บนขบวน"
     },
     {
-      "id": "R006_LOCATION_RESTRICTED",
+      "id": "R005_LOCATION_RESTRICTED",
       "description": "บางตู้เป็นพื้นที่หวงห้าม ผู้สืบสวนเข้าไปไม่ได้",
       "applies_to": [
         "move"
@@ -62,7 +62,7 @@
       "message_fail": "ตู้นี้เป็นพื้นที่หวงห้าม เข้าไปไม่ได้"
     },
     {
-      "id": "R004_SUSPECT_EXISTS",
+      "id": "R006_SUSPECT_EXISTS",
       "description": "ผู้ต้องสงสัยต้องมีตัวตนบนขบวน",
       "applies_to": [
         "interrogate",
@@ -72,7 +72,7 @@
       "message_fail": "ไม่พบผู้ต้องสงสัยชื่อนี้บนขบวนรถไฟ"
     },
     {
-      "id": "R005_SAME_LOCATION",
+      "id": "R007_SAME_LOCATION",
       "description": "ต้องอยู่ในตู้รถไฟเดียวกันกับเป้าหมาย",
       "applies_to": [
         "examine",
@@ -112,7 +112,7 @@
       ]
     },
     {
-      "id": "R007_ACTION_SUPPORTED",
+      "id": "R010_ACTION_SUPPORTED",
       "description": "สิ่งของต้องประกาศไว้ในฉากว่ารองรับการกระทำนี้",
       "applies_to": [
         "take",
@@ -127,7 +127,7 @@
       "check": "unlock_ready",
       "message_fail": "ยังเปิดสิ่งนี้ไม่ได้",
       "description": "ต้องมีรหัสหรือกุญแจที่ตรงกับเป้าหมาย",
-      "id": "R010_UNLOCK_REQUIREMENTS",
+      "id": "R011_UNLOCK_REQUIREMENTS",
       "applies_to": [
         "unlock",
         "use"
@@ -137,7 +137,7 @@
       "check": "dialogue_available",
       "message_fail": "ยังไม่มีข้อมูลสำหรับถามประเด็นนี้",
       "description": "บทสนทนาต้องเปิดแล้วตามความรู้ของผู้เล่น",
-      "id": "R011_DIALOGUE_AVAILABLE",
+      "id": "R012_DIALOGUE_AVAILABLE",
       "applies_to": [
         "interrogate"
       ]
@@ -146,7 +146,7 @@
       "check": "inference_ready",
       "message_fail": "หลักฐานที่เลือกยังไม่รองรับข้อสรุปนี้",
       "description": "การเสนอข้อสรุปต้องเป็นขั้นตอนที่เปิดใช้ในคดีและผ่านเงื่อนไขที่กำหนด",
-      "id": "R015_INFERENCE_SUPPORTED",
+      "id": "R013_INFERENCE_SUPPORTED",
       "applies_to": [
         "infer"
       ]
@@ -155,13 +155,13 @@
       "check": "accusable",
       "message_fail": "กล่าวหาบุคคลนี้ไม่ได้",
       "description": "บุคคลต้องเป็นผู้ต้องสงสัยและไม่มีข้อพิสูจน์ที่หักล้างคำกล่าวหา",
-      "id": "R016_ACCUSABLE",
+      "id": "R014_ACCUSABLE",
       "applies_to": [
         "accuse"
       ]
     },
     {
-      "id": "R012_ACCUSE_ENDING_REQUIREMENTS",
+      "id": "R015_ACCUSE_ENDING_REQUIREMENTS",
       "description": "หลักฐานที่ค้นพบต้องเข้าเงื่อนไขฉากจบของผู้ต้องสงสัยที่กล่าวหา",
       "applies_to": [
         "accuse"
@@ -170,7 +170,7 @@
       "message_fail": "ยังกล่าวหาไม่ได้ หลักฐานที่ค้นพบยังไม่เข้าเงื่อนไขฉากจบของบุคคลนี้ กรุณาสืบสวนต่อ"
     },
     {
-      "id": "R013_ACCUSE_FOUR_PILLARS",
+      "id": "R016_ACCUSE_FOUR_PILLARS",
       "description": "คำกล่าวหาต้องมีหลักฐานครบตามเงื่อนไขของคดีและผู้ต้องสงสัยที่กล่าวหา",
       "applies_to": [
         "accuse"

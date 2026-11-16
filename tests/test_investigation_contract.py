@@ -154,7 +154,7 @@ def test_known_exculpatory_evidence_cannot_be_hidden_from_accusation(engine):
     state = GameState(discovered_evidence=['wall_clock', 'pocket_watch'])
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'vincent_gray'), state, ['pocket_watch'])
     assert not decision.allowed
-    assert decision.violated_rule_id == 'R016_ACCUSABLE'
+    assert decision.violated_rule_id == 'R014_ACCUSABLE'
     assert not decision.state_changes
 
 
@@ -162,14 +162,14 @@ def test_accusation_does_not_apply_a_submission_cap_and_failed_accusations_persi
     engine.world['max_submitted_evidence'] = 1
     state = GameState(discovered_evidence=['wall_clock', 'pocket_watch'])
     decision = accusation_submission(engine, command(ActionType.ACCUSE, 'gideon_hart'), state, state.discovered_evidence)
-    assert decision.violated_rule_id == 'R012_ACCUSE_ENDING_REQUIREMENTS'
+    assert decision.violated_rule_id == 'R015_ACCUSE_ENDING_REQUIREMENTS'
     assert apply_changes(state, decision.state_changes).failed_accusations == 1
 
 
 def test_raw_sequence_cannot_bypass_individual_action_checks(engine):
     decision = engine.decide(command(ActionType.SEQUENCE, None,
                                     alternatives=['move first_class_car', 'examine pocket_watch']), GameState())
-    assert not decision.allowed and decision.violated_rule_id == 'R000_KNOWN_ACTION'
+    assert not decision.allowed and decision.violated_rule_id == 'R002_KNOWN_ACTION'
     assert not decision.state_changes
 
 

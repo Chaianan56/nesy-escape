@@ -33,7 +33,7 @@ DEFAULT_PILLARS = ("timeline", "motive", "opportunity", "corroboration")
 MAX_SUBMITTED_EVIDENCE = 15
 # กล่าวหาพลาดได้สองครั้งพร้อมคำบอกเสาที่ขาด ครั้งที่สามคดีปิดแบบพิสูจน์ไม่ได้
 MAX_FAILED_ACCUSATIONS = 3
-ACCUSATION_RULE = "R012_ACCUSE_ENDING_REQUIREMENTS"
+ACCUSATION_RULE = "R015_ACCUSE_ENDING_REQUIREMENTS"
 
 
 def accusation_submission(engine, cmd, state, submitted=None):
@@ -180,7 +180,7 @@ def _collect_pillars(target: str, state: GameState, world: dict) -> Dict[str, Li
 
     เสาไหนไม่มีข้อสรุปค้ำเลย ถือว่ายังไม่ครบ
     ผู้ต้องสงสัยที่ฉากไม่ได้กำหนดเสาไว้ให้ จะได้เสาว่างทั้งหมด
-    การกล่าวหายังต้องผ่านเงื่อนไขฉากจบของบุคคลนั้นใน R012
+    การกล่าวหายังต้องผ่านเงื่อนไขฉากจบของบุคคลนั้นใน R015
     """
     spec = world.get("pillars", {}).get(target, {})
     held = deductions_held(state, world)
@@ -452,11 +452,11 @@ class SymbolicEngine:
                 if rule["check"] in {"inference_ready", "accusable", "unlock_ready"} and detail:
                     message = detail
                 closes = {}
-                if rule["id"] == "R000_KNOWN_ACTION" and cmd.action is ActionType.AMBIGUOUS:
+                if rule["id"] == "R002_KNOWN_ACTION" and cmd.action is ActionType.AMBIGUOUS:
                     message = ("คำสั่งนี้กว้างเกินไป ระบบจะไม่เดาแทนผู้เล่น "
                                "ลองบอกให้เจาะจงว่าจะทำกับสิ่งไหน "
                                "หรือพิมพ์ 'ดูรอบๆ' เพื่อดูว่าตอนนี้มีอะไรอยู่ตรงหน้าบ้าง")
-                elif rule["id"] == "R005_SAME_LOCATION":
+                elif rule["id"] == "R007_SAME_LOCATION":
                     # เอนจินรู้อยู่แล้วว่าเป้าหมายอยู่ตู้ไหน แต่เดิมข้อความทิ้งข้อมูลนั้นไป
                     # บอกแค่ว่าต้องเดินไปหาก่อน ผู้เล่นเลยตันเพราะไม่รู้ว่าตู้ไหน
                     # ไม่ถือว่าเฉลย เพราะผู้เล่นเอ่ยชื่อสิ่งนั้นออกมาเองแล้ว
@@ -466,7 +466,7 @@ class SymbolicEngine:
                     if where:
                         message += (f" {entity.get('name_th', cmd.target)} อยู่ที่"
                                     f"{self.world['locations'].get(where, {}).get('name_th', where)}")
-                elif rule["id"] == "R014_TIME_LIMIT":
+                elif rule["id"] == "R001_TIME_LIMIT":
                     # หมดเวลาไม่ใช่แค่คำสั่งถูกปฏิเสธ แต่คือคดีปิด
                     # เดิมคืนแค่ข้อความฉากจบ ส่วนสถานะไม่ถูกปิด ผู้เล่นจึงยิงคำสั่งต่อได้เรื่อยๆ
                     # แล้วได้ข้อความฉากจบซ้ำทุกครั้ง จึงต้องส่ง ending กลับไปให้บันทึกลงสถานะด้วย
@@ -474,7 +474,7 @@ class SymbolicEngine:
                     if timeout:
                         message = self._render_ending(timeout, [])
                         closes = {"ending": timeout["id"]}
-                elif rule["id"] == "R000_KNOWN_ACTION" and cmd.action is ActionType.UNKNOWN:
+                elif rule["id"] == "R002_KNOWN_ACTION" and cmd.action is ActionType.UNKNOWN:
                     message += (" สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น "
                                 "ตรวจดูของ สอบปากคำคน และกล่าวหาเมื่อมีหลักฐานพอ")
                 return Decision(

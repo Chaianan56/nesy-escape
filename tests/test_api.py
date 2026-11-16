@@ -94,10 +94,10 @@ def test_timeout_and_closed_case_take_priority_over_unknown_intent(fake_llm, act
     fake_llm(action)
     state = GameState(elapsed_seconds=main.engine.world["time_limit_seconds"])
     body = post("???", state).json()
-    assert body["decision"]["violated_rule_id"] == "R014_TIME_LIMIT"
+    assert body["decision"]["violated_rule_id"] == "R001_TIME_LIMIT"
     assert body["new_state"]["ending_id"] == main.engine.ending_for(on_timeout=True)["id"]
     again = post("???", GameState(**body["new_state"])).json()
-    assert again["decision"]["violated_rule_id"] == "R001_GAME_NOT_OVER"
+    assert again["decision"]["violated_rule_id"] == "R000_GAME_NOT_OVER"
 
 
 def test_commands_do_not_spend_clock_time(fake_llm, monkeypatch):
@@ -340,7 +340,7 @@ def test_running_out_of_time_actually_closes_the_case(fake_llm):
     body = post("ดูรอบๆ", GameState(elapsed_seconds=limit)).json()
 
     assert not body["decision"]["allowed"]
-    assert body["decision"]["violated_rule_id"] == "R014_TIME_LIMIT"
+    assert body["decision"]["violated_rule_id"] == "R001_TIME_LIMIT"
     assert body["new_state"]["ending_id"], "หมดเวลาแล้วต้องมีฉากจบบันทึกไว้ในสถานะ"
     assert body["new_state"]["elapsed_seconds"] == limit, "คำสั่งที่ถูกปฏิเสธต้องไม่กินเวลาเพิ่ม"
 
@@ -353,7 +353,7 @@ def test_a_closed_case_refuses_everything_afterwards(fake_llm):
 
     again = post("ดูรอบๆ", GameState(**closed)).json()
     assert not again["decision"]["allowed"]
-    assert again["decision"]["violated_rule_id"] == "R001_GAME_NOT_OVER"
+    assert again["decision"]["violated_rule_id"] == "R000_GAME_NOT_OVER"
 
 
 def test_the_clock_and_the_rule_agree_on_where_zero_is():
@@ -510,7 +510,7 @@ def test_confirmed_sequence_accusation_uses_discovered_evidence(fake_llm):
     assert body['pending_steps'] == ['accuse gideon_hart']
     fake_llm(ActionType.ACCUSE, target='gideon_hart')
     body = client.post('/command', json={'text':'accuse gideon_hart'}).json()
-    assert body['decision']['violated_rule_id'] == 'R012_ACCUSE_ENDING_REQUIREMENTS'
+    assert body['decision']['violated_rule_id'] == 'R015_ACCUSE_ENDING_REQUIREMENTS'
     assert body['new_state']['ending_id'] is None
     assert body['new_state']['failed_accusations'] == 1
 

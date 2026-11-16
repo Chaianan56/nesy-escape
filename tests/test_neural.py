@@ -219,8 +219,8 @@ def test_intent_is_extracted_even_when_the_action_breaks_a_rule():
 
     d = engine.decide(p, state)
     assert not d.allowed
-    assert d.violated_rule_id in ("R002_TARGET_EXISTS", "R005_SAME_LOCATION",
-                                  "R007_ACTION_SUPPORTED")
+    assert d.violated_rule_id in ("R003_TARGET_EXISTS", "R007_SAME_LOCATION",
+                                  "R010_ACTION_SUPPORTED")
 
 
 @pytest.mark.llm
