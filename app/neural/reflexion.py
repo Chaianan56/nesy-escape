@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 CORRECTABLE_RULES = {
     "R007_SAME_LOCATION",      # วัตถุอยู่นอกตู้ปัจจุบัน (ควรเป็น move ตู้รถ หรือเปลี่ยน target)
     "R010_ACTION_SUPPORTED",   # กระทำกริยาไม่รองรับ (เช่น unlock บนของที่ไม่มีล็อก, take บนของที่ห้ามหยิบ)
-    "R003_ENTITY_EXISTS",      # วัตถุหรือบุคคลไม่มีอยู่จริงในทะเบียน
+    "R003_TARGET_EXISTS",      # วัตถุหรือบุคคลไม่มีอยู่จริงในทะเบียน
 }
 
 
