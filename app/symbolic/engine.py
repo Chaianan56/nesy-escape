@@ -524,6 +524,9 @@ class SymbolicEngine:
         if cmd.action == ActionType.INTERROGATE:
             sus = self.world["suspects"].get(cmd.target, {})
             changes = {"interrogated_add": cmd.target}
+            # คนเดียวกันที่ฉากแยกไว้เป็นของให้ตรวจ (ชายมีพิรุธ = วินเซนต์) คุยกันตัวต่อตัวก็คือได้เห็นตัวเขาแล้ว
+            if sus.get("observed_as"):
+                changes["examined_add"] = sus["observed_as"]
             if "dialogue_nodes" in sus:
                 node = _dialogue_node(cmd.target, cmd.topic, state, self.world)
                 changes["dialogue_history_add"] = f"{cmd.target}:{node['id']}"

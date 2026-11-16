@@ -683,7 +683,7 @@ const SequencePlayback = (() => {
     const targetName = (objectsMap && objectsMap[step.target]) 
                     || (suspectsMap && suspectsMap[step.target]) 
                     || (locationsMap && locationsMap[step.target]) 
-                    || step.target;
+                    || "สิ่งที่คุณพิมพ์ไว้";  // ไม่โชว์ id ภายใน และไม่เฉลยชื่อของที่ผู้เล่นยังไม่เห็น
 
     const parsed = currentData?.parsed;
     const modeTag = renderParserModeTag(parsed);

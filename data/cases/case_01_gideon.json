@@ -152,6 +152,7 @@
     },
     "vincent_gray": {
       "name_th": "วินเซนต์ เกรย์ (Vincent Gray)",
+      "observed_as": "suspicious_man",
       "location": "second_class_car",
       "accusable": true,
       "description": "ชายในเสื้อโค้ตพยายามควบคุมอาการสั่น เขาไม่ยอมสบตาเมื่อได้ยินชื่อแคสเซียน",
