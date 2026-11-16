@@ -69,9 +69,8 @@ def write_turns_csv(folder):
 def summarize(folder):
     requests = read_rows(folder/'requests.jsonl')
     metrics=[]
-    manifest_file = folder / 'manifest.json'
-    manifest = json.loads(manifest_file.read_text(encoding='utf-8')) if manifest_file.exists() else {}
-    planned_turns = manifest.get('planned_turns', 28)
+    inputs = json.loads((folder / 'inputs.json').read_text(encoding='utf-8'))
+    planned_turns = len(inputs['commands'])
     for mode in ['neural','neuro-symbolic']:
         rows=read_rows(folder/mode/'turns.jsonl')
         valid=[r for r in rows if r['status']=='ok']
@@ -112,7 +111,7 @@ def summarize(folder):
         w=csv.DictWriter(f,fieldnames=list(flat[0]));w.writeheader();w.writerows(flat)
     write_turns_csv(folder)
     lines=['# ผลทดลองเล่นคดี A ต่อเนื่องผ่าน Gemini API','',
-           'ใช้ข้อความภาษาไทย 25 ข้อชุดเดียวกัน แต่ละระบบเริ่มจากสถานะเดียวกันและนำสถานะของตัวเองไปใช้ในตาถัดไป',
+           f'ใช้ข้อความภาษาไทย {planned_turns} ข้อชุดเดียวกัน แต่ละระบบเริ่มจากสถานะเดียวกันและนำสถานะของตัวเองไปใช้ในตาถัดไป',
            'แต่ละฝั่งเรียก Gemini ตีความจากสถานะของตัวเอง จึงไม่ได้ใช้ผลตีความร่วมกันเหมือนชุดทดลอง 6 กรณี',
            'Neural ใช้ Gemini ตัดสิน ส่วน NeSy ใช้กฎ Symbolic ไม่มี Fast-path หรือการซ่อมคำตอบผิดกฎ',
            'เมื่อบริการขัดข้องเก็บข้อผิดพลาดไว้ และเล่นต่อจากสถานะล่าสุดโดยไม่รีเซ็ต', '',
