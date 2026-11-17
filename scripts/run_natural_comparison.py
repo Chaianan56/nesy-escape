@@ -54,12 +54,14 @@ def load_suite(filename):
     return suite, fixtures, oracle, bundle
 
 
-def parse_once(provider, text, state, world):
+def parse_once(provider, text, state, world, system=None, content=None):
     # Same neural parser for both arms. No fast path, symbolic repair, examples
     # retrieved from training data, automatic retry, or provider fallback.
-    system = build_interpret_system_prompt(world, state=state, user_text=text,
-                                           prune=False, use_knn=False, zero_shot=True)
-    content = json.dumps({'player_text': text, 'state': state.model_dump(mode='json')}, ensure_ascii=False)
+    if system is None:
+        system = build_interpret_system_prompt(world, state=state, user_text=text,
+                                               prune=False, use_knn=False, zero_shot=True)
+    if content is None:
+        content = json.dumps({'player_text': text, 'state': state.model_dump(mode='json')}, ensure_ascii=False)
     record = {'system_prompt': system, 'content': content, 'status': 'error'}
     begin = time.perf_counter()
     try:

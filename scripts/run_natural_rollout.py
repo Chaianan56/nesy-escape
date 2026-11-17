@@ -91,17 +91,71 @@ class LoggedProvider:
         self.log.flush()
 
 
+def parse_full(provider, text, state, world):
+    """Main-game parser (typed_commands.interpret_game): fast path, else Gemini with the
+    game's pruned kNN prompt; then symbolic repair. No key failover or provider fallback."""
+    from app.neural.typed_commands import parse_typed_command
+    from app.neural.repair import repair_parsed_command
+    from app.neural.prompts import build_interpret_system_prompt
+    parsed = parse_typed_command(text, state, world)
+    if parsed is not None:
+        record = {'status': 'ok', 'fast_path': True, 'latency_ms': 0}
+    else:
+        content = (f"ข้อความผู้เล่น (Raw Input): '{text}'\n"
+                   f"ตู้รถที่ผู้เล่นอยู่ตอนนี้: {state.current_location}\n"
+                   f"ของที่ถือติดตัว: {state.inventory or 'ไม่มี'}\n"
+                   f"หลักฐานที่พบแล้ว: {state.discovered_evidence or 'ยังไม่พบ'}")
+        system = build_interpret_system_prompt(world, state=state, user_text=text)
+        parsed, record = parse_once(provider, text, state, world, system=system, content=content)
+        if parsed is None:
+            return None, record
+        record['gemini_parsed'] = parsed.model_dump(mode='json')
+    parsed, note = repair_parsed_command(parsed, world, state=state, raw_text=text)
+    record.update(parsed=parsed.model_dump(mode='json'), repair_note=note)
+    return parsed, record
+
+
 class NaturalActor:
     def __init__(self, mode, actor, provider, world, parser_log):
         self.mode, self.actor, self.provider, self.world = mode, actor, provider, world
         self.parser_log = parser_log
         self.step = 0
+        self.full = mode == 'nesy-full'
+
+    def parse(self, text, state, stage='parser'):
+        self.provider.context = dict(mode=self.mode, step=self.step, stage=stage)
+        fn = parse_full if self.full else parse_once
+        parsed, record = fn(self.provider, text, state, self.world)
+        record.update(mode=self.mode, step=self.step, stage=stage)
+        return parsed, record
+
+    def reflexion(self, parsed, state, record):
+        """Main game step 2.5 (app.main._handle_command): one critique re-parse after a denial."""
+        from app.neural.reflexion import execute_reflexion_retry
+        engine = self.actor.engine
+        if parsed.action.value == 'accuse':
+            return parsed
+        decision = engine.decide(parsed, state)
+        if decision.allowed:
+            return parsed
+        def remote(text, s):
+            p, rec = self.parse(text, s, stage='reflexion')
+            record.setdefault('reflexion_calls', []).append(rec)
+            if p is None:
+                raise NeuralGameError('parser_'+rec['error_kind'], {})
+            return p
+        fixed, _, note = execute_reflexion_retry(parsed.raw_text, parsed, decision, state, self.world,
+                                                 engine.decide, interpret_remote_fn=remote)
+        if note:
+            fixed = fixed.model_copy(update={'raw_text': parsed.raw_text, 'repair_note': note})
+            record.update(reflexion_note=note, parsed=fixed.model_dump(mode='json'))
+        return fixed
 
     def adjudicate(self, expected, state):
         self.step += 1
-        self.provider.context = dict(mode=self.mode, step=self.step, stage='parser')
-        parsed, record = parse_once(self.provider, expected.raw_text, state, self.world)
-        record.update(mode=self.mode, step=self.step)
+        parsed, record = self.parse(expected.raw_text, state)
+        if parsed is not None and self.full:
+            parsed = self.reflexion(parsed, state, record)
         if parsed is not None:
             fields = ['action', 'target', 'topic', 'instrument', 'code', 'evidence']
             record['expected_field_matches'] = {k: getattr(parsed,k)==getattr(expected,k) for k in fields}
@@ -122,7 +176,12 @@ def main(argv=None):
     p.add_argument('--resume', action='store_true')
     p.add_argument('--pause-seconds', type=float, default=5)
     p.add_argument('--texts', type=Path, help='JSON of hand-written texts (default: Thai templates)')
+    p.add_argument('--modes', default='neural,neuro-symbolic',
+                   help='comma list of neural, neuro-symbolic, nesy-full (main-game parser + repair + reflexion)')
     args = p.parse_args(argv)
+    modes = args.modes.split(',')
+    if not modes or set(modes) - {'neural', 'neuro-symbolic', 'nesy-full'}:
+        p.error('unknown mode')
     cid, initial, commands, refs, oracle, bundle = prepare('A')
     texts = load_texts(args.texts, commands) if args.texts else None
     commands = natural_commands(commands, bundle['world'], texts)
@@ -139,14 +198,16 @@ def main(argv=None):
          commands=[c.model_dump(mode='json') for c in commands], bundle=bundle))
     save(args.output/'reference.json', [r.model_dump(mode='json') for r in refs])
     manifest = dict(live=args.live, design='independent API parsers; same texts; persistent own states',
-                    planned_calls=len(commands)*3, maximum_calls=len(commands)*6, planned_turns=len(commands),
+                    planned_calls=len(commands)*(len(modes)+('neural' in modes)), modes=modes, maximum_calls=len(commands)*6, planned_turns=len(commands),
                     retry='one retry for transient service failures only',
-                    fallback=False, semantic_repair=False, reference='same-engine; not independent truth',
+                    fallback=False, semantic_repair='nesy-full' in modes, reference='same-engine; not independent truth',
                     input_origin=(f'hand-written texts from {args.texts.as_posix()}' if args.texts else
                                   'Thai templates from development walkthrough; not held-out human participants'),
                     texts_sha256=digest(args.texts.read_text(encoding='utf-8')) if args.texts else None,
                     clock='fixed elapsed_seconds=0; no wall-clock game timeout',
-                    parser='zero-shot, full entities, no fast-path, no symbolic repair',
+                    parser='zero-shot, full entities, no fast-path, no symbolic repair'
+                           + ('; nesy-full: main-game fast path, pruned kNN prompt, symbolic repair, reflexion'
+                              if 'nesy-full' in modes else ''),
                     status='running' if args.live else 'validated_not_run',pause_seconds=args.pause_seconds)
     if args.resume:
         manifest=json.loads((args.output/'manifest.json').read_text(encoding='utf-8'))
@@ -172,7 +233,7 @@ def main(argv=None):
         provider.calls=len(prior_requests)
         manifest['model'] = provider.model
         save(args.output/'manifest.json', manifest)
-        for mode in ['neural', 'neuro-symbolic']:
+        for mode in modes:
             folder = args.output/mode
             folder.mkdir(exist_ok=args.resume)
             prior_rows=[json.loads(l) for l in (folder/'turns.jsonl').read_text(encoding='utf-8').splitlines()] if args.resume else []

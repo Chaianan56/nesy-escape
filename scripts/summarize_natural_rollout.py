@@ -54,9 +54,13 @@ def turn_row(row, parser):
     return out
 
 
+def modes(folder):
+    return [m for m in ('neural', 'neuro-symbolic', 'nesy-full') if (folder/m).is_dir()]
+
+
 def write_turns_csv(folder):
     rows = []
-    for mode in ['neural','neuro-symbolic']:
+    for mode in modes(folder):
         parsers = {}
         for p in read_rows(folder/mode/'parser.jsonl'):
             parsers[p['step']] = p
@@ -71,7 +75,7 @@ def summarize(folder):
     metrics=[]
     inputs = json.loads((folder / 'inputs.json').read_text(encoding='utf-8'))
     planned_turns = len(inputs['commands'])
-    for mode in ['neural','neuro-symbolic']:
+    for mode in modes(folder):
         rows=read_rows(folder/mode/'turns.jsonl')
         valid=[r for r in rows if r['status']=='ok']
         steps=[r['step'] for r in valid]
@@ -122,7 +126,7 @@ def summarize(folder):
         lines.append(f"| {m['mode']} | {n}/{m['planned_turns']} | {m['ending_id']} | {m['allowed_matches']}/{n} | {m['state_matches']}/{n} | {m['visible_objects_matches']}/{n} | {m['own_state_transition_disagreements']}/{m['own_state_auditable_turns']} |")
     lines += ['',f"เรียก API รวม {len(requests)} ครั้ง รวมข้อผิดพลาดบริการ {result['provider_errors']} ครั้ง ไม่ได้นับข้อผิดพลาดบริการเป็นการตอบผิดกฎ",'',
               '## ตัวอย่างความแตกต่างของการเปลี่ยนสถานะ']
-    for mode in ['neural','neuro-symbolic']:
+    for mode in modes(folder):
         for r in read_rows(folder/mode/'turns.jsonl'):
             audit=r.get('own_state_rule_audit')
             if r['status']=='ok' and audit and not audit['state']:

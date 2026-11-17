@@ -106,3 +106,26 @@ def test_texts_file_matches_walkthrough(tmp_path):
         assert 'step 4' in str(exc)
     else:
         raise AssertionError('mismatched expected_command was accepted')
+
+
+def test_nesy_full_repairs_missing_target(monkeypatch, tmp_path):
+    _, _, commands, _, _, bundle = runner.prepare('A')
+    commands = runner.natural_commands(commands, bundle['world'])
+    lookup = {c.raw_text: c for c in commands}
+    take = next(c for c in commands if c.action.value == 'take')
+    class Fake:
+        model = 'offline-full-test'
+        def __init__(self, **kwargs): pass
+        def __call__(self, system, content, schema):
+            text = content.split("(Raw Input): '", 1)[1].split("'\n", 1)[0]
+            cmd = lookup[text]
+            if cmd is take:
+                cmd = cmd.model_copy(update={'target': None})  # parser loses the target
+            return ProviderReply(cmd.model_dump_json(), {})
+    monkeypatch.setattr(runner, 'GeminiGameProvider', Fake)
+    out = tmp_path / 'full'
+    runner.main(['--live', '--pause-seconds', '0', '--modes', 'nesy-full', '--output', str(out)])
+    episode = json.loads((out / 'summary.json').read_text())['episodes'][0]
+    assert episode['mode'] == 'nesy-full'
+    assert episode['completed_reference_solution']
+    assert summarize(out)['episodes'][0]['mode'] == 'nesy-full'
