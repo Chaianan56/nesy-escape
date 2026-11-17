@@ -1,0 +1,3 @@
+﻿mode,planned_turns,valid_turns,ending_id,final_state_matches_reference,final_action_matches_rules,allowed_matches,state_matches,visible_objects_matches,own_state_auditable_turns,own_state_permission_disagreements,own_state_transition_disagreements,parser_exact_field_matches,provider_calls,provider_errors,interrupted_turn_attempts,request_latency_ms
+neural,28,28,,False,False,23,2,5,28,5,9,28,58,2,0,172002.093
+neuro-symbolic,28,28,true_ending,True,True,28,28,28,28,0,0,28,30,2,0,57263.009

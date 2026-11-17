@@ -1,0 +1,57 @@
+﻿mode,step,text,parsed,allowed,ending_id,result,problem_at,reason,other_mismatches,carried_over_divergence
+neural,1,คุณกิเดียน ก่อนขึ้นรถไฟคืนนี้คุณไปอยู่ที่ไหนมาบ้างครับ,interrogate gideon_hart account,True,,ผ่าน,,,สถานะเสาหลักฐาน,
+neural,2,ไปดูห้องที่เกิดเหตุกันเถอะ,move first_class_car,True,,ผ่าน,,,"วัตถุที่มองเห็น, สถานะเสาหลักฐาน",
+neural,3,ขอดูศพอัยการหน่อย,examine cassian_reed,True,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: สถานะเกม (discovered_evidence, examined_objects) | ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, สถานะเสาหลักฐาน",
+neural,4,นาฬิกาในเสื้อผู้ตายหยุดเดินตอนกี่โมง,examine pocket_watch,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, สถานะเสาหลักฐาน",ใช่
+neural,5,หน้าต่างที่เปิดแง้มไว้ตรงนั้นมีอะไรผิดปกติไหม,examine first_class_window,True,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: สถานะเกม (discovered_evidence, examined_objects) | ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, สถานะเสาหลักฐาน",ใช่
+neural,6,ผงแดง ๆ บนคราบเลือดนั่นคืออะไร,examine red_soot,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, สถานะเสาหลักฐาน",ใช่
+neural,7,ดูนาฬิกาที่แขวนอยู่บนผนังหน่อย,examine wall_clock,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,8,ค้นโต๊ะทำงานของผู้ตาย,examine first_class_desk,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, คนที่มองเห็น, สถานะเสาหลักฐาน",ใช่
+neural,9,อ่านบันทึกช่วยจำที่วางอยู่ข้างกระเป๋าหน่อย,examine case_year_note,True,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: สถานะเกม (discovered_evidence) | ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, สถานะเสาหลักฐาน",ใช่
+neural,10,ลองใส่ 1923 ที่กระเป๋าล็อกรหัส,unlock dossier_bag 1923,True,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: สถานะเกม (discovered_evidence) | ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,11,กระเป๋าสำนวนขาดแฟ้มไหนไป,examine dossier_missing_file_c,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,12,ใครเป็นคนเซ็นแฟ้ม C ดูจากทะเบียนหน่อย,examine file_c_initials,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,13,หนังสือส่งสำนวนที่จะส่งคืนนี้เขียนว่าอะไรบ้าง,examine judicial_transfer_order,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,14,กระดาษที่ไหม้อยู่ในถาดยังอ่านออกไหม,examine burnt_folder_c,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,15,กระดุมสีดำใต้ศพเป็นของใคร,examine obsidian_cufflink,False,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: ผลอนุญาต; สถานะเกม (turn_count) | ต่างจากเส้นทางอ้างอิง: ผลอนุญาต; สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,16,มีกระดาษตกอยู่ใต้โต๊ะ ขอดูหน่อยว่ามีตราอะไร,examine wax_seal_imprint,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,17,ไปตู้เสบียงกัน,move dining_car_staff,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,18,ถามพนักงานว่าคืนนี้มีใครส่งข่าวเลื่อนนัดมาบ้างไหม,interrogate car_attendant service,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,19,พนักงานได้ยินเสียงกระแทกตอนกี่โมง,interrogate car_attendant impact,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,20,ขอดูตารางเดินรถว่ารถผ่านอุโมงค์ช่วงไหน,examine tunnel_schedule,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,21,หยิบกุญแจห้องไฟบนถาดไปด้วย,take staff_key,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,22,ไปห้องระบบไฟที่ตู้สัมภาระ,move luggage_van_electrical,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,23,ใช้กุญแจที่ได้มาเปิดประตูห้องไฟ,unlock electrical_room_door,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,24,สมุดบันทึกระบบไฟเขียนเวลาไฟดับไว้ว่ายังไง,examine maintenance_log,False,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count) | ต่างจากเส้นทางอ้างอิง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,25,กลับไปตู้เลานจ์,move lounge_car,True,,ไม่ผ่าน,adjudication,"ต่างจากเส้นทางอ้างอิง: สถานะเกม (discovered_evidence, examined_objects, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,26,ดูแขนเสื้อกิเดียนหน่อย กระดุมครบไหม,examine gideon_missing_button,False,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count) | ต่างจากเส้นทางอ้างอิง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,27,ขอดูแหวนที่นิ้วกิเดียน,examine gideon_signet_ring,False,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count) | ต่างจากเส้นทางอ้างอิง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neural,28,ผมว่ากิเดียนคือคนที่ฆ่าแคสเซียน,accuse gideon_hart,False,,ไม่ผ่าน,adjudication,"ขัดกฎจากสถานะของตัวเอง: ผลอนุญาต; สถานะเกม (turn_count, ending_id, failed_accusations) | ต่างจากเส้นทางอ้างอิง: ผลอนุญาต; สถานะเกม (discovered_evidence, examined_objects, turn_count, ending_id, failed_accusations)","วัตถุที่มองเห็น, ข้อสรุป, สถานะเสาหลักฐาน",ใช่
+neuro-symbolic,1,คุณกิเดียน ก่อนขึ้นรถไฟคืนนี้คุณไปอยู่ที่ไหนมาบ้างครับ,interrogate gideon_hart account,True,,ผ่าน,,,,
+neuro-symbolic,2,ไปดูห้องที่เกิดเหตุกันเถอะ,move first_class_car,True,,ผ่าน,,,,
+neuro-symbolic,3,ขอดูศพอัยการหน่อย,examine cassian_reed,True,,ผ่าน,,,,
+neuro-symbolic,4,นาฬิกาในเสื้อผู้ตายหยุดเดินตอนกี่โมง,examine pocket_watch,True,,ผ่าน,,,,
+neuro-symbolic,5,หน้าต่างที่เปิดแง้มไว้ตรงนั้นมีอะไรผิดปกติไหม,examine first_class_window,True,,ผ่าน,,,,
+neuro-symbolic,6,ผงแดง ๆ บนคราบเลือดนั่นคืออะไร,examine red_soot,True,,ผ่าน,,,,
+neuro-symbolic,7,ดูนาฬิกาที่แขวนอยู่บนผนังหน่อย,examine wall_clock,True,,ผ่าน,,,,
+neuro-symbolic,8,ค้นโต๊ะทำงานของผู้ตาย,examine first_class_desk,True,,ผ่าน,,,,
+neuro-symbolic,9,อ่านบันทึกช่วยจำที่วางอยู่ข้างกระเป๋าหน่อย,examine case_year_note,True,,ผ่าน,,,,
+neuro-symbolic,10,ลองใส่ 1923 ที่กระเป๋าล็อกรหัส,unlock dossier_bag 1923,True,,ผ่าน,,,,
+neuro-symbolic,11,กระเป๋าสำนวนขาดแฟ้มไหนไป,examine dossier_missing_file_c,True,,ผ่าน,,,,
+neuro-symbolic,12,ใครเป็นคนเซ็นแฟ้ม C ดูจากทะเบียนหน่อย,examine file_c_initials,True,,ผ่าน,,,,
+neuro-symbolic,13,หนังสือส่งสำนวนที่จะส่งคืนนี้เขียนว่าอะไรบ้าง,examine judicial_transfer_order,True,,ผ่าน,,,,
+neuro-symbolic,14,กระดาษที่ไหม้อยู่ในถาดยังอ่านออกไหม,examine burnt_folder_c,True,,ผ่าน,,,,
+neuro-symbolic,15,กระดุมสีดำใต้ศพเป็นของใคร,examine obsidian_cufflink,True,,ผ่าน,,,,
+neuro-symbolic,16,มีกระดาษตกอยู่ใต้โต๊ะ ขอดูหน่อยว่ามีตราอะไร,examine wax_seal_imprint,True,,ผ่าน,,,,
+neuro-symbolic,17,ไปตู้เสบียงกัน,move dining_car_staff,True,,ผ่าน,,,,
+neuro-symbolic,18,ถามพนักงานว่าคืนนี้มีใครส่งข่าวเลื่อนนัดมาบ้างไหม,interrogate car_attendant service,True,,ผ่าน,,,,
+neuro-symbolic,19,พนักงานได้ยินเสียงกระแทกตอนกี่โมง,interrogate car_attendant impact,True,,ผ่าน,,,,
+neuro-symbolic,20,ขอดูตารางเดินรถว่ารถผ่านอุโมงค์ช่วงไหน,examine tunnel_schedule,True,,ผ่าน,,,,
+neuro-symbolic,21,หยิบกุญแจห้องไฟบนถาดไปด้วย,take staff_key,True,,ผ่าน,,,,
+neuro-symbolic,22,ไปห้องระบบไฟที่ตู้สัมภาระ,move luggage_van_electrical,True,,ผ่าน,,,,
+neuro-symbolic,23,ใช้กุญแจที่ได้มาเปิดประตูห้องไฟ,unlock electrical_room_door,True,,ผ่าน,,,,
+neuro-symbolic,24,สมุดบันทึกระบบไฟเขียนเวลาไฟดับไว้ว่ายังไง,examine maintenance_log,True,,ผ่าน,,,,
+neuro-symbolic,25,กลับไปตู้เลานจ์,move lounge_car,True,,ผ่าน,,,,
+neuro-symbolic,26,ดูแขนเสื้อกิเดียนหน่อย กระดุมครบไหม,examine gideon_missing_button,True,,ผ่าน,,,,
+neuro-symbolic,27,ขอดูแหวนที่นิ้วกิเดียน,examine gideon_signet_ring,True,,ผ่าน,,,,
+neuro-symbolic,28,ผมว่ากิเดียนคือคนที่ฆ่าแคสเซียน,accuse gideon_hart,True,true_ending,ผ่าน,,,,

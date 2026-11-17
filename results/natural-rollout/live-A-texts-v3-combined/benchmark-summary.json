@@ -1,0 +1,63 @@
+{
+  "episodes": [
+    {
+      "mode": "neural",
+      "planned_turns": 28,
+      "valid_turns": 28,
+      "ending_id": null,
+      "final_state_matches_reference": false,
+      "final_action_matches_rules": false,
+      "allowed_matches": 23,
+      "state_matches": 2,
+      "visible_objects_matches": 5,
+      "own_state_auditable_turns": 28,
+      "own_state_permission_disagreements": 5,
+      "own_state_transition_disagreements": 9,
+      "parser_exact_field_matches": 28,
+      "provider_calls": 58,
+      "provider_errors": 2,
+      "interrupted_turn_attempts": 0,
+      "request_latency_ms": 172002.093,
+      "usage": {
+        "candidates_token_count": 23700,
+        "prompt_token_count": 819314,
+        "total_token_count": 843014,
+        "cached_content_token_count": 1779
+      }
+    },
+    {
+      "mode": "neuro-symbolic",
+      "planned_turns": 28,
+      "valid_turns": 28,
+      "ending_id": "true_ending",
+      "final_state_matches_reference": true,
+      "final_action_matches_rules": true,
+      "allowed_matches": 28,
+      "state_matches": 28,
+      "visible_objects_matches": 28,
+      "own_state_auditable_turns": 28,
+      "own_state_permission_disagreements": 0,
+      "own_state_transition_disagreements": 0,
+      "parser_exact_field_matches": 28,
+      "provider_calls": 30,
+      "provider_errors": 2,
+      "interrupted_turn_attempts": 0,
+      "request_latency_ms": 57263.009,
+      "usage": {
+        "cached_content_token_count": 7062,
+        "candidates_token_count": 2953,
+        "prompt_token_count": 162235,
+        "total_token_count": 165188
+      }
+    }
+  ],
+  "actual_provider_calls": 88,
+  "provider_errors": 4,
+  "limitations": [
+    "same-engine reference",
+    "development walkthrough",
+    "single run",
+    "no prose leakage review",
+    "independent parsers after state divergence"
+  ]
+}

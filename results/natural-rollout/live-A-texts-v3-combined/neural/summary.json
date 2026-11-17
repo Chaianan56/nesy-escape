@@ -1,0 +1,104 @@
+{
+  "case": "A",
+  "mode": "neural",
+  "repetition": 1,
+  "planned_turns": 28,
+  "attempted_turns": 28,
+  "valid_responses": 28,
+  "unexecuted_turns": 0,
+  "stop_reason": "commands_exhausted",
+  "errors": {},
+  "ending_id": null,
+  "claimed_true_ending": false,
+  "final_state_matches_reference": false,
+  "completed_reference_solution": false,
+  "first_state_divergence_step": 3,
+  "trajectory_state_matches": 2,
+  "trajectory_allowed_matches": 23,
+  "trajectory_visible_object_matches": 5,
+  "own_state_auditable_turns": 28,
+  "own_state_permission_disagreements": 5,
+  "own_state_transition_disagreements": 9,
+  "total_latency_ms": 419389.726,
+  "provider_attempts": 28,
+  "usage": {
+    "candidates_token_count": 20712,
+    "prompt_token_count": 656321,
+    "total_token_count": 677033
+  },
+  "final_state": {
+    "started_at": null,
+    "current_location": "lounge_car",
+    "inventory": [
+      "staff_key"
+    ],
+    "discovered_evidence": [
+      "gideon_blackout_alibi",
+      "postponed_meeting_claim",
+      "gideon_no_early_alibi",
+      "cassian_reed",
+      "pocket_watch",
+      "obsidian_cufflink",
+      "red_soot",
+      "burnt_folder_c",
+      "wax_seal_imprint",
+      "second_teacup",
+      "letter_opener",
+      "case_year_note",
+      "wall_clock",
+      "dossier_missing_file_c",
+      "file_c_initials",
+      "judicial_transfer_order",
+      "staff_service_record",
+      "staff_no_message",
+      "staff_impact_testimony",
+      "tunnel_schedule"
+    ],
+    "unlocked_objects": [
+      "dossier_bag",
+      "electrical_room_door"
+    ],
+    "visited_locations": [
+      "lounge_car",
+      "first_class_car",
+      "dining_car_staff",
+      "luggage_van_electrical"
+    ],
+    "interrogated_suspects": [
+      "gideon_hart",
+      "car_attendant"
+    ],
+    "dialogue_history": [
+      "gideon_hart:account",
+      "car_attendant:service",
+      "car_attendant:impact"
+    ],
+    "examined_objects": [
+      "cassian_reed",
+      "pocket_watch",
+      "obsidian_cufflink",
+      "first_class_window",
+      "first_class_desk",
+      "red_soot",
+      "wall_clock",
+      "case_year_note",
+      "dossier_missing_file_c",
+      "file_c_initials",
+      "judicial_transfer_order",
+      "burnt_folder_c",
+      "wax_seal_imprint",
+      "tunnel_schedule"
+    ],
+    "validated_claims": [],
+    "claim_evidence": {},
+    "elapsed_seconds": 0,
+    "turn_count": 23,
+    "burned_objects": [],
+    "ending_id": null,
+    "failed_accusations": 1,
+    "session_id": null,
+    "case_id": "case_01_gideon"
+  },
+  "service_interruptions": 0,
+  "provider_attempts_including_parser_and_retries": 58
+}
