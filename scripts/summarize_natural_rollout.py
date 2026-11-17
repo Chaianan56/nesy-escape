@@ -55,7 +55,7 @@ def turn_row(row, parser):
 
 
 def modes(folder):
-    return [m for m in ('neural', 'neuro-symbolic', 'nesy-full') if (folder/m).is_dir()]
+    return [m for m in ('neural', 'neuro-symbolic') if (folder/m).is_dir()]
 
 
 def write_turns_csv(folder):
