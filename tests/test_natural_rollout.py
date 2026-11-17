@@ -89,3 +89,20 @@ def test_resume_preserves_states_and_error_logs(monkeypatch,tmp_path):
         ok=[r for r in rows if r['status']=='ok']
         assert [r['step'] for r in ok]==list(range(1,total_steps + 1))
         assert all(ok[i]['state_before']==ok[i-1]['output']['new_state'] for i in range(1,total_steps))
+
+
+def test_texts_file_matches_walkthrough(tmp_path):
+    _, _, commands, _, _, _ = runner.prepare('A')
+    path = runner.ROOT/'data/research/natural-rollout-texts-A.json'
+    texts = runner.load_texts(path, commands)
+    assert len(texts) == len(commands)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    data['cases'][3]['expected_command']['target'] = 'wall_clock'
+    bad = tmp_path/'bad.json'
+    bad.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+    try:
+        runner.load_texts(bad, commands)
+    except ValueError as exc:
+        assert 'step 4' in str(exc)
+    else:
+        raise AssertionError('mismatched expected_command was accepted')

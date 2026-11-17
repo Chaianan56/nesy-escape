@@ -12,7 +12,25 @@ from scripts.run_natural_comparison import parse_once
 from scripts.run_case_rollout_benchmark import prepare, save, run_episode, CompleteStateGameMaster, report
 
 
-def natural_commands(commands, world):
+def load_texts(path, commands):
+    """Hand-written texts; each expected_command must equal the walkthrough step it replaces."""
+    cases = json.loads(Path(path).read_text(encoding='utf-8'))['cases']
+    if [c['step'] for c in cases] != list(range(1, len(commands) + 1)):
+        raise ValueError(f'texts must cover steps 1..{len(commands)} in order')
+    fields = ['action', 'target', 'topic', 'code', 'instrument']
+    for case, command in zip(cases, commands):
+        got = {k: case['expected_command'].get(k) for k in fields}
+        want = {k: getattr(command, k).value if k == 'action' else getattr(command, k) for k in fields}
+        if got != want:
+            raise ValueError(f"step {case['step']}: expected_command {got} != walkthrough {want}")
+        if not case['text'].strip():
+            raise ValueError(f"step {case['step']}: empty text")
+    return [case['text'] for case in cases]
+
+
+def natural_commands(commands, world, texts=None):
+    if texts is not None:
+        return [c.model_copy(update={'raw_text': t}) for c, t in zip(commands, texts)]
     result = []
     for c in commands:
         obj = next(world[k][c.target] for k in ('objects', 'locations', 'suspects') if c.target in world[k])
@@ -103,9 +121,11 @@ def main(argv=None):
     p.add_argument('--live', action='store_true')
     p.add_argument('--resume', action='store_true')
     p.add_argument('--pause-seconds', type=float, default=5)
+    p.add_argument('--texts', type=Path, help='JSON of hand-written texts (default: Thai templates)')
     args = p.parse_args(argv)
     cid, initial, commands, refs, oracle, bundle = prepare('A')
-    commands = natural_commands(commands, bundle['world'])
+    texts = load_texts(args.texts, commands) if args.texts else None
+    commands = natural_commands(commands, bundle['world'], texts)
     if not 0 <= args.pause_seconds <= 30: p.error('pause must be between 0 and 30 seconds')
     if args.resume and (not args.live or not (args.output/'manifest.json').exists()):
         p.error('Resume requires --live and existing manifest')
@@ -122,7 +142,9 @@ def main(argv=None):
                     planned_calls=len(commands)*3, maximum_calls=len(commands)*6, planned_turns=len(commands),
                     retry='one retry for transient service failures only',
                     fallback=False, semantic_repair=False, reference='same-engine; not independent truth',
-                    input_origin='Thai templates from development walkthrough; not held-out human participants',
+                    input_origin=(f'hand-written texts from {args.texts.as_posix()}' if args.texts else
+                                  'Thai templates from development walkthrough; not held-out human participants'),
+                    texts_sha256=digest(args.texts.read_text(encoding='utf-8')) if args.texts else None,
                     clock='fixed elapsed_seconds=0; no wall-clock game timeout',
                     parser='zero-shot, full entities, no fast-path, no symbolic repair',
                     status='running' if args.live else 'validated_not_run',pause_seconds=args.pause_seconds)
