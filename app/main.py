@@ -135,6 +135,7 @@ from app.neural.gemini_client import (
     llm_online,
 )
 from app.neural.typed_commands import interpret_game as interpret
+from app.neural.narrator import narrate_response, narrator_enabled
 
 
 # ============================================================
@@ -428,6 +429,10 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     engine = engine_for_session(session)
     req.state = session.state.model_copy(deep=True)
     result = _handle_command(req, engine=engine, provider=session.api_provider)
+    # ผู้เล่าเรื่อง: ให้ AI เรียบเรียงข้อความที่ผู้เล่นเห็นใหม่ หลังกฎตัดสินเสร็จแล้ว
+    # แก้ได้แค่ข้อความ ผลตัดสิน สถานะ และสายเหตุผลยังมาจากกฎทั้งหมด (ดู app/neural/narrator.py)
+    if not result.service_error and narrator_enabled():
+        narrate_response(result, req.text, engine.world, provider=session.api_provider)
     if result.decision.allowed and result.parsed.action == ActionType.INTERROGATE:
         result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)

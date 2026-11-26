@@ -1,0 +1,116 @@
+"""ผู้เล่าเรื่อง: AI เรียบเรียงข้อความได้ แต่ห้ามเฉลย ห้ามเพิ่มหรือทำข้อมูลหาย และห้ามแตะผลตัดสิน
+
+เทสต์ทั้งหมดสวมตัวปลอมแทนการเรียก AI จริง
+"""
+import pytest
+from fastapi.testclient import TestClient
+
+import app.main as main
+from app.neural import narrator
+from app.neural.narrator import narrate_messages, validate_narration
+from app.schemas import ActionType, GameState, ParsedCommand
+
+WORLD = main.engine.world
+
+
+def fake_generate(replies):
+    def generate(sources, player_text, provider):
+        out = replies(sources) if callable(replies) else replies
+        return list(out), "fake:model"
+    return generate
+
+
+# ---------- ตัวตรวจ ----------
+
+def test_faithful_rewrite_passes():
+    source = "นาฬิกาพกกลไก กระจกแตกร้าว เข็มค้างที่ 20:25"
+    rewrite = "คุณหยิบนาฬิกาพกกลไกขึ้นมาดู กระจกร้าวเป็นทาง เข็มหยุดนิ่งอยู่ที่ 20:25"
+    assert validate_narration(source, rewrite, "ตรวจนาฬิกา", WORLD) is None
+
+
+@pytest.mark.parametrize("rewrite, reason", [
+    ("นาฬิกาพกกลไกแตก เข็มค้างที่ 20:25 ตรงกับเวลาตายตอน 20:22", "new_number"),
+    ("นาฬิกาพกกลไกแตกร้าว เข็มค้างอยู่", "dropped_number"),
+    ("นาฬิกาพกกลไกค้างที่ 20:25 ใกล้ๆ มีกระดุมเย็บติดแขนเสื้อ", "new_entity"),
+    ("กระจกแตกร้าว เข็มค้างที่ 20:25", "dropped_entity"),
+    ("นาฬิกาพกกลไกค้างที่ 20:25 ฆาตกรคงทำมันตกตอนต่อสู้", "spoiler_cue"),
+    ("นาฬิกาพกกลไก (pocket_watch) ค้างที่ 20:25", "leaked_id"),
+    ("", "empty"),
+])
+def test_unfaithful_rewrites_are_rejected(rewrite, reason):
+    source = "นาฬิกาพกกลไก กระจกแตกร้าว เข็มค้างที่ 20:25"
+    assert validate_narration(source, rewrite, "ตรวจนาฬิกา", WORLD) == reason
+
+
+def test_quoted_testimony_must_stay_verbatim():
+    source = 'กิเดียนตอบว่า “ผมอยู่ในตู้เลานจ์ตลอดเวลา”'
+    assert validate_narration(source, "กิเดียนยืนยันว่าเขาอยู่ตู้เลานจ์ตลอด", "", WORLD) == "dropped_quote"
+    assert validate_narration(source, 'กิเดียนเงยหน้าแล้วตอบว่า “ผมอยู่ในตู้เลานจ์ตลอดเวลา”', "", WORLD) is None
+
+
+def test_player_may_name_things_the_narrator_echoes():
+    source = "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
+    rewrite = "นาฬิกาพกกลไกไม่ได้อยู่ใกล้คุณ คุณไม่ได้อยู่ในตู้เดียวกับมัน"
+    assert validate_narration(source, rewrite, "ตรวจนาฬิกาพกกลไก", WORLD) is None
+
+
+# ---------- การเรียบเรียง ----------
+
+def test_rejected_items_fall_back_to_engine_text(monkeypatch):
+    monkeypatch.setattr(narrator, "_generate", fake_generate(["ฆาตกรคือคนที่คุณคิด", "ไปต่อกันเลย"]))
+    out, info = narrate_messages(["ประตูล็อกอยู่", "เดินทางต่อ"], "เปิดประตู", WORLD)
+    assert out == ["ประตูล็อกอยู่", "ไปต่อกันเลย"]
+    assert [i["accepted"] for i in info["items"]] == [False, True]
+
+
+def test_provider_failure_keeps_engine_text(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("down")
+    monkeypatch.setattr(narrator, "_generate", boom)
+    out, info = narrate_messages(["ประตูล็อกอยู่"], "เปิดประตู", WORLD)
+    assert out == ["ประตูล็อกอยู่"] and info["applied"] is False
+
+
+def test_system_hints_are_kept_verbatim_and_not_sent(monkeypatch):
+    seen = {}
+    def generate(sources, player_text, provider):
+        seen["sources"] = sources
+        return ["ประตูบานนี้ยังล็อกแน่น"], "fake"
+    monkeypatch.setattr(narrator, "_generate", generate)
+    hint = "💡 *[ข้อสังเกตของผู้สืบสวน]*: ลองหากุญแจ"
+    out, _ = narrate_messages([f"ประตูล็อกอยู่\n\n{hint}"], "เปิดประตู", WORLD)
+    assert seen["sources"] == ["ประตูล็อกอยู่"]
+    assert out == [f"ประตูบานนี้ยังล็อกแน่น\n\n{hint}"]
+
+
+def test_narrator_is_off_under_pytest_by_default(monkeypatch):
+    monkeypatch.delenv("NARRATOR", raising=False)
+    assert narrator.narrator_enabled() is False
+    monkeypatch.setenv("NARRATOR", "off")
+    assert narrator.narrator_enabled() is False
+
+
+# ---------- ผ่าน API: แก้ได้แค่ข้อความ ----------
+
+def test_api_narration_changes_only_the_message(monkeypatch):
+    client = TestClient(main.app)
+    client.get("/scene?case_id=case_01_gideon")
+    client.post("/start")
+    monkeypatch.setattr(main, "interpret", lambda text, state, **k: ParsedCommand(
+        action=ActionType.MOVE, target="first_class_car", raw_text=text, confidence=1.0))
+
+    plain = client.post("/command", json={"text": "ไปตู้ 4"}).json()
+
+    client.get("/scene?case_id=case_01_gideon")
+    client.cookies.clear()
+    client.get("/scene?case_id=case_01_gideon")
+    client.post("/start")
+    monkeypatch.setattr(main, "narrator_enabled", lambda: True)
+    monkeypatch.setattr(narrator, "_generate", fake_generate(lambda s: s))  # คืนต้นฉบับ = ผ่านการตรวจแน่นอน
+    narrated = client.post("/command", json={"text": "ไปตู้ 4"}).json()
+
+    assert narrated["narration"]["applied"] is True
+    assert narrated["narration"]["original_message"] == plain["decision"]["message"]
+    for key in ("allowed", "reasoning_chain", "violated_rule_id", "state_changes"):
+        assert narrated["decision"][key] == plain["decision"][key]
+    assert narrated["new_state"]["current_location"] == plain["new_state"]["current_location"]
