@@ -136,6 +136,7 @@ from app.neural.gemini_client import (
 )
 from app.neural.typed_commands import interpret_game as interpret
 from app.neural.narrator import narrate_response, narrator_enabled
+from app.neural.typed_commands import is_plain_look_around
 
 
 # ============================================================
@@ -431,7 +432,9 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     result = _handle_command(req, engine=engine, provider=session.api_provider)
     # ผู้เล่าเรื่อง: ให้ AI เรียบเรียงข้อความที่ผู้เล่นเห็นใหม่ หลังกฎตัดสินเสร็จแล้ว
     # แก้ได้แค่ข้อความ ผลตัดสิน สถานะ และสายเหตุผลยังมาจากกฎทั้งหมด (ดู app/neural/narrator.py)
-    if not result.service_error and narrator_enabled():
+    # คำสั่งดูรอบๆ แบบตรงตัวไม่ต้องเรียบเรียง คำบรรยายห้องเขียนไว้ดีแล้ว และหน้าเว็บส่งคำสั่งนี้เอง
+    # ทุกครั้งที่ผู้เล่นกด "คลิกเพื่อไปต่อ" หลังตรวจหลักฐาน ถ้าเรียบเรียงทุกครั้งจะเปลืองโควตา AI ไปเปล่าๆ
+    if not result.service_error and narrator_enabled() and not is_plain_look_around(req.text):
         narrate_response(result, req.text, engine.world, provider=session.api_provider)
     if result.decision.allowed and result.parsed.action == ActionType.INTERROGATE:
         result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)

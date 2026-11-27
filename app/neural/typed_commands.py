@@ -11,6 +11,15 @@ import re
 from app.schemas import ActionType, GameState, ParsedCommand
 
 
+
+# คำสั่งดูรอบๆ แบบตรงตัว หน้าเว็บก็ส่ง "ดูรอบๆ" เองตอนเริ่มเกมและตอนกด "คลิกเพื่อไปต่อ" กลับสู่ห้อง
+LOOK_AROUND_PHRASES = ('สำรวจ', 'มองรอบ ๆ', 'มองรอบๆ', 'มองไปรอบๆ', 'ดูรอบๆ', 'ดูรอบ ๆ', 'ตรวจรอบๆ', 'สำรวจห้อง',
+                       'look around', 'look', 'search room', 'examine room')
+
+
+def is_plain_look_around(text: str) -> bool:
+    return (text or '').strip().lower() in LOOK_AROUND_PHRASES
+
 def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedCommand | None:
     """แกะความหมายคำสั่งแบบตายตัว (Fast-Path) หากเข้าข่ายรูปแบบที่แน่นอน
 
@@ -97,7 +106,7 @@ def parse_typed_command(text: str, state: GameState, world: dict) -> ParsedComma
                 matching = [n for n in person['dialogue_nodes'] if n.get('topic') == topic]
                 if topic == 'account' or any('ที่อยู่ตอนไฟดับ' in n.get('label', '') for n in matching):
                     return command(ActionType.INTERROGATE, sid, topic=topic)
-    if value.lower() in ('สำรวจ', 'มองรอบ ๆ', 'มองรอบๆ', 'มองไปรอบๆ', 'ดูรอบๆ', 'ดูรอบ ๆ', 'ตรวจรอบๆ', 'สำรวจห้อง', 'look around', 'look', 'search room', 'examine room'):
+    if is_plain_look_around(value):
         return command(ActionType.EXAMINE, state.current_location)
     if value.strip().lower() in ('ชันสูตร', 'ชันสูตรศพ', 'ตรวจศพ', 'ดูศพ', 'autopsy', 'examine corpse'):
         return command(ActionType.EXAMINE, 'cassian_reed')

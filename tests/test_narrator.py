@@ -146,3 +146,38 @@ def test_api_narration_changes_only_the_message(monkeypatch):
     for key in ("allowed", "reasoning_chain", "violated_rule_id", "state_changes"):
         assert narrated["decision"][key] == plain["decision"][key]
     assert narrated["new_state"]["current_location"] == plain["new_state"]["current_location"]
+
+
+def test_narrator_must_stay_inside_the_story():
+    source = "ไม่เข้าใจคำสั่งนี้ สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น"
+    assert validate_narration(source, "ระบบไม่เข้าใจคำสั่งนี้ สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น", "", WORLD) == "meta_talk"
+    quote = "“ผมอาจจำผู้ส่งข่าวคลาดเคลื่อน”"
+    assert validate_narration(quote, "ข้อความต้นฉบับไม่ได้บอกไว้ มีเพียง " + quote, "", WORLD) == "meta_talk"
+    assert validate_narration(source, "คุณเอ่ยถามออกไปแต่ไม่มีใครตอบ สิ่งที่ทำได้คือ ดูรอบๆ เดินไปตู้อื่น", "", WORLD) is None
+    # คำว่าต้นฉบับในเนื้อเรื่องเองไม่นับ
+    story = "กระเป๋ามีแฟ้ม B สมุดต้นฉบับแอนเซลม์"
+    assert validate_narration(story, "ในกระเป๋ามีแฟ้ม B คือสมุดต้นฉบับแอนเซลม์", "", WORLD) is None
+
+
+@pytest.mark.parametrize("text, narrated", [
+    ("ดูรอบๆ", False),            # หน้าเว็บส่งเองตอนกด "คลิกเพื่อไปต่อ" และตอนเริ่มเกม
+    ("สำรวจห้อง", False),
+    ("ห้องนี้มีอะไรแปลกๆ ไหม", True),  # คำถามธรรมชาติยังเรียบเรียงตามปกติ
+])
+def test_plain_look_around_skips_the_narrator(monkeypatch, text, narrated):
+    calls = []
+    def generate(sources, player_text, provider):
+        calls.append(player_text)
+        return list(sources), "fake:model"
+    client = TestClient(main.app)
+    client.cookies.clear()
+    client.get("/scene?case_id=case_01_gideon")
+    client.post("/start")
+    monkeypatch.setattr(main, "interpret", lambda t, state, **k: ParsedCommand(
+        action=ActionType.EXAMINE, target=state.current_location, raw_text=t, confidence=1.0))
+    monkeypatch.setattr(main, "narrator_enabled", lambda: True)
+    monkeypatch.setattr(narrator, "_generate", generate)
+    reply = client.post("/command", json={"text": text}).json()
+    assert reply["decision"]["allowed"] is True
+    assert bool(calls) is narrated
+    assert (reply.get("narration") is not None) is narrated
