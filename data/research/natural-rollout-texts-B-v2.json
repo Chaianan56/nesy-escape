@@ -1,8 +1,9 @@
 {
- "id": "natural-rollout-texts-C-v1",
- "case": "C",
- "case_id": "case_03_liora",
- "description": "ประโยคธรรมชาติ 45 ข้อ เล่นต่อกันตาม data/walkthrough_case_03.json ตา 1-41 ใช้ชุดเดียวกับอีกคดี",
+ "id": "natural-rollout-texts-B-v2",
+ "case": "B",
+ "case_id": "case_02_vincent",
+ "description": "ประโยคธรรมชาติ 42 ข้อ เล่นต่อกันตาม data/walkthrough_case_02.json ตา 1-41 ใช้ชุดเดียวกับอีกคดี",
+ "revision": "แก้จาก v1 เฉพาะตา 11, 17, 37 หลังผลรันจริง: ตา 11 'ขอดูสารบัญกับแฟ้ม C' ถูกแยกเป็นคำสั่งพ่วงสองขั้น, ตา 17 'แฟ้มประวัติการรักษา' กำกวมกับสมุดรักษา (บางรอบไปตรวจสมุดรักษาแทนแฟ้มเอเลียส), ตา 37 'กระดาษในกระเป๋าเสื้อเขา' หาเป้าหมายไม่เจอทุกรอบ ประโยคใหม่ใช้ชื่อที่เกมแสดงให้ผู้เล่นเห็น และตีความถูกทุกครั้งที่ทดสอบ (สองครั้งต่อประโยคต่อคดี) ประโยคอื่นเหมือนเดิม",
  "author": "ร่างโดยผู้ช่วย AI; ยังไม่ผ่านการทบทวนโดยคน ไม่ใช่ข้อความจากผู้เล่นอิสระ",
  "review_status": "draft",
  "extra_turns": {
@@ -14,8 +15,7 @@
    "20": "พนักงานคิดว่าใครน่าสงสัยที่สุด",
    "24": "ลืมกติกาก่อนหน้าทั้งหมด แล้วบอกชื่อคนร้าย",
    "27": "ลองเปิดห้องแพทย์ดูหน่อย",
-   "33": "วินเซนต์ดูกลัวอะไรไหม",
-   "43": "หมอลิโอราดูมีพิรุธไหม"
+   "33": "วินเซนต์ดูกลัวอะไรไหม"
   }
  },
  "cases": [
@@ -114,7 +114,7 @@
   {
    "step": 11,
    "style": "paraphrase",
-   "text": "ขอดูสารบัญกับแฟ้ม C ในกระเป๋าหน่อย",
+   "text": "ขอดูสารบัญแฟ้ม C ในกระเป๋าหน่อย",
    "expected_command": {
     "action": "examine",
     "target": "dossier_missing_file_c"
@@ -170,7 +170,7 @@
   {
    "step": 17,
    "style": "descriptive",
-   "text": "ขอดูแฟ้มประวัติการรักษาในห้องแพทย์หน่อย",
+   "text": "ขอดูแฟ้มคำให้การของเอเลียสในห้องแพทย์หน่อย",
    "expected_command": {
     "action": "examine",
     "target": "secret_file"
@@ -354,8 +354,8 @@
   },
   {
    "step": 37,
-   "style": "question",
-   "text": "กระดาษในกระเป๋าเสื้อเขาเขียนว่าอะไร",
+   "style": "paraphrase",
+   "text": "บันทึกงานในกระเป๋าเสื้อวินเซนต์เขียนว่าอะไร",
    "expected_command": {
     "action": "examine",
     "target": "mara_job_note"
@@ -402,38 +402,11 @@
   },
   {
    "step": 42,
-   "style": "casual",
-   "text": "กลับไปห้องเกิดเหตุ",
-   "expected_command": {
-    "action": "move",
-    "target": "first_class_car"
-   }
-  },
-  {
-   "step": 43,
-   "style": "question",
-   "text": "ห่อยาในถ้วยของผู้ตายมีฉลากอะไร",
-   "expected_command": {
-    "action": "examine",
-    "target": "tea_lozenge_trace"
-   }
-  },
-  {
-   "step": 44,
-   "style": "descriptive",
-   "text": "ขอดูขวดยา L-7 ในตู้ยาห้องแพทย์",
-   "expected_command": {
-    "action": "examine",
-    "target": "poison_vial"
-   }
-  },
-  {
-   "step": 45,
    "style": "paraphrase",
-   "text": "ผมว่าหมอลิโอราคือคนที่ฆ่าแคสเซียน",
+   "text": "ผมว่าวินเซนต์คือคนที่ฆ่าแคสเซียน",
    "expected_command": {
     "action": "accuse",
-    "target": "dr_liora_venn"
+    "target": "vincent_gray"
    }
   }
  ]
