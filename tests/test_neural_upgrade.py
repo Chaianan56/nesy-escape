@@ -158,8 +158,9 @@ def test_symbolic_repair_move_to_object_container():
 
 
 def test_symbolic_repair_recover_target_with_margin():
-    """ซ่อมคำสั่ง: target เป็น None แต่ระบุชื่อวัตถุในห้องปัจจุบันอย่างชัดเจน -> กู้คืน target ได้สำเร็จ"""
-    state = GameState(current_location="first_class_car")
+    """ซ่อมคำสั่ง: target เป็น None แต่ระบุชื่อวัตถุในห้องปัจจุบันอย่างชัดเจน -> กู้คืน target ได้สำเร็จ
+    (นาฬิกาพกมองเห็นได้หลังตรวจร่างแล้ว ก่อนหน้านั้นต้องไม่ถูกกู้คืน ดู test ถัดไป)"""
+    state = GameState(current_location="first_class_car", examined_objects=["cassian_reed"])
     raw_cmd = ParsedCommand(
         action=ActionType.EXAMINE,
         target=None,
@@ -169,7 +170,15 @@ def test_symbolic_repair_recover_target_with_margin():
     repaired, note = repair_parsed_command(raw_cmd, STORY_DATA, state=state, raw_text="ส่องดูนาฬิกาพกกลไกหน่อย")
     assert repaired.target == "pocket_watch"
     assert note is not None
-    assert "Recovered missing target as 'pocket_watch'" in note
+    assert "'pocket_watch'" in note
+
+
+def test_symbolic_repair_does_not_recover_a_hidden_target():
+    """นาฬิกาพกยังซ่อนอยู่ก่อนตรวจร่าง: ต้องไม่กู้คืนเป็นนาฬิกาพก และต้องไม่เลือกนาฬิกาผนังมาแทน"""
+    state = GameState(current_location="first_class_car")
+    raw_cmd = ParsedCommand(action=ActionType.EXAMINE, target=None, raw_text="ส่องดูนาฬิกาพกกลไกหน่อย", confidence=0.6)
+    repaired, _ = repair_parsed_command(raw_cmd, STORY_DATA, state=state, raw_text="ส่องดูนาฬิกาพกกลไกหน่อย")
+    assert repaired.target not in ("pocket_watch", "wall_clock")
 
 
 def test_knn_mmr_diversity():

@@ -7,9 +7,171 @@ app/neural/repair.py — Symbolic-Guided Self-Correction (Neuro-Symbolic Constra
 - รักษาความถูกต้องตามหลักการ NeSy: ซ่อมเฉพาะความผิดเพี้ยนของการแปลงภาษา โดยไม่ข้ามกฎตรรกะโลก (Invariants)
 """
 
-from typing import Any, Dict, Optional, Tuple
+import re
+from difflib import SequenceMatcher
+from typing import Any, Dict, List, Optional, Tuple
 from app.schemas import ActionType, GameState, ParsedCommand
 from app.neural.retriever import score_entity_candidate
+
+
+# ==========================================================================
+# เลือกเป้าหมายจากถ้อยคำของผู้เล่น (Wording-based target check)
+# LLM บางครั้งเลือกของผิดชิ้นทั้งที่ผู้เล่นเอ่ยชื่อของชิ้นหนึ่งแทบตรงตัว เช่น
+#   "กระเป๋าสำนวนขาดแฟ้มไหนไป" -> LLM เลือกกระเป๋าล็อกรหัส แทน "กระเป๋าสำนวนที่ขาดแฟ้ม C"
+#   "ขอดูแฟ้มประวัติการรักษา"   -> LLM เลือก "สมุดรักษา" แทน "แฟ้มรักษาและคำให้การเอเลียส"
+#   "กระดาษในกระเป๋าเสื้อเขา..." -> LLM ไม่ได้เป้าหมาย ทั้งที่บันทึกขึ้นต้นว่า "กระดาษในกระเป๋าเสื้อเขียน..."
+# วัดว่าถ้อยคำของผู้เล่นตรงกับชื่อของแต่ละชิ้นกี่ตัวอักษร แล้วสลับเมื่อของชิ้นหนึ่งตรงกว่าอย่างชัดเจน
+# เลือกได้เฉพาะของที่ engine บอกว่าตรวจได้ในตู้นี้ตอนนี้ จึงไม่เลือกหรือเอ่ยถึงของที่ยังซ่อนอยู่
+# ==========================================================================
+_MIN_CHUNK = 4            # ชิ้นที่สั้นกว่านี้ (เช่น "การ" "ของ") ใช้ร่วมกันได้หลายชื่อ ไม่นับ
+_SWAP_MIN = 7             # ต้องตรงอย่างน้อยเท่านี้ตัวอักษรถึงจะสลับ
+_SWAP_MARGIN = 4          # และต้องตรงกว่าเป้าหมายเดิมอย่างน้อยเท่านี้
+_UNIQUE_MARGIN = 3        # และตรงกว่าตัวเลือกอันดับสองอย่างน้อยเท่านี้
+_DESC_WEIGHT = 0.7        # คำบรรยายนับน้อยกว่าชื่อ ใช้เมื่อผู้เล่นเรียกของจากลักษณะ
+_DESC_LEAD = 40
+_TALK_WORDS = ("ถาม", "คุย", "สอบปากคำ", "ซัก", "ให้การ", "บอกมา", "talk", "ask", "interrogate", "speak")
+
+
+def _match(text: str, phrase: str) -> Tuple[int, set]:
+    """ตัวอักษรที่ text กับ phrase มีร่วมกัน (นับเฉพาะช่วงต่อเนื่องยาวอย่างน้อย _MIN_CHUNK ไม่ซ้อนกัน)
+    คืน (จำนวนตัวอักษร, ตำแหน่งใน text ที่ตรง)"""
+    text, phrase = (text or "").lower(), (phrase or "").lower()
+    total, spans = 0, set()
+    while text and phrase:
+        m = SequenceMatcher(None, text, phrase, autojunk=False).find_longest_match(0, len(text), 0, len(phrase))
+        if m.size < _MIN_CHUNK:
+            break
+        total += m.size
+        spans.update(range(m.a, m.a + m.size))
+        text = text[:m.a] + "\x00" * m.size + text[m.a + m.size:]          # คงความยาวไว้ ตำแหน่งจึงไม่เลื่อน
+        phrase = phrase[:m.b] + "\x01" + phrase[m.b + m.size:]
+    return total, spans
+
+
+def _generic_phrases(world_data: Dict[str, Any]) -> List[str]:
+    """คำที่ใช้ร่วมกันหลายชิ้นและไม่ได้บอกว่าเป็นของชิ้นไหน: ชื่อคน ชื่อผู้ตาย ชื่อตู้และห้องย่อย และคำว่า 'ของ'
+    เช่น "ตั๋วของวินเซนต์" ไม่ควรไปตรงกับ "บันทึกงานของวินเซนต์" เพราะคำว่า "ของวินเซนต์"
+    และ "แฟ้ม...ในห้องแพทย์" ไม่ควรไปตรงกับ "ประตูห้องแพทย์" เพราะคำว่า ห้องแพทย์"""
+    cached = world_data.get("_generic_phrases_cache")
+    if cached is not None:
+        return cached
+    names = []
+    people = list(world_data.get("suspects", {}).values()) + [{"name_th": world_data.get("victim_name_th", "")}]
+    for person in people:
+        full = re.sub(r"\(.*?\)", "", person.get("name_th", "")).strip()
+        names += [full] + full.replace("ดร.", "").split()
+        english = re.search(r"\(([^)]+)\)", person.get("name_th", ""))
+        if english:
+            names += [english.group(1)] + english.group(1).split()
+    for loc in world_data.get("locations", {}).values():
+        names += [part.strip() for part in re.split(r"[:()]|และ", loc.get("name_th", ""))]
+    phrases = sorted({n.lower() for n in names if len(n.strip()) >= 3}, key=len, reverse=True) + ["ของ"]
+    world_data["_generic_phrases_cache"] = phrases
+    return phrases
+
+
+def _strip_generic(text: str, generic: List[str]) -> str:
+    text = (text or "").lower()
+    for phrase in generic:
+        text = text.replace(phrase, "|")
+    return text
+
+
+def _name_core(obj: Dict[str, Any]) -> str:
+    return re.sub(r"\(.*?\)", "", obj.get("name_th", "")).strip()
+
+
+def _wording_match(raw: str, obj: Dict[str, Any], generic: List[str]) -> Tuple[float, float, set]:
+    """(คะแนน, สัดส่วนของชื่อที่ผู้เล่นพูดถึง, ตำแหน่งในข้อความที่ตรง) หลังตัดคำกลางๆ ออกทั้งสองฝั่ง"""
+    text = _strip_generic(raw, generic)
+    name = _strip_generic(_name_core(obj), generic)
+    by_name, name_spans = _match(text, name)
+    by_desc, desc_spans = _match(text, _strip_generic((obj.get("description") or "")[:_DESC_LEAD], generic))
+    useful_len = len(name.replace("|", "").strip()) or 1
+    if by_name >= _DESC_WEIGHT * by_desc:
+        return by_name, by_name / useful_len, name_spans
+    return _DESC_WEIGHT * by_desc, by_name / useful_len, desc_spans
+
+
+def _engine_for(world_data: Dict[str, Any], state: GameState):
+    """engine ของคดีนี้ ใช้ถามว่าของชิ้นไหนตรวจได้ตอนนี้ ถ้าหาไม่ได้ให้ข้ามการตรวจถ้อยคำไปเลย"""
+    try:
+        from app.cases import get_engine
+        engine = get_engine(getattr(state, "case_id", None) or "case_01_gideon")
+    except Exception:
+        return None
+    if engine.world is world_data or engine.world.get("scene_id") == world_data.get("scene_id"):
+        return engine
+    return None
+
+
+def _objects_here(world_data: Dict[str, Any], state: GameState) -> List[str]:
+    """ทุกชิ้นในตู้นี้และที่ถืออยู่ รวมของที่ยังซ่อน (ใช้ให้คะแนน แต่เลือกได้เฉพาะชิ้นที่มองเห็นแล้ว)"""
+    return [oid for oid, obj in world_data.get("objects", {}).items()
+            if obj.get("location") == state.current_location or oid in state.inventory]
+
+
+def wording_target_fix(parsed: ParsedCommand, world_data: Dict[str, Any], state: Optional[GameState],
+                       raw: str) -> Optional[Tuple[Dict[str, Any], str]]:
+    """คืน (updates, note) ถ้าถ้อยคำของผู้เล่นชี้ของอีกชิ้นอย่างชัดเจน ไม่งั้นคืน None"""
+    if not state or not raw:
+        return None
+    objects = world_data.get("objects", {})
+    target, action = parsed.target, parsed.action
+    if target and target.lower() in raw:          # พิมพ์ id ตรงๆ (เช่นปุ่มคำสั่ง) เชื่อตามนั้น
+        return None
+    if action not in (ActionType.EXAMINE, ActionType.UNKNOWN, ActionType.INTERROGATE, ActionType.SEQUENCE):
+        return None
+    if action == ActionType.INTERROGATE and any(w in raw for w in _TALK_WORDS):
+        return None
+    engine = _engine_for(world_data, state)
+    if engine is None:
+        return None
+    here = _objects_here(world_data, state)
+    visible = {oid for oid in here if engine.offerable(oid, state)}
+    if not visible:
+        return None
+    generic = _generic_phrases(world_data)
+    scores = {oid: _wording_match(raw, objects[oid], generic) for oid in here}
+
+    if action == ActionType.SEQUENCE:
+        # LLM แตกคำเรียกของชิ้นเดียวเป็นหลายขั้น เช่น "สารบัญกับแฟ้ม C" -> สารบัญ + ทะเบียนแฟ้ม C
+        # รวมเหลือขั้นเดียวเมื่อขั้นที่ถ้อยคำตรงที่สุดเอ่ยชื่อชัด และขั้นอื่นไม่มีถ้อยคำของตัวเองเลย
+        # (ตรงแค่ส่วนที่เป็นชื่อของชิ้นหลักอยู่แล้ว หรือไม่มีของชิ้นนั้น) ถ้าผู้เล่นเอ่ยถึงของสองชิ้นจริง
+        # เช่น "ตรวจนาฬิกาพกกลไกกับกระดุม" ขั้นที่สองมีถ้อยคำของตัวเอง จึงคงเป็นคำสั่งพ่วงตามเดิม
+        steps = [a.split() for a in parsed.alternatives]
+        if len(steps) < 2 or any(len(st) != 2 or st[0] != "examine" for st in steps):
+            return None
+        in_steps = [st[1] for st in steps if st[1] in scores]
+        if not in_steps:
+            return None
+        keep = max(in_steps, key=lambda oid: scores[oid][0])
+        if keep not in visible or scores[keep][0] < _SWAP_MIN:
+            return None
+        keep_spans = scores[keep][2]
+        for _, other in steps:
+            if other == keep:
+                continue
+            if other in scores and not scores[other][2] <= keep_spans:
+                return None
+            if other not in scores and other in objects and engine.offerable(other, state):
+                return None                        # ของในตู้อื่นที่ผู้เล่นเคยเจอแล้ว อาจตั้งใจจริง
+        return ({"action": ActionType.EXAMINE, "target": keep, "alternatives": [], "sequence": False},
+                f"Collapsed a sequence into one EXAMINE of '{keep}': the player's wording names only that object")
+
+    ranked = sorted(scores.items(), key=lambda kv: -kv[1][0])
+    oid, (best, coverage, _) = ranked[0]
+    second = ranked[1][1][0] if len(ranked) > 1 else 0.0
+    if oid == target or oid not in visible:        # ชิ้นที่ตรงที่สุดยังซ่อนอยู่ ห้ามเลือกทั้งชิ้นนั้นและชิ้นอื่นแทน
+        return None
+    current = scores[target][0] if target in scores else 0.0
+    if best < _SWAP_MIN or best - current < _SWAP_MARGIN or best - second < _UNIQUE_MARGIN:
+        return None
+    if action == ActionType.INTERROGATE and coverage < 0.8:
+        return None                                # ถามคนอยู่ ต้องเอ่ยชื่อของแทบครบถึงจะเปลี่ยนเป็นตรวจของ
+    return ({"action": ActionType.EXAMINE, "target": oid, "topic": None, "alternatives": [], "sequence": False},
+            f"Wording names '{oid}' ({_name_core(objects[oid])}) more clearly than "
+            f"'{target}' ({best:.0f} vs {current:.0f} matched characters)")
 
 
 def repair_parsed_command(
@@ -106,6 +268,12 @@ def repair_parsed_command(
                         f"Contextually resolved AMBIGUOUS {inferred_action.value} to unique room entity '{resolved}' ({obj_data.get('name_th', resolved)})"
                     )
 
+    if not updates:
+        fixed = wording_target_fix(parsed, world_data, state, raw)
+        if fixed:
+            updates.update(fixed[0])
+            repair_notes.append(fixed[1])
+
     if not updates and parsed.action in (ActionType.UNKNOWN, ActionType.SEQUENCE, ActionType.AMBIGUOUS):
         return parsed, None
 
@@ -169,6 +337,9 @@ def repair_parsed_command(
     # ==========================================================================
     if target is None and state and action in (ActionType.EXAMINE, ActionType.TAKE, ActionType.BURN):
         current_loc = state.current_location
+        # ให้คะแนนทุกชิ้นในตู้ รวมของที่ยังซ่อน แล้วกู้คืนเฉพาะเมื่อชิ้นที่ตรงที่สุดมองเห็นได้แล้ว
+        # ถ้าผู้เล่นเอ่ยถึงของที่ยังซ่อน ต้องไม่เดาของชิ้นนั้นให้ และต้องไม่หยิบของชิ้นอื่นมาแทน
+        engine = _engine_for(world_data, state)
         candidates = []
         for oid, o_data in objects.items():
             if o_data.get("location") == current_loc or oid in state.inventory:
@@ -177,7 +348,9 @@ def repair_parsed_command(
                     candidates.append((score, oid))
         if candidates:
             candidates.sort(key=lambda x: x[0], reverse=True)
-            if len(candidates) == 1 or candidates[0][0] >= 0.85 or (candidates[0][0] - candidates[1][0] >= 0.25):
+            visible = engine is None or engine.offerable(candidates[0][1], state)
+            if visible and (len(candidates) == 1 or candidates[0][0] >= 0.85
+                            or (candidates[0][0] - candidates[1][0] >= 0.25)):
                 best_oid = candidates[0][1]
                 updates["target"] = best_oid
                 repair_notes.append(f"Recovered missing target as '{best_oid}' from current room via N-gram matching")
