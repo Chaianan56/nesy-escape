@@ -156,7 +156,8 @@
       "location": "first_class_car",
       "subview": "medical-room",
       "evidence": [
-        "secret_file"
+        "secret_file",
+        "poison_vial"
       ],
       "testimony": [
         "liora_time_estimate",
@@ -167,7 +168,8 @@
         "ลิโอราเป็นแพทย์หญิง ท่าทีกังวล",
         "เวชระเบียนลับปี 1923",
         "ไม่ย้ายสมุดรักษาผู้โดยสารจากตู้ 3 มาแทนหลักฐานเดิม",
-        "คำให้การเป็นข้อความในเกม ไม่ใช่ข้อความสรุปบนภาพ"
+        "คำให้การเป็นข้อความในเกม ไม่ใช่ข้อความสรุปบนภาพ",
+        "คดี C ใช้ภาพนี้แทนขวดยา L-7 ที่ยังไม่มีภาพของตัวเอง ตู้ยาอยู่ในห้องนี้"
       ],
       "prompt_file": "prompts/scene-04-medical.json"
     },
@@ -291,15 +293,16 @@
       ],
       "testimony": [],
       "critical_text": [
-        "20:20",
-        "20:25"
+        "14 NOV 1938",
+        "Dr. Liora Venn"
       ],
       "check_th": [
-        "การรักษาผู้โดยสารมีอาการหอบช่วง 20:20–20:25",
-        "อยู่ในตู้ 3",
+        "สมุดบันทึกการรักษาของลิโอรา อยู่ในตู้ 3",
+        "ไม่เขียนช่วงเวลาบนภาพ เพราะเวลาในสมุดต่างกันในแต่ละคดีและอยู่ในข้อความของเกม",
         "พยานบุคคลอยู่ใน scene-03-dining"
       ],
-      "prompt_file": "prompts/detail-patient-log.json"
+      "prompt_file": "prompts/detail-patient-log.json",
+      "edit_note_th": "แก้ภาพเดิมด้วยโค้ดเมื่อ 2026-11-27 ให้ตรงกับเนื้อเรื่องปัจจุบันใน data/cases ไม่ได้สร้างภาพใหม่ ลบบรรทัด 20:20 – 20:25 ออก เวลานี้มาจากเรื่องรุ่นเก่า และตรงกับช่วงเกิดเหตุพอดี จึงกลายเป็นที่อยู่ของลิโอราช่วงเกิดเหตุในทุกคดี ขัดกับข้อความ (คดี B 21:00–21:20, คดี C อ้าง 20:10)"
     },
     {
       "id": "detail-pocket-watch",
@@ -411,9 +414,10 @@
       "testimony": [],
       "critical_text": [],
       "check_th": [
-        "กระเป๋าหนังล็อกรหัสตัวเลขยังปิดสนิท วางอยู่บนโต๊ะทำงาน",
-        "มีบัตรผูกหูกระเป๋าหรือบันทึกช่วยจำข้างกระเป๋า"
-      ]
+        "กระเป๋าหนังล็อกรหัสตัวเลขสี่หลักยังปิดสนิท วางอยู่บนโต๊ะทำงาน",
+        "มีบัตรหรือบันทึกช่วยจำวางข้างกระเป๋า"
+      ],
+      "edit_note_th": "แก้ภาพเดิมด้วยโค้ดเมื่อ 2026-11-27 ให้ตรงกับเนื้อเรื่องปัจจุบันใน data/cases ไม่ได้สร้างภาพใหม่ วาดช่องล้อตัวเลขสี่หลักทับรูกุญแจบนตัวล็อกทั้งสอง เพราะข้อความบอกว่าเป็นล็อกตัวเลข แต่ภาพเดิมเป็นรูกุญแจ"
     },
     {
       "id": "detail-dossier",
@@ -423,7 +427,8 @@
       "location": "first_class_car",
       "evidence": [
         "dossier_missing_file_c",
-        "judicial_transfer_order"
+        "judicial_transfer_order",
+        "file_c_initials"
       ],
       "testimony": [],
       "critical_text": [
@@ -438,7 +443,40 @@
         "หนังสือนำส่งสำนวนไปหน่วยงานตุลาการลงวันที่วันนี้",
         "ตรวจตัวอักษรและวันที่จริง"
       ],
-      "prompt_file": "prompts/detail-dossier.json"
+      "prompt_file": "prompts/detail-dossier.json",
+      "cases": [
+        "case_01_gideon"
+      ],
+      "note_th": "ใช้กับคดี A ที่แฟ้ม C หายไปเท่านั้น คดี B และ C ใช้ detail-dossier-file-c-present"
+    },
+    {
+      "id": "detail-dossier-file-c-present",
+      "file": "detail-dossier-file-c-present.png",
+      "group": "detail",
+      "title_th": "แฟ้มเบลล์เวเธอร์ครบสี่ช่องและหนังสือนำส่ง",
+      "location": "first_class_car",
+      "evidence": [
+        "dossier_missing_file_c",
+        "judicial_transfer_order",
+        "file_c_initials"
+      ],
+      "testimony": [],
+      "critical_text": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "14 NOV 1938"
+      ],
+      "check_th": [
+        "แฟ้มย่อย A B C D อยู่ครบ",
+        "หนังสือนำส่งสำนวนไปหน่วยงานตุลาการลงวันที่วันนี้"
+      ],
+      "cases": [
+        "case_02_vincent",
+        "case_03_liora"
+      ],
+      "edit_note_th": "แก้ภาพเดิมด้วยโค้ดเมื่อ 2026-11-27 ให้ตรงกับเนื้อเรื่องปัจจุบันใน data/cases ไม่ได้สร้างภาพใหม่ สร้างจาก detail-dossier โดยคัดลอกปึกเอกสารช่อง B ไปใส่ช่อง C เพราะคดี B และ C แฟ้ม C ยังครบ"
     },
     {
       "id": "detail-wall-clock",
@@ -470,14 +508,15 @@
       "testimony": [],
       "critical_text": [
         "1923",
-        "Project Nocturne"
+        "Elias Venn"
       ],
       "check_th": [
-        "เป็นเวชระเบียนลับที่โยงกับอดีต",
+        "แฟ้มรักษาและคำให้การของเอเลียส เวนน์ ปี 1923",
         "ไม่เพิ่มขวดยาพิษ อาวุธ หรือหลักฐานฆาตกรรมปัจจุบัน",
         "ข้อความละเอียดควรอ้างจากข้อมูลเกม"
       ],
-      "prompt_file": "prompts/detail-medical-file.json"
+      "prompt_file": "prompts/detail-medical-file.json",
+      "edit_note_th": "แก้ภาพเดิมด้วยโค้ดเมื่อ 2026-11-27 ให้ตรงกับเนื้อเรื่องปัจจุบันใน data/cases ไม่ได้สร้างภาพใหม่ เปลี่ยนชื่อบนปกจาก PROJECT NOCTURNE (ไม่มีในเรื่อง) เป็น ELIAS VENN"
     },
     {
       "id": "detail-gideon",
@@ -509,7 +548,8 @@
       "location": "second_class_car",
       "evidence": [
         "wire_cutters",
-        "vincent_blood"
+        "vincent_blood",
+        "mara_job_note"
       ],
       "testimony": [],
       "check_th": [
