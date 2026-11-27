@@ -62,6 +62,24 @@ def test_stray_foreign_script_is_rejected():
     assert validate_narration(source, "คุณก้าวเข้าตู้เสบียง กลิ่นชาเอิร์ลเกรย์ลอยมา — อบอุ่น 💡", "", WORLD) is None
 
 
+def test_station_must_not_become_a_tunnel():
+    source = "บันทึกเดินรถ: อุโมงค์แบล็กโฮล 20:20–20:26; ฮัลเบิร์ด 20:45"
+    bad = "รถผ่านอุโมงค์แบล็กโฮล 20:20–20:26 และอุโมงค์ฮัลเบิร์ด 20:45"
+    good = "ตามบันทึกเดินรถ รถผ่านอุโมงค์ช่วง 20:20–20:26 ในอุโมงค์แบล็กโฮล แล้วถึงสถานีฮัลเบิร์ด 20:45"
+    assert validate_narration(source, bad, "ผ่านอุโมงค์ช่วงไหน", WORLD) == "wrong_place_type"
+    assert validate_narration(source, good, "ผ่านอุโมงค์ช่วงไหน", WORLD) is None
+    assert validate_narration(source, "รถผ่านสถานีแบล็กโฮล 20:20–20:26 แล้วถึงฮัลเบิร์ด 20:45",
+                              "", WORLD) == "wrong_place_type"
+
+
+def test_narrator_must_not_decide_a_characters_feelings():
+    source = "กิเดียนหยุดก่อนตอบ “ผมอาจจำผู้ส่งข่าวคลาดเคลื่อน”"
+    bad = "กิเดียนไม่ได้แสดงความกังวล เขาหยุดก่อนตอบ “ผมอาจจำผู้ส่งข่าวคลาดเคลื่อน”"
+    good = "กิเดียนเงียบไปครู่หนึ่งก่อนตอบ “ผมอาจจำผู้ส่งข่าวคลาดเคลื่อน”"
+    assert validate_narration(source, bad, "กิเดียนดูกังวลไหม", WORLD) == "new_emotion"
+    assert validate_narration(source, good, "กิเดียนดูกังวลไหม", WORLD) is None
+
+
 def test_player_may_name_things_the_narrator_echoes():
     source = "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
     rewrite = "นาฬิกาพกกลไกไม่ได้อยู่ใกล้คุณ คุณไม่ได้อยู่ในตู้เดียวกับมัน"

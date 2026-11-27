@@ -113,9 +113,55 @@ def test_dynamic_adaptation_suspect_reactions():
 
     adapted, note = adaptation.adapt(base_decision, cmd, state, profile)
 
-    assert "กิเดียนชะงักไปเล็กน้อย" in adapted.message
+    assert "กิเดียนวางแก้วน้ำร้อนลง" in adapted.message
     assert "ผมไม่มีส่วนเกี่ยวข้องกับเรื่องนี้ครับ" in adapted.message
     assert note is not None
+
+
+def test_suspect_reaction_does_not_depend_on_evidence_held():
+    """ท่าทีต้องไม่เปลี่ยนตามหลักฐานที่ถือ ไม่งั้นผู้เล่นจะใช้ท่าทีเดาคนร้ายได้ (คนร้ายต่างกันในแต่ละคดี)"""
+    adaptation = DynamicAdaptationEngine()
+    profile = BehaviorTracker(session_id="evidence_neutral").get_profile(GameState())
+    cmd = ParsedCommand(action=ActionType.INTERROGATE, target="gideon_hart", raw_text="ถามกิเดียน")
+    base = Decision(allowed=True, message="ok")
+    empty = GameState(current_location="lounge_car")
+    holding = GameState(current_location="lounge_car",
+                        discovered_evidence=["obsidian_cufflink", "burnt_folder_c", "wax_seal_imprint"])
+    assert adaptation.adapt(base, cmd, empty, profile)[0].message == \
+        adaptation.adapt(base, cmd, holding, profile)[0].message
+
+
+def test_suspect_reactions_add_no_facts_or_suspicion_cues():
+    """ท่าทีห้ามเพิ่มข้อเท็จจริง (เวลา ชื่อคนอื่น อาการบาดเจ็บ ของที่ไม่มีในเรื่อง) หรือคำข่มขู่ชวนสงสัย"""
+    import re
+    banned = ("ซิการ์", "ตระกูล", "แหวน", "แผล", "อันตราย", "เงามืด", "ฆาตกรรม", "ไฟดับ", "สถานี",
+              "อยู่ไม่ถึง", "ราคาที่ต้องจ่าย", "ความลับ", "หลักฐาน", "ลิโอรา", "กิเดียน ฮาร์ต")
+    reactions = DynamicAdaptationEngine.SUSPECT_REACTIONS
+    assert set(reactions) == {"gideon_hart", "dr_liora_venn", "vincent_gray", "car_attendant", "patient_witness"}
+    for target, by_style in reactions.items():
+        assert set(by_style) == set(PlayerArchetype)
+        for text in by_style.values():
+            assert not re.search(r"\d", text), text
+            spoken = text.split(")*", 1)[1] if ")*" in text else text
+            for word in banned:
+                assert word not in spoken or (word == "ลิโอรา" and target == "dr_liora_venn"), (target, word)
+
+
+def test_suspect_reaction_is_shown_once_per_style():
+    """ถามคนเดิมซ้ำ ท่าทีเดิมไม่ต้องโผล่ทุกตา"""
+    from types import SimpleNamespace
+    adaptation = DynamicAdaptationEngine()
+    tracker = BehaviorTracker(session_id="reaction_once")
+    state = GameState(current_location="dining_car_staff")
+    cmd = ParsedCommand(action=ActionType.INTERROGATE, target="car_attendant", raw_text="ถามพนักงาน")
+    messages = []
+    for _ in range(3):
+        tracker.record_turn("ถามพนักงาน", cmd, Decision(allowed=True, message="ข้อความเอนจิน"), state)
+        result = SimpleNamespace(decision=Decision(allowed=True, message="ข้อความเอนจิน"), parsed=cmd, profile=None)
+        adaptation.adapt_turn(tracker, result, state)
+        messages.append(result.decision.message)
+    assert messages[0] != "ข้อความเอนจิน" and messages[0].endswith("ข้อความเอนจิน")
+    assert all(m.startswith("ข้อความเอนจิน") and "*(" not in m for m in messages[1:])
 
 
 def test_dynamic_adaptation_scaffolding_nudge():

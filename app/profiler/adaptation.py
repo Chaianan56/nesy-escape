@@ -41,6 +41,15 @@ class DynamicAdaptationEngine:
         consecutive_looping_count = getattr(profile, "consecutive_looping_count", 0)
 
         # 2. เรียก adapt() เพื่อปรับปรุง Decision และสร้างข้อความคำแนะนำ
+        # ท่าทีของ NPC แสดงครั้งเดียวต่อตัวละครต่อสไตล์ผู้เล่น ไม่ซ้ำทุกตาที่ถาม
+        shown = getattr(tracker, "shown_reactions", None)
+        if shown is None:
+            shown = set()
+            try:
+                tracker.shown_reactions = shown
+            except AttributeError:
+                pass
+        reaction_key = (getattr(result.parsed, "target", None), profile.primary_archetype)
         new_decision, adaptive_note = self.adapt(
             decision=result.decision,
             parsed=result.parsed,
@@ -50,7 +59,10 @@ class DynamicAdaptationEngine:
             recent_violation_count=recent_violation_count,
             consecutive_looping_count=consecutive_looping_count,
             engine=engine,
+            allow_reaction=reaction_key not in shown,
         )
+        if adaptive_note and "NPC reaction" in adaptive_note:
+            shown.add(reaction_key)
         result.decision = new_decision
 
         # 3. บันทึก telemetry และอัปเดตตัวนับ Scaffolding Triggers
@@ -78,6 +90,7 @@ class DynamicAdaptationEngine:
         recent_violation_count: int = 0,
         consecutive_looping_count: Optional[int] = None,
         engine: Optional[Any] = None,
+        allow_reaction: bool = True,
     ) -> Tuple[Decision, Optional[str]]:
         """
         ปรับปรุงข้อความใน Decision ให้มีน้ำเสียงและปฏิกิริยาของตัวละครที่เหมาะสม
@@ -92,7 +105,7 @@ class DynamicAdaptationEngine:
         # ----------------------------------------------------------------------
         # 1. Dynamic Suspect Dialogue Adaptation (ปรับน้ำเสียงของพยาน/ผู้ต้องสงสัย)
         # ----------------------------------------------------------------------
-        if parsed.action == ActionType.INTERROGATE and decision.allowed and parsed.target:
+        if allow_reaction and parsed.action == ActionType.INTERROGATE and decision.allowed and parsed.target:
             reaction = self._get_suspect_reaction(parsed.target, profile, state)
             if reaction:
                 adapted_message = f"{reaction}\n\n{adapted_message}"
@@ -143,168 +156,105 @@ class DynamicAdaptationEngine:
         )
         return new_decision, adaptive_note
 
+    # ท่าทีของ NPC ตามสไตล์ผู้เล่น
+    # ทุกคดีใช้ตัวละครชุดเดียวกันแต่คนร้ายต่างกัน ข้อความนี้จึงต้อง
+    # - ใช้แค่สิ่งที่คำบรรยายตัวละครใน data บอกไว้ (เช่น กิเดียนถือแก้วน้ำร้อน ลิโอราถือสมุดเล่มเล็ก วินเซนต์มือสั่น)
+    # - ไม่ให้ข้อเท็จจริงใหม่ ไม่ให้การแทนพยาน และไม่ขึ้นกับหลักฐานที่ผู้เล่นถือ (ไม่งั้นจะกลายเป็นคำใบ้ว่าใครผิด)
+    # - ไม่ข่มขู่หรือพูดจาลึกลับชวนให้สงสัยตัวละครคนใดเป็นพิเศษ
+    # ข้อความนี้ต่อหน้าข้อความของเอนจินหลังผู้เล่าเรื่องทำงานแล้ว จึงไม่ผ่านตัวตรวจของผู้เล่า
+    SUSPECT_REACTIONS: Dict[str, Dict[PlayerArchetype, str]] = {
+        "gideon_hart": {
+            PlayerArchetype.FORENSIC_ANALYST:
+                "*(กิเดียนวางแก้วน้ำร้อนลงแล้วหันมาหาคุณเต็มตัว)* "
+                "\"คุณจดทุกอย่างละเอียดดีนะครับ ถามมาได้เลย\"",
+            PlayerArchetype.MAVERICK_TRAILBLAZER:
+                "*(กิเดียนเลิกคิ้วเล็กน้อย แล้วพูดช้าๆ ตามแบบของเขา)* "
+                "\"ใจเย็นสักนิดครับ เราทำงานสายเดียวกัน ไล่ไปทีละเรื่องดีกว่า\"",
+            PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
+                "*(กิเดียนยกแก้วน้ำร้อนขึ้นจิบช้าๆ ก่อนตอบ)* "
+                "\"คุณอยากรู้ว่าผมคิดอะไรอยู่สินะครับ ถามตรงๆ ได้เลย\"",
+            PlayerArchetype.INTUITIVE_RUSHER:
+                "*(กิเดียนยกมือขึ้นเบาๆ ให้คุณชะลอ)* "
+                "\"ทีละคำถามครับ คุณเจ้าหน้าที่\"",
+            PlayerArchetype.BALANCED_INVESTIGATOR:
+                "*(กิเดียนสบตาคุณด้วยท่าทีสุขุมระมัดระวังถ้อยคำตามแบบฉบับเจ้าหน้าที่ส่วนกลาง)* "
+                "\"มีเรื่องอะไรจะถามผมหรือครับคุณเจ้าหน้าที่?\"",
+        },
+        "dr_liora_venn": {
+            PlayerArchetype.FORENSIC_ANALYST:
+                "*(ดร.ลิโอราเปิดสมุดบันทึกเล่มเล็กเตรียมไว้)* "
+                "\"ถ้าคุณอยากได้ข้อเท็จจริงทางการแพทย์ ฉันพร้อมตอบค่ะ\"",
+            PlayerArchetype.MAVERICK_TRAILBLAZER:
+                "*(ดร.ลิโอราถอยไปครึ่งก้าว กำสมุดบันทึกเล่มเล็กไว้แน่น)* "
+                "\"ค่อยๆ พูดได้ไหมคะ ฉันตอบให้ได้ค่ะ\"",
+            PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
+                "*(ดร.ลิโอราสบตาคุณครู่หนึ่ง)* "
+                "\"ขอบคุณที่ถามอย่างใจเย็นนะคะ\"",
+            PlayerArchetype.INTUITIVE_RUSHER:
+                "*(ดร.ลิโอรากะพริบตาถี่ๆ เมื่อเห็นคุณรีบร้อนซักถาม)* "
+                "\"ใจเย็นๆ ก่อนนะคะคุณเจ้าหน้าที่ ถามทีละเรื่องดีกว่าค่ะ\"",
+            PlayerArchetype.BALANCED_INVESTIGATOR:
+                "*(ดร.ลิโอราพยักหน้ารับอย่างสุภาพ)* "
+                "\"ฉันพร้อมตอบสิ่งที่เป็นประโยชน์ต่อการตรวจคดีค่ะ\"",
+        },
+        "vincent_gray": {
+            PlayerArchetype.FORENSIC_ANALYST:
+                "*(วินเซนต์เหลือบมองสายตาของคุณแล้วสะบัดหน้าหนีอย่างรำคาญ)* "
+                "\"คุณมองผมเหมือนกำลังใช้แว่นขยายส่องเลยนะ... ถามมาเถอะ\"",
+            PlayerArchetype.MAVERICK_TRAILBLAZER:
+                "*(วินเซนต์ขยับไปพิงผนัง มือยังสั่นเล็กน้อย)* "
+                "\"ถามมาเถอะ ไม่ต้องตะคอกก็ได้\"",
+            PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
+                "*(วินเซนต์สอดมือที่สั่นเข้ากระเป๋าโค้ต สีหน้าอ่อนลงเล็กน้อย)* "
+                "\"คุณพูดจาดีนี่เจ้าหน้าที่... ถามมาเถอะ\"",
+            PlayerArchetype.INTUITIVE_RUSHER:
+                "*(วินเซนต์ยกมือห้ามอย่างเหนื่อยหน่าย)* "
+                "\"เฮ้ยๆ ถามเร็วจังวะคุณ... ใจเย็นก่อน ผมไม่ใช่เครื่องจักรนะ\"",
+            PlayerArchetype.BALANCED_INVESTIGATOR:
+                "*(วินเซนต์เหลือบมองคุณอย่างหยั่งเชิง ก่อนจะตอบอย่างระวังตัว)* "
+                "\"จะถามอะไรก็ถามมาเถอะครับ\"",
+        },
+        "car_attendant": {
+            PlayerArchetype.FORENSIC_ANALYST:
+                "*(พนักงานตรวจตู้หยิบสมุดบันทึกขึ้นมาเปิดเทียบ)* "
+                "\"ยินดีให้ความร่วมมือครับคุณเจ้าหน้าที่\"",
+            PlayerArchetype.MAVERICK_TRAILBLAZER:
+                "*(พนักงานตรวจตู้มองคุณด้วยความระแวงเล็กน้อย)* "
+                "\"เอ่อ... ถามได้ครับ แต่กรุณาอย่าทำลายทรัพย์สินของรถไฟนะครับ\"",
+            PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
+                "*(พนักงานตรวจตู้ถอนหายใจยาวก่อนจะเล่า)* "
+                "\"คืนนี้วุ่นวายจริงๆ ครับคุณผู้สืบสวน\"",
+            PlayerArchetype.INTUITIVE_RUSHER:
+                "*(พนักงานตรวจตู้สะดุ้งเล็กน้อยกับคำถามที่โพล่งออกมา)* "
+                "\"ใจเย็นๆ ครับท่าน!\"",
+            PlayerArchetype.BALANCED_INVESTIGATOR:
+                "*(พนักงานตรวจตู้ยืนตัวตรงและตอบคำถามด้วยความเคารพ)* "
+                "\"สอบถามได้เลยครับ\"",
+        },
+        "patient_witness": {
+            PlayerArchetype.FORENSIC_ANALYST:
+                "*(ผู้ป่วยขยับตัวช้าๆ สีหน้ายังซีดเซียว)* "
+                "\"ถามได้ครับ ผมจะตอบเท่าที่จำได้\"",
+            PlayerArchetype.MAVERICK_TRAILBLAZER:
+                "*(ผู้ป่วยสะดุ้งและไอเบาๆ)* "
+                "\"อย่าเสียงดังเลยครับ ผมยังเวียนหัวอยู่...\"",
+            PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
+                "*(ผู้ป่วยสบตาคุณด้วยความรู้สึกขอบคุณ)* "
+                "\"ขอบคุณที่ถามอาการผมก่อนนะครับ\"",
+            PlayerArchetype.INTUITIVE_RUSHER:
+                "*(ผู้ป่วยกุมขมับ)* "
+                "\"อย่าเพิ่งรัวคำถามใส่ผมเลยครับ... หัวผมยังตื้อๆ อยู่\"",
+            PlayerArchetype.BALANCED_INVESTIGATOR:
+                "*(ผู้ป่วยพยุงตัวขึ้นนั่งเล็กน้อย)* "
+                "\"มีอะไรที่ผมพอจะช่วยได้บ้างครับ?\"",
+        },
+    }
+
     def _get_suspect_reaction(
         self, target: str, profile: PlayerProfile, state: GameState
     ) -> Optional[str]:
-        """สร้างคำบรรยายท่าทีและน้ำเสียงตอบรับเฉพาะตัวละครตาม Archetype ของผู้เล่น"""
-        archetype = profile.primary_archetype
-
-        # ======================================================================
-        # กิเดียน ฮาร์ต (Gideon Hart) — ทายาทตระกูลอิทธิพล สุขุม เย่อหยิ่ง กุมความลับ
-        # ======================================================================
-        if target == "gideon_hart":
-            # หากผู้เล่นถือหลักฐานมัดตัว (เช่น กระดุม หรือ เศษแฟ้ม C) กิเดียนจะระแวงขึ้นทันที
-            has_incriminating = any(
-                c in state.discovered_evidence
-                for c in ["obsidian_cufflink", "burnt_folder_c", "wax_seal_imprint"]
-            )
-            if has_incriminating or archetype == PlayerArchetype.FORENSIC_ANALYST:
-                return (
-                    "*(กิเดียนชะงักไปเล็กน้อย สายตาของเขาจ้องมองคุณอย่างระแวดระวัง "
-                    "มือขวากุมแหวนตราประจำตระกูลแน่นขึ้นเมื่อสังเกตเห็นความคมกริบของพยานหลักฐานที่คุณถือ)*"
-                )
-            if archetype == PlayerArchetype.MAVERICK_TRAILBLAZER:
-                return (
-                    "*(กิเดียนยิ้มมุมปากอย่างเยือกเย็นและปรายตามองคุณด้วยความเหยียดหยาม)* "
-                    "\"คุณดูใจร้อนและไร้ระเบียบนะคุณผู้สืบสวน... บนรถไฟขบวนนี้ ความผลีผลามมักมีราคาที่ต้องจ่ายแพงเสมอ\""
-                )
-            if archetype == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
-                return (
-                    "*(กิเดียนยกแก้วเครื่องดื่มขึ้นจิบช้าๆ พลางประเมินคำถามของคุณ)* "
-                    "\"พยายามเจาะลึกจิตใจคนอื่นดีนี่... แต่ระวังไว้หน่อย ความจริงบางเรื่องบนขบวนนี้ ยิ่งรู้มากก็ยิ่งอันตราย\""
-                )
-            if archetype == PlayerArchetype.INTUITIVE_RUSHER:
-                return (
-                    "*(กิเดียนพ่นควันซิการ์ออกมาอย่างไม่ยี่หระ)* "
-                    "\"ด่วนสรุปเกินไปแล้วคุณเจ้าหน้าที่ คิดจะฟันธงคดีโดยไม่ดูบริบทให้รอบคอบก่อนหรือไง?\""
-                )
-            if archetype == PlayerArchetype.BALANCED_INVESTIGATOR:
-                return (
-                    "*(กิเดียนสบตาคุณด้วยท่าทีสุขุมระมัดระวังถ้อยคำตามแบบฉบับเจ้าหน้าที่ส่วนกลาง)* "
-                    "\"มีเรื่องอะไรจะถามผมหรือครับคุณเจ้าหน้าที่?\""
-                )
-
-        # ======================================================================
-        # ดร. ลิโอรา เวนน์ (Dr. Liora Venn) — นักวิจัย หวาดระแวง กลัวภัยมืด
-        # ======================================================================
-        elif target == "dr_liora_venn":
-            if archetype == PlayerArchetype.FORENSIC_ANALYST:
-                return (
-                    "*(ดร.ลิโอราถอนหายใจด้วยความโล่งอกเล็กน้อยเมื่อเห็นว่าคุณทำงานอย่างเป็นระบบและยึดถือพยานหลักฐาน)* "
-                    "\"ถ้าคุณเป็นคนที่เชื่อในหลักฐานและข้อเท็จจริงทางการแพทย์... ฉันก็พร้อมจะให้ความร่วมมือค่ะ\""
-                )
-            if archetype == PlayerArchetype.MAVERICK_TRAILBLAZER:
-                return (
-                    "*(ดร.ลิโอราผงะถอยหลังด้วยความหวาดระแวง มือทั้งสองกุมกระเป๋าเอกสารไว้แน่น)* "
-                    "\"อย่า... อย่าเข้ามาใกล้ฉันมากไปกว่านี้เลยค่ะ! ท่าทางและการกระทำของคุณดูคาดเดาไม่ได้และน่ากลัวเกินไป...\""
-                )
-            if archetype == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
-                return (
-                    "*(ดร.ลิโอราสบตาคุณด้วยแววตาที่สับสนและกังวลใจ น้ำเสียงสั่นเทาเล็กน้อย)* "
-                    "\"คุณดูพยายามเข้าใจสิ่งที่ฉันแบกรับอยู่... แต่ได้โปรดระวังตัวด้วยนะคะ เงามืดบนรถไฟขบวนนี้จับตาดูพวกเราอยู่ตลอดเวลา\""
-                )
-            if archetype == PlayerArchetype.INTUITIVE_RUSHER:
-                return (
-                    "*(ดร.ลิโอรากะพริบตาถี่ๆ เมื่อเห็นคุณรีบร้อนซักถาม)* "
-                    "\"ใจเย็นๆ ก่อนนะคะคุณเจ้าหน้าที่... คดีแบบนี้การด่วนสรุปอาจทำให้มองข้ามความจริงสำคัญไปได้ค่ะ\""
-                )
-            if archetype == PlayerArchetype.BALANCED_INVESTIGATOR:
-                return (
-                    "*(ดร.ลิโอราพยักหน้ารับอย่างสุภาพ แววตายังคงมีความกังวลฉายอยู่)* "
-                    "\"ฉันพร้อมตอบสิ่งที่เป็นประโยชน์ต่อการตรวจคดีค่ะ\""
-                )
-
-        # ======================================================================
-        # วินเซนต์ เกรย์ (Vincent Gray) — โจรรับจ้าง กระด้าง แต่เปิดเผยตามข้อเท็จจริง
-        # ======================================================================
-        elif target == "vincent_gray":
-            if archetype == PlayerArchetype.FORENSIC_ANALYST:
-                return (
-                    "*(วินเซนต์เหลือบมองสายตาของคุณแล้วสะบัดหน้าหนีอย่างรำคาญ)* "
-                    "\"คุณมองผมเหมือนกำลังใช้แว่นขยายส่องหาความผิดเลยนะ... ผมบอกสิ่งที่รู้ไปหมดแล้ว อย่ามาจับผิดกันเลยน่า!\""
-                )
-            if archetype == PlayerArchetype.MAVERICK_TRAILBLAZER:
-                return (
-                    "*(วินเซนต์หัวเราะหึๆ ในลำคออย่างไม่เกรงกลัว)* "
-                    "\"ชอบเล่นนอกกรอบเหมือนกันนี่หว่า... แต่ระวังตัวไว้เถอะ คนกล้าแบบคุณ ถ้าล้ำเส้นเกินไปมักอยู่ไม่ถึงปลายทางหรอก\""
-                )
-            if archetype == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
-                return (
-                    "*(วินเซนต์ถูรอยแผลที่แขนเบาๆ สีหน้าดูอ่อนลงเล็กน้อย)* "
-                    "\"คุณพูดจาดูเป็นมิตรดีนี่เจ้าหน้าที่... เอาเป็นว่าผมให้ความร่วมมือเท่าที่จำเป็น แต่ขอร้องว่าอย่าเอาผมไปเอี่ยวกับแผนการฆาตกรรมเลย\""
-                )
-            if archetype == PlayerArchetype.INTUITIVE_RUSHER:
-                return (
-                    "*(วินเซนต์ยกมือห้ามอย่างเหนื่อยหน่าย)* "
-                    "\"เฮ้ยๆ ถามเร็วจังวะคุณ... ใจเย็นก่อน ผมไม่ใช่เครื่องจักรนะ คิดจะรวบรัดคดีหรือไง?\""
-                )
-            if archetype == PlayerArchetype.BALANCED_INVESTIGATOR:
-                return (
-                    "*(วินเซนต์เหลือบมองคุณอย่างหยั่งเชิง ก่อนจะตอบอย่างระวังตัว)* "
-                    "\"จะถามอะไรก็รีบถามเถอะครับ รถไฟใกล้ถึงสถานีแล้ว\""
-                )
-
-        # ======================================================================
-        # พนักงานตรวจตู้ (Car Attendant) — ซื่อตรง ใส่ใจผู้โดยสาร ยึดถือกฎระเบียบ
-        # ======================================================================
-        elif target == "car_attendant":
-            if archetype == PlayerArchetype.FORENSIC_ANALYST:
-                return (
-                    "*(พนักงานตรวจตู้หยิบสมุดบันทึกขึ้นมาเปิดเทียบ)* "
-                    "\"ยินดีให้ความร่วมมือครับคุณเจ้าหน้าที่ ผมจดรอบบริการและเวลาไว้อย่างละเอียดครับ\""
-                )
-            if archetype == PlayerArchetype.MAVERICK_TRAILBLAZER:
-                return (
-                    "*(พนักงานตรวจตู้มองคุณด้วยความระแวงเล็กน้อย)* "
-                    "\"เอ่อ... มีอะไรในตู้เสบียงที่ทำให้คุณไม่พอใจหรือเปล่าครับ? กรุณาอย่าทำลายทรัพย์สินของรถไฟนะครับ\""
-                )
-            if archetype == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
-                return (
-                    "*(พนักงานตรวจตู้ถอนหายใจยาวก่อนจะเล่า)* "
-                    "\"คืนนี้วุ่นวายจริงๆ ครับคุณผู้สืบสวน ขอบคุณที่เข้าใจความกดดันของพนักงานอย่างพวกผมนะ\""
-                )
-            if archetype == PlayerArchetype.INTUITIVE_RUSHER:
-                return (
-                    "*(พนักงานตรวจตู้สะดุ้งเล็กน้อยกับคำถามที่โพล่งออกมา)* "
-                    "\"ใจเย็นๆ ครับท่าน! เดี๋ยวผมจะสรุปข้อมูลสำคัญให้ฟังเดี๋ยวนี้ครับ\""
-                )
-            if archetype == PlayerArchetype.BALANCED_INVESTIGATOR:
-                return (
-                    "*(พนักงานตรวจตู้ยืนตัวตรงและตอบคำถามด้วยความเคารพ)* "
-                    "\"สอบถามเรื่องรอบบริการหรือเหตุการณ์บนรถไฟได้เลยครับ\""
-                )
-
-        # ======================================================================
-        # ผู้ป่วยที่ลิโอราดูแล (Patient Witness) — อ่อนแรง ต้องการการพักผ่อน
-        # ======================================================================
-        elif target == "patient_witness":
-            if archetype == PlayerArchetype.FORENSIC_ANALYST:
-                return (
-                    "*(ผู้ป่วยขยับตัวช้าๆ สีหน้ายังซีดเซียว)* "
-                    "\"คุณหมอลิโอราดูแลผมตั้งแต่ก่อนไฟดับ... ผมจำเวลาที่หมอเข้ามาได้แม่นยำครับ\""
-                )
-            if archetype == PlayerArchetype.MAVERICK_TRAILBLAZER:
-                return (
-                    "*(ผู้ป่วยสะดุ้งตัวโยนและไอเบาๆ)* "
-                    "\"โอ๊ย... อย่าเสียงดังเลยครับคุณ ผมยังเวียนหัวอยู่เลย...\""
-                )
-            if archetype == PlayerArchetype.PSYCHOLOGICAL_INTERROGATOR:
-                return (
-                    "*(ผู้ป่วยสบตาคุณด้วยความรู้สึกขอบคุณ)* "
-                    "\"คุณดูเป็นห่วงอาการผมมากกว่าจะมาเค้นเอาเรื่อง... ขอบคุณนะครับ เดี๋ยวผมจะบอกสิ่งที่ผมเห็น\""
-                )
-            if archetype == PlayerArchetype.INTUITIVE_RUSHER:
-                return (
-                    "*(ผู้ป่วยกุมขมับแน่น)* "
-                    "\"อย่าเพิ่งรัวคำถามใส่ผมเลยครับ... หัวผมยังตื้อๆ อยู่เลย\""
-                )
-            if archetype == PlayerArchetype.BALANCED_INVESTIGATOR:
-                return (
-                    "*(ผู้ป่วยพยุงตัวขึ้นนั่งเล็กน้อย)* "
-                    "\"ผมยังพักอยู่ตรงนี้ มีอะไรที่ผมพอจะช่วยได้บ้างครับ?\""
-                )
-
-        return None
+        """ท่าทีของตัวละครตามสไตล์ของผู้เล่น ไม่ขึ้นกับหลักฐานหรือคดี (ดู SUSPECT_REACTIONS)"""
+        return self.SUSPECT_REACTIONS.get(target, {}).get(profile.primary_archetype)
 
     def _get_scaffolding_nudge(
         self,
