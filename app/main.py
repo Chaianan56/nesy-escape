@@ -383,21 +383,17 @@ def journal(session: Session = Depends(session_for)):
         "max_submitted_evidence": w.get("max_submitted_evidence", 15),
         "submitted_evidence": session.submitted_evidence,
         "case_closed": bool(state.ending_id),
-        "background": [entry for entry in CASE_BACKGROUND
+        # เอกสารและบันทึกเบื้องหลังมาจากข้อมูลของคดีที่กำลังเล่น ส่งเฉพาะที่ผู้เล่นพบหลักฐานแล้ว
+        # (เดิมเขียนตายตัวตามคดี A จึงขัดกับคดี B และ C และหน้าเว็บมีเนื้อหาเอกสารทั้งหมดก่อนผู้เล่นพบ)
+        "documents": [doc for doc in w.get("documents", [])
+                      if any(e in state.discovered_evidence for e in doc["unlocked_by"])],
+        "background": [entry for entry in w.get("case_background", [])
                        if all(e in state.discovered_evidence for e in entry["requires_evidence"])],
         "pillar_labels": w.get("pillar_labels", {}),
         "profile": get_current_profile(state.session_id or "default", state),
     }
 
 
-CASE_BACKGROUND = [
-    {"title": "สำนวนเบลล์เวเธอร์ ปี 1923", "requires_evidence": ["dossier_missing_file_c"],
-     "text": "ปกสำนวนระบุเหตุรถไฟชนที่เบลล์เวเธอร์เมื่อสิบห้าปีก่อน คดีถูกปิดเป็นอุบัติเหตุ เอกสารแบ่งเป็นแฟ้ม A ถึง D แต่ช่อง C ว่างอยู่"},
-    {"title": "คำให้การที่ถูกตัดออกจากสำนวน", "requires_evidence": ["secret_file"],
-     "text": "เอเลียส เวนน์ บิดาของลิโอรา รอดชีวิตจากเหตุปี 1923 และให้การถึงคำเตือนก่อนปล่อยรถ คำให้การถูกตัดออกจากสำนวน เขาเสียชีวิตในปี 1931 ลิโอราเก็บสำเนาไว้เพื่อคืนความน่าเชื่อถือให้บิดา เอกสารนี้อธิบายอดีต ยังไม่ยืนยันว่าใครฆ่าแคสเซียนคืนนี้"},
-    {"title": "การรื้อคดีในปี 1938", "requires_evidence": ["judicial_transfer_order"],
-     "text": "แคสเซียนกำลังนำสำนวนเบลล์เวเธอร์ส่งให้หน่วยงานตุลาการ หนังสือนำส่งลงวันที่ 14 พฤศจิกายน 1938 เป็นการนำคดีที่ปิดไปแล้วกลับเข้าสู่การตรวจสอบ"},
-]
 
 
 @app.post("/hint")
