@@ -48,6 +48,20 @@ def test_quoted_testimony_must_stay_verbatim():
     assert validate_narration(source, 'กิเดียนเงยหน้าแล้วตอบว่า “ผมอยู่ในตู้เลานจ์ตลอดเวลา”', "", WORLD) is None
 
 
+def test_possessive_khong_does_not_change_the_name():
+    """'แหวนตราของกิเดียน' กับ 'แหวนตรากิเดียน' คือสิ่งเดียวกัน ไม่นับเป็นชื่อใหม่หรือชื่อหาย"""
+    assert validate_narration("แหวนตรากิเดียนมีรอยบิ่น", "แหวนตราของกิเดียนมีรอยบิ่น", "", WORLD) is None
+    assert validate_narration("ตลับยาอมกิเดียนอยู่บนโต๊ะ", "ตลับยาอมของกิเดียนวางอยู่บนโต๊ะ", "", WORLD) is None
+    assert validate_narration("ตลับยาอมกิเดียนอยู่บนโต๊ะ", "ตลับยาอมกิเดียนอยู่ข้างแหวนตราของกิเดียน",
+                              "", WORLD) == "new_entity"
+
+
+def test_stray_foreign_script_is_rejected():
+    source = "ตู้เสบียงอบอวลด้วยกลิ่นชาเอิร์ลเกรย์"
+    assert validate_narration(source, "ตู้เสบียงหอมกลิ่นชาเอิร์לเกรย์", "", WORLD) == "foreign_script"
+    assert validate_narration(source, "คุณก้าวเข้าตู้เสบียง กลิ่นชาเอิร์ลเกรย์ลอยมา — อบอุ่น 💡", "", WORLD) is None
+
+
 def test_player_may_name_things_the_narrator_echoes():
     source = "คุณไม่ได้อยู่ในตู้เดียวกับสิ่งนี้"
     rewrite = "นาฬิกาพกกลไกไม่ได้อยู่ใกล้คุณ คุณไม่ได้อยู่ในตู้เดียวกับมัน"
