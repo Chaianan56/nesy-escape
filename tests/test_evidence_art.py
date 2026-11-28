@@ -34,3 +34,20 @@ def test_story_specific_evidence_uses_a_fitting_image():
     assert "mara_job_note" in groups["detail-vincent"]          # the note is in Vincent's coat pocket
     assert "mara_job_note" not in groups["detail-dossier"]
     assert "poison_vial" in groups["scene-04-medical"]           # the L-7 vial sits in the medical cabinet
+
+
+def test_every_story_scene_image_exists():
+    """ภาพในฉากเล่าเรื่อง (เช่นหน้าเปิดคดี) ทุกหน้าของทุกคดีต้องมีไฟล์จริง ไม่งั้นกรอบภาพจะว่าง"""
+    for path in [ROOT / "data" / "story.json", *sorted((ROOT / "data" / "cases").glob("*.json"))]:
+        story = json.loads(path.read_text(encoding="utf-8"))
+        for scene_id, scene in story.get("narrative_scenes", {}).items():
+            for page in scene.get("pages", []):
+                art = page.get("art")
+                if art:
+                    assert (ART_DIR / f"{art}.png").exists(), (path.name, scene_id, page.get("id"), art)
+
+
+def test_opening_discovery_page_shows_the_body():
+    for path in [ROOT / "data" / "story.json", *sorted((ROOT / "data" / "cases").glob("*.json"))]:
+        pages = json.loads(path.read_text(encoding="utf-8"))["narrative_scenes"]["boarding"]["pages"]
+        assert next(p for p in pages if p["id"] == "discovery")["art"] == "scene-04-body", path.name

@@ -149,6 +149,20 @@
       "prompt_file": "prompts/scene-04-crime.json"
     },
     {
+      "id": "scene-04-body",
+      "file": "scene-04-body.png",
+      "group": "scene",
+      "title_th": "ตู้ 4 · ร่างแคสเซียนในห้องพัก",
+      "location": "first_class_car",
+      "evidence": [],
+      "testimony": [],
+      "check_th": [
+        "ร่างนอนคว่ำบนพรมระหว่างเตียงกับโต๊ะทำงาน",
+        "ใช้ในหน้าเริ่มการสอบสวนของฉากเปิดทุกคดี"
+      ],
+      "edit_note_th": "ตัดจาก scene-04-crime เมื่อ 2026-11-28 ให้เห็นร่างชัดขึ้นในหน้าเริ่มการสอบสวน ไม่ได้สร้างภาพใหม่"
+    },
+    {
       "id": "scene-04-medical",
       "file": "scene-04-medical.png",
       "group": "scene",
