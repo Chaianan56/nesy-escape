@@ -266,13 +266,13 @@ function renderBriefing(briefingText) {
     <div class="story-text">${escapeHtml(briefingText)}</div>
     
     <div class="hints-box">
-      <div class="hints-title">💡 ตัวอย่างคำสั่งที่พิมพ์ได้ในเกม:</div>
+      <div class="hints-title">💡 พิมพ์เป็นประโยคธรรมดาได้เลย เช่น</div>
       <div class="hints-list">
-        <div>• <code>ดูรอบๆ</code> — สำรวจตู้รถที่ยืนอยู่และดูสิ่งที่มองเห็นได้</div>
-        <div>• <code>ไปตู้ 4</code> — ไปยังห้องพักของแคสเซียน ซึ่งเป็นที่เกิดเหตุ</div>
-        <div>• <code>ตรวจนาฬิกาพกกลไก</code> — ตรวจหลักฐานที่มองเห็นในตู้</div>
-        <div>• <code>สอบปากคำกิเดียน</code> — คุยกับพยานหรือผู้ต้องสงสัยที่อยู่ในตู้เดียวกัน</div>
-        <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — ต้องมีหลักฐานเข้าเงื่อนไขฉากจบของบุคคลนั้นก่อน หากยังไม่ครบให้สืบสวนต่อ</div>
+        <div>• <code>ไปดูห้องที่เกิดเหตุกันเถอะ</code></div>
+        <div>• <code>นาฬิกาในเสื้อผู้ตายหยุดเดินตอนกี่โมง</code></div>
+        <div>• <code>คุณกิเดียน ก่อนขึ้นรถไฟคุณไปอยู่ที่ไหนมา</code></div>
+        <div>• ไม่อยากพิมพ์ก็กดปุ่มใต้ภาพ เพื่อตรวจของหรือคุยกับคนในตู้นั้น</div>
+        <div>• มั่นใจแล้วพิมพ์ <code>กล่าวหา</code> ตามด้วยชื่อ ถ้าหลักฐานยังไม่พอ เกมจะบอกว่าขาดอะไร</div>
       </div>
     </div>
   `;
@@ -1019,6 +1019,23 @@ function showLoading() {
   feed.scrollTop = feed.scrollHeight;
 }
 
+// แถบเคล็ดลับเหนือช่องพิมพ์: บอกผู้เล่นใหม่ว่าพิมพ์เป็นประโยคธรรมดาได้ ซ่อนเองหลังส่งคำสั่งครบ 3 ครั้ง หรือเมื่อกดปิด
+const TIPS_HIDE_AFTER = 3;
+let commandsSentForTips = 0;
+function hidePlayTips() {
+  const tips = document.getElementById("playTips");
+  if (tips) tips.hidden = true;
+}
+function countCommandForTips() {
+  commandsSentForTips += 1;
+  if (commandsSentForTips >= TIPS_HIDE_AFTER) hidePlayTips();
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "closeTips") hidePlayTips();
+  });
+}
+
 async function sendMessage(e) {
   e.preventDefault();
   const input = document.getElementById("chatInput");
@@ -1043,6 +1060,7 @@ async function sendMessage(e) {
     window.__canReturnToRoom = false;
   }
 
+  countCommandForTips();
   let steps = [], sequence = false;
   await locked(async () => {
     renderUser(text);

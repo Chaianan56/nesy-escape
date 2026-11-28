@@ -137,6 +137,7 @@ from app.neural.gemini_client import (
 from app.neural.typed_commands import interpret_game as interpret
 from app.neural.narrator import narrate_response, narrator_enabled
 from app.neural.typed_commands import is_plain_look_around
+from app.parser_log import log_if_missed
 
 
 # ============================================================
@@ -426,6 +427,8 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     engine = engine_for_session(session)
     req.state = session.state.model_copy(deep=True)
     result = _handle_command(req, engine=engine, provider=session.api_provider)
+    # เก็บประโยคที่ AI ตีความไม่ได้หรือถูกปฏิเสธ ไว้แก้ตัวแปลคำสั่งหลังให้คนอื่นลองเล่น (ดู app/parser_log.py)
+    log_if_missed(req.text, result, session.case_id, req.state.current_location)
     # ผู้เล่าเรื่อง: ให้ AI เรียบเรียงข้อความที่ผู้เล่นเห็นใหม่ หลังกฎตัดสินเสร็จแล้ว
     # แก้ได้แค่ข้อความ ผลตัดสิน สถานะ และสายเหตุผลยังมาจากกฎทั้งหมด (ดู app/neural/narrator.py)
     # คำสั่งดูรอบๆ แบบตรงตัวไม่ต้องเรียบเรียง คำบรรยายห้องเขียนไว้ดีแล้ว และหน้าเว็บส่งคำสั่งนี้เอง

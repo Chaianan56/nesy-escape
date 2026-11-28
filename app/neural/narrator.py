@@ -308,6 +308,37 @@ def _split_hints(message: str) -> Tuple[str, str]:
     return "\n\n".join(body).strip(), "\n\n".join(hints).strip()
 
 
+# ผู้เล่าใช้โควตา AI ชุดเดียวกับตัวแปลคำสั่ง ถ้าโควตาตึง ผู้เล่าต้องหลีกทาง
+# เพราะถ้าตัวแปลคำสั่งล้ม ผู้เล่นเล่นต่อไม่ได้ แต่ถ้าผู้เล่าหยุด ผู้เล่นแค่เห็นข้อความเดิม
+QUOTA_PAUSE_SECONDS = 120          # ผู้เล่าเองติดโควตารายนาที
+QUOTA_PAUSE_DAY_SECONDS = 1800     # ผู้เล่าเองติดโควตารายวัน (ลองใหม่ทุกครึ่งชั่วโมง)
+_paused_until = 0.0
+
+
+def _quota_guard_active() -> bool:
+    import time
+    if time.time() < _paused_until:
+        return True
+    try:
+        from app.neural.gemini_client import recent_quota_trouble
+        return recent_quota_trouble()
+    except Exception:
+        return False
+
+
+def _pause_after_quota_error(exc: BaseException) -> None:
+    import time
+    global _paused_until
+    text = ""
+    while exc is not None:
+        text += " " + str(exc)
+        exc = exc.__cause__ or exc.__context__
+    lowered = text.lower()
+    if "429" in lowered or "resource_exhausted" in lowered or "quota" in lowered or "rate limit" in lowered:
+        pause = QUOTA_PAUSE_DAY_SECONDS if "per day" in lowered else QUOTA_PAUSE_SECONDS
+        _paused_until = max(_paused_until, time.time() + pause)
+
+
 def narrate_messages(messages: Iterable[str], player_text: str, world: dict,
                      provider: str = "auto") -> Tuple[List[str], dict]:
     """เรียบเรียงข้อความหลายชิ้นในการเรียก AI ครั้งเดียว
@@ -316,6 +347,9 @@ def narrate_messages(messages: Iterable[str], player_text: str, world: dict,
     """
     messages = list(messages)
     info = {"applied": False, "provider": None, "items": []}
+    if _quota_guard_active():
+        info["reason"] = "quota_guard"
+        return messages, info
     parts = [_split_hints(m) for m in messages]
     todo = [i for i, (body, _) in enumerate(parts) if body and len(body) <= MAX_SOURCE_CHARS]
     if not todo:
@@ -323,7 +357,8 @@ def narrate_messages(messages: Iterable[str], player_text: str, world: dict,
         return messages, info
     try:
         replies, used = _generate([parts[i][0] for i in todo], player_text, provider)
-    except Exception:
+    except Exception as exc:
+        _pause_after_quota_error(exc)
         info["reason"] = "provider_unavailable"
         return messages, info
     info["provider"] = used

@@ -453,9 +453,13 @@
         <div class="quick-actions">
             <label for="chatInput" class="dock-input-label">คุณจะทำอะไรต่อ?</label>
         </div>
+        <div id="playTips" class="play-tips" role="note">
+            <span>💡 พิมพ์เป็นประโยคธรรมดาได้ เช่น <q>นาฬิกาในเสื้อผู้ตายหยุดเดินตอนกี่โมง</q> หรือ <q>คุณกิเดียน ก่อนขึ้นรถไฟคุณไปอยู่ที่ไหนมา</q> · ไม่อยากพิมพ์ก็กดปุ่มใต้ภาพได้</span>
+            <button type="button" id="closeTips" aria-label="ปิดเคล็ดลับ">✕</button>
+        </div>
         <form onsubmit="sendMessage(event)" class="chat-input-bar">
             <label class="sr-only" for="chatInput">คำสั่งสืบสวนภาษาไทย</label>
-            <input id="chatInput" type="text" placeholder="พิมพ์ เช่น ไปตู้ 4 หรือ สอบปากคำกิเดียน" autocomplete="off">
+            <input id="chatInput" type="text" placeholder="พิมพ์ได้ทั้งคำสั่งและประโยค เช่น ไปดูห้องที่เกิดเหตุกันเถอะ" autocomplete="off">
             <button type="submit" id="sendBtn">
                 <span id="sendBtnText">ส่งคำสั่ง</span>
                 <span aria-hidden="true"> ↗</span>

@@ -140,7 +140,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const chatInput = document.getElementById('chatInput');
   if (chatInput) {
-    chatInput.placeholder = 'พิมพ์ เช่น ไปตู้ 4 หรือ สอบปากคำกิเดียน';
+    chatInput.placeholder = 'พิมพ์ได้ทั้งคำสั่งและประโยค เช่น ไปดูห้องที่เกิดเหตุกันเถอะ';
   }
 
   // Document Dialog Close Handler

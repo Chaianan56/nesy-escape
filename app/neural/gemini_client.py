@@ -74,6 +74,21 @@ _last_api_status: Optional[dict] = None
 _key_statuses: dict[int, dict] = {}
 
 
+def recent_quota_trouble(minute_window: float = 120, day_window: float = 1800) -> bool:
+    """มีคีย์ไหนติดโควตาเมื่อไม่นานมานี้ไหม (ติดรายนาทีภายใน 2 นาที หรือติดรายวันภายใน 30 นาที)
+
+    ผู้เล่าเรื่องใช้ตัดสินว่าควรหลีกทางให้ตัวแปลคำสั่งหรือไม่ เพราะทั้งสองใช้โควตาชุดเดียวกัน
+    """
+    now = time.time()
+    for status in _key_statuses.values():
+        if status.get("state") != "quota_exceeded" or not status.get("since"):
+            continue
+        window = day_window if status.get("per_day") else minute_window
+        if now - status["since"] < window:
+            return True
+    return False
+
+
 def get_api_status() -> dict:
     """คืนสถานะการเชื่อมต่อ API, หมายเลข Key ปัจจุบัน และรายการสถานะของแต่ละ Key"""
     clients = _clients()
@@ -409,6 +424,8 @@ def _interpret_gemini(
                         "state": "quota_exceeded",
                         "message": "ติดโควตา (Rate Limit / Quota)",
                         "error": str(e)[:120],
+                        "since": time.time(),
+                        "per_day": "per day" in str(e).lower() or "perday" in str(e).lower(),
                     }
                     logger.warning("[Gemini Auto-Failover] Key %d ติดข้อจำกัดโควตา (429 Rate Limit / Quota): %s -> กำลังสลับไปคีย์สำรองถัดไปทันที", current_key_idx, e)
                     break
