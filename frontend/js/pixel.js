@@ -19,44 +19,8 @@ const PixelUI = (() => {
     ['second_class_car', 'ชั้นสอง', '06 · ชั้นสอง (ตู้โดยสารทั่วไป)'],
   ];
 
-  const IN_GAME_DOCUMENTS = [
-    {
-      id: "burnt_folder_c",
-      imageEvidenceId: "burnt_folder_c",
-      title: "เศษคำสั่งที่ถูกเผา (Burnt Memo BW-C/17)",
-      date: "16 พฤศจิกายน 1923",
-      classification: "ลับเฉพาะส่วนกลาง · สำเนาไฟไหม้บางส่วน",
-      summary: "พบในถาดเขี่ยบุหรี่ห้องแคสเซียน ปรากฏรหัส [G.H.] สั่งแยกโทรเลขเตือนออกจากสำนวน",
-      content: `เศษกระดาษพับซ้อนในถาดอ่านได้ว่า “BW-C/17 — 16 พฤศจิกายน 1923 — ให้แยกโทรเลขเตือนและคำให้การเรื่องคำสั่งส่วนกลางออกจากชุดสอบสวน...” และส่วนลงนาม G.H. ส่วนอื่นไหม้จนอ่านไม่ได้ เลขเอกสารสามารถเทียบสารบัญในกระเป๋าได้\n\nรอยไหม้อยู่ตามขอบและรอยพับ ไม่มีข้อความส่วนที่หายไปให้เดาเติม การระบุผู้ลงนามต้องตรวจเทียบเลขเอกสารกับทะเบียนในกระเป๋าสำนวน`,
-    },
-    {
-      id: "autopsy_report",
-      imageEvidenceId: "liora_patient_log",
-      title: "บันทึกตรวจร่างเบื้องต้น (Autopsy Report)",
-      date: "14 พฤศจิกายน 1938 · 21:20 น.",
-      classification: "รายงานชันสูตรเบื้องต้น · แพทย์ประจำขบวน",
-      summary: "แพทย์หญิงลิโอรา เวนน์ ตรวจพบแผลของมีคม เลือดเริ่มเย็นตัวก่อนฮีตเตอร์ดับ",
-      content: `14 พฤศจิกายน 1938 หลังพบร่างราว 21:20 — ผู้ตรวจ: ลิโอรา เวนน์\n\nพบบาดแผลจากของคมและร่องรอยต่อสู้ มีดเปิดจดหมายใกล้ร่างสอดคล้องกับลักษณะอาวุธที่ต้องตรวจเพิ่มเติม ยังไม่มีผลตรวจลายนิ้วมือหรือผลห้องปฏิบัติการบนขบวน\n\nการตรวจครั้งนี้ไม่ระบุเวลาตายเป็นนาทีหรือยืนยันว่าเสียชีวิตขณะไฟดับ ผู้สืบสวนต้องตรวจลำดับเหตุการณ์จากฉากและพยานร่วมกัน`,
-    },
-    {
-      id: "secret_file",
-      imageEvidenceId: "secret_file",
-      title: "แฟ้มรักษาและคำให้การเอเลียส เวนน์ (Project Nocturne)",
-      date: "14 พฤศจิกายน 1923 – 1931",
-      classification: "เวชระเบียนส่วนบุคคล · คำให้การที่ถูกตัดออก",
-      summary: "บิดาของลิโอราให้การเรื่องคำสั่งส่วนกลางให้เดินรถต่อแม้มีคำเตือน",
-      content: `เอเลียส เวนน์ รอดจากเหตุ 14 พฤศจิกายน 1923 เขาให้การระหว่างรักษาว่ามีคำเตือนก่อนออกขบวนและมีคำสั่งให้เดินต่อ คำให้การนี้ไม่อยู่ในสำนวนเผยแพร่ บันทึกสุดท้ายระบุเสียชีวิตด้วยโรคประจำตัวในสถานบำบัดปี 1931 ลิโอราเก็บแฟ้มเพื่อคืนความน่าเชื่อถือให้พ่อ ไม่ได้เป็นหลักฐานว่าผู้ใดฆ่าแคสเซียนคืนนี้\n\nสำเนาคำให้การระหว่างพักรักษา: “เราได้รับคำเตือนให้รอยืนยันเส้นทาง แต่มีคำสั่งจากส่วนกลางให้เดินต่อ”\n\nเอกสารแนบระบุว่าคำให้การนี้ถูกนำออกจากสำนวนฉบับเผยแพร่ แฟ้มไม่มีข้อมูลว่าใครอยู่ในห้องแคสเซียนคืนนี้`,
-    },
-    {
-      id: "dossier_missing_file_c",
-      imageEvidenceId: "dossier_missing_file_c",
-      title: "สำเนาโทรเลขเตือนจากเบลล์เวเธอร์ (Voss Telegram Draft)",
-      date: "14 พฤศจิกายน 1923",
-      classification: "ร่างโทรเลขสถานีรถไฟเบลล์เวเธอร์",
-      summary: "นายสถานีแอนเซลม์ วอสส์ ขอให้หยุดขบวนพิเศษก่อนเกิดโศกนาฏกรรม",
-      content: `14 พฤศจิกายน 1923\nจาก แอนเซลม์ วอสส์ นายสถานีเบลล์เวเธอร์\n\nขอให้หยุดรอการยืนยันว่าเส้นทางปลอดภัยก่อนปล่อยขบวนพิเศษ Nocturne\n\nสำเนาอยู่ในแฟ้ม B ร่วมกับสมุดบันทึกต้นฉบับของนายสถานีที่มาราให้แคสเซียนยืมตรวจ เลขรับส่งใช้เทียบทะเบียน ไม่ใช่คำยืนยันว่าใครสังหารแคสเซียนในปี 1938`,
-    }
-  ];
+  // เอกสารในเกมมาจากข้อมูลของแต่ละคดี (data.documents จาก /journal) และส่งมาเฉพาะที่ผู้เล่นพบแล้ว
+  // เดิมเขียนตายตัวในไฟล์นี้ตามคดี A จึงขัดกับคดี B และ C และเปิดดูเนื้อหาได้ก่อนพบหลักฐาน
 
   let data = null, activeTab = 'evidence', revision = 0;
 
@@ -603,7 +567,7 @@ const PixelUI = (() => {
   // Open Document Modal Reader
   function openDocument(doc) {
     const discoveredIds = new Set((data?.evidence || []).map(item => item.id));
-    if (!discoveredIds.has(doc.id) && !discoveredIds.has(doc.imageEvidenceId)) return;
+    if (!(doc.unlocked_by || []).some(id => discoveredIds.has(id))) return;
     const dialog = $('documentDialog');
     if (!dialog) return;
     $('docTitle').textContent = doc.title;
@@ -706,10 +670,9 @@ const PixelUI = (() => {
     const discoveredIds = new Set(data.evidence.map(e => e.id));
     let foundDocCount = 0;
 
-    IN_GAME_DOCUMENTS.forEach(doc => {
-      // Match a document to the evidence that actually unlocks its image.
-      // Some display IDs (for example autopsy_report) differ from evidence IDs.
-      const isFound = discoveredIds.has(doc.id) || discoveredIds.has(doc.imageEvidenceId);
+    (data.documents || []).forEach(doc => {
+      // The server only sends documents whose evidence was found; check again in case of stale data.
+      const isFound = (doc.unlocked_by || []).some(id => discoveredIds.has(id));
       if (!isFound) return;
       foundDocCount++;
       const card = document.createElement('div');
@@ -722,8 +685,8 @@ const PixelUI = (() => {
       card.querySelector('.doc-card-title').textContent = doc.title;
       card.querySelector('.doc-card-date').textContent = doc.date;
       makeCardClickable(card, () => openDocument(doc), `เปิดรายละเอียด${doc.title}`);
-      if (discoveredIds.has(doc.imageEvidenceId)) {
-        const image = imageSlot('evidence', doc.imageEvidenceId, doc.title, false);
+      if (discoveredIds.has(doc.image_evidence_id)) {
+        const image = imageSlot('evidence', doc.image_evidence_id, doc.title, false);
         image.classList.add('doc-card-image-slot');
         image.setAttribute('aria-label', `เปิดรายละเอียด${doc.title}`);
         card.querySelector('.doc-card-top').after(image);

@@ -60,6 +60,11 @@ if (typeof window !== "undefined") window.updateCaseEdition = updateCaseEdition;
 
 let latestProfile = null;
 
+// "นักวิเคราะห์พิสูจน์หลักฐาน (The Forensic Analyst)" -> "นักวิเคราะห์พิสูจน์หลักฐาน"
+function shortArchetypeName(name) {
+  return (name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
 function updateProfilerHUD(profile) {
   if (!profile) return;
   latestProfile = profile;
@@ -67,7 +72,8 @@ function updateProfilerHUD(profile) {
   const icon = document.getElementById("profilerIcon");
   const label = document.getElementById("profilerText");
   if (icon) icon.textContent = profile.archetype_badge || "⚖️";
-  if (label) label.textContent = profile.archetype_name_th || "นักสืบสายสมดุล";
+  // แถบด้านบนแสดงแค่ชื่อไทย ชื่ออังกฤษในวงเล็บยาวจนดันไปทับชื่อเกม จึงย้ายไปอยู่ในข้อความตอนชี้เมาส์ (title)
+  if (label) label.textContent = shortArchetypeName(profile.archetype_name_th) || "นักสืบสายสมดุล";
   if (pill) {
     const dimensions = profile.dimensions || {};
     pill.title = `${profile.archetype_name_th || "นักสืบสายสมดุล"} · ความรอบคอบ ${Math.round((dimensions.methodical_score || 0) * 100)}% · ความเคารพกฎ ${Math.round((dimensions.caution_score ?? 1) * 100)}%`;
@@ -260,13 +266,13 @@ function renderBriefing(briefingText) {
     <div class="story-text">${escapeHtml(briefingText)}</div>
     
     <div class="hints-box">
-      <div class="hints-title">💡 ตัวอย่างคำสั่งที่พิมพ์ได้ในเกม:</div>
+      <div class="hints-title">💡 พิมพ์เป็นประโยคธรรมดาได้เลย เช่น</div>
       <div class="hints-list">
-        <div>• <code>ดูรอบๆ</code> — สำรวจตู้รถที่ยืนอยู่และดูสิ่งที่มองเห็นได้</div>
-        <div>• <code>ไปตู้ 4</code> — ไปยังห้องพักของแคสเซียน ซึ่งเป็นที่เกิดเหตุ</div>
-        <div>• <code>ตรวจนาฬิกาพกกลไก</code> — ตรวจหลักฐานที่มองเห็นในตู้</div>
-        <div>• <code>สอบปากคำกิเดียน</code> — คุยกับพยานหรือผู้ต้องสงสัยที่อยู่ในตู้เดียวกัน</div>
-        <div>• <code>กล่าวหากิเดียน ฮาร์ต</code> — ต้องมีหลักฐานเข้าเงื่อนไขฉากจบของบุคคลนั้นก่อน หากยังไม่ครบให้สืบสวนต่อ</div>
+        <div>• <code>ไปดูห้องที่เกิดเหตุกันเถอะ</code></div>
+        <div>• <code>นาฬิกาในเสื้อผู้ตายหยุดเดินตอนกี่โมง</code></div>
+        <div>• <code>คุณกิเดียน ก่อนขึ้นรถไฟคุณไปอยู่ที่ไหนมา</code></div>
+        <div>• ไม่อยากพิมพ์ก็กดปุ่มใต้ภาพ เพื่อตรวจของหรือคุยกับคนในตู้นั้น</div>
+        <div>• มั่นใจแล้วพิมพ์ <code>กล่าวหา</code> ตามด้วยชื่อ ถ้าหลักฐานยังไม่พอ เกมจะบอกว่าขาดอะไร</div>
       </div>
     </div>
   `;
@@ -403,7 +409,22 @@ function renderApiKeyPopupList(info) {
     return;
   }
 
-  listEl.innerHTML = info.keys.map(k => {
+  // แสดงเฉพาะคีย์ที่ใช้ได้ คีย์ผิดหรือโควตาวันนี้หมดนับไว้ในบรรทัดสรุปแทน
+  const usableKeys = info.keys.filter(k => k.usable !== false);
+  const hiddenKeys = info.keys.filter(k => k.usable === false);
+  if (usableKeys.length === 0) {
+    listEl.innerHTML = `
+      <div class="api-key-row is-error">
+        <div class="api-key-row-top">
+          <div class="api-key-row-left">
+            <span class="live-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #d8a18d; box-shadow: 0 0 6px #d8a18d;"></span>
+            <span class="api-key-name">ไม่มีคีย์ที่ใช้ได้</span>
+          </div>
+        </div>
+        <span class="api-key-desc">ยังเล่นได้ด้วยปุ่มใต้ภาพหรือคำสั่งตรง เช่น ตรวจนาฬิกาพกกลไก</span>
+      </div>
+    `;
+  } else listEl.innerHTML = usableKeys.map(k => {
     let rowClass = "api-key-row";
     let dotColor = "#68ba82";
     if (k.is_active) rowClass += " is-active";
@@ -417,7 +438,7 @@ function renderApiKeyPopupList(info) {
 
     const roleBadge = k.is_active
       ? `<span class="api-key-role-badge active">กำลังใช้งาน</span>`
-      : `<span class="api-key-role-badge standby">สำรอง</span>`;
+      : `<span class="api-key-role-badge standby">${escapeHtml(k.role || "สำรอง")}</span>`;
 
     const errorLine = k.error ? `<div style="font-size: 10.5px; color: #ffa08f; margin-top: 2px;">⚠️ ${escapeHtml(k.error.slice(0, 80))}</div>` : "";
 
@@ -437,7 +458,11 @@ function renderApiKeyPopupList(info) {
   }).join("");
 
   if (summaryEl) {
-    summaryEl.textContent = `มีทั้งหมด ${info.total_keys || info.keys.length} คีย์ • สลับคีย์อัตโนมัติเมื่อติดโควตาหรือขัดข้อง`;
+    let summary = `ใช้ได้ ${usableKeys.length} คีย์ • สลับคีย์อัตโนมัติเมื่อติดโควตาหรือขัดข้อง`;
+    if (hiddenKeys.length) {
+      summary += ` • ซ่อน ${hiddenKeys.map(k => `${k.label} (${k.message})`).join(', ')}`;
+    }
+    summaryEl.textContent = summary;
   }
 }
 
@@ -449,9 +474,13 @@ function renderProviderOptions() {
   for (const name of Object.keys(providerLabels)) {
     const button = document.getElementById(`provider-${name}`);
     if (!button) continue;
+    // กดได้เฉพาะบริการที่มีคีย์ใช้ได้จริง (เซิร์ฟเวอร์ตรวจกับผู้ให้บริการแล้ว) และบอกเหตุผลบนปุ่มเลย
+    if (!button.dataset.label) button.dataset.label = button.textContent;
+    const reason = providerOptions?.reasons?.[name];
     button.disabled = providerSelectionBusy || !providerOptions?.available?.[name];
     button.setAttribute('aria-pressed', String(providerOptions?.selected === name));
-    button.title = providerOptions?.available?.[name] ? '' : 'ยังไม่ได้ตั้งค่าคีย์ใน .env';
+    button.textContent = reason ? `${button.dataset.label} · ${reason}` : button.dataset.label;
+    button.title = reason || '';
   }
 }
 
@@ -461,15 +490,19 @@ async function loadProviderOptions(provider = null) {
   if (!message) return;
   providerSelectionBusy = true;
   renderProviderOptions();
-  message.textContent = provider ? 'กำลังเปลี่ยนบริการ…' : 'กำลังโหลดตัวเลือก…';
+  message.textContent = provider ? 'กำลังเปลี่ยนบริการ…' : 'กำลังตรวจคีย์…';
   try {
     const response = await fetch(`${API_BASE}/api-provider`, {
       method: provider ? 'POST' : 'GET',
       ...(provider ? {headers: {'Content-Type': 'application/json'}, body: JSON.stringify({provider})} : {}),
       signal: AbortSignal.timeout(60000),
     });
-    if (!response.ok) throw new Error('บันทึกตัวเลือกไม่สำเร็จ กรุณาลองใหม่');
+    if (!response.ok) {
+      const detail = (await response.json().catch(() => ({}))).detail;
+      throw new Error(typeof detail === 'string' ? detail : 'บันทึกตัวเลือกไม่สำเร็จ กรุณาลองใหม่');
+    }
     providerOptions = await response.json();
+    if (providerOptions.api_status) updateApiStatus(providerOptions.api_status);
     message.textContent = `เลือก: ${providerLabels[providerOptions.selected]} · ใช้กับคำสั่งถัดไปที่ต้องเรียก AI`;
   } catch (error) {
     message.textContent = error.message || 'ติดต่อเซิร์ฟเวอร์ไม่ได้';
@@ -1013,6 +1046,23 @@ function showLoading() {
   feed.scrollTop = feed.scrollHeight;
 }
 
+// แถบเคล็ดลับเหนือช่องพิมพ์: บอกผู้เล่นใหม่ว่าพิมพ์เป็นประโยคธรรมดาได้ ซ่อนเองหลังส่งคำสั่งครบ 3 ครั้ง หรือเมื่อกดปิด
+const TIPS_HIDE_AFTER = 3;
+let commandsSentForTips = 0;
+function hidePlayTips() {
+  const tips = document.getElementById("playTips");
+  if (tips) tips.hidden = true;
+}
+function countCommandForTips() {
+  commandsSentForTips += 1;
+  if (commandsSentForTips >= TIPS_HIDE_AFTER) hidePlayTips();
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "closeTips") hidePlayTips();
+  });
+}
+
 async function sendMessage(e) {
   e.preventDefault();
   const input = document.getElementById("chatInput");
@@ -1037,6 +1087,7 @@ async function sendMessage(e) {
     window.__canReturnToRoom = false;
   }
 
+  countCommandForTips();
   let steps = [], sequence = false;
   await locked(async () => {
     renderUser(text);

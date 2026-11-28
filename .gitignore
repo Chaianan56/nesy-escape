@@ -29,6 +29,7 @@ logs/
 # telemetry logs จากการเล่นจริงและทดสอบ
 data/telemetry/*.json
 data/telemetry/*.csv
+data/telemetry/*.jsonl
 !data/telemetry/.gitkeep
 
 # Local verification scratch files

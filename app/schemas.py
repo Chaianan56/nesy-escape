@@ -142,6 +142,8 @@ class CommandResponse(BaseModel):
     new_state: GameState
     profile: Optional[Dict[str, Any]] = Field(None, description="ข้อมูลโปรไฟล์และพฤติกรรมผู้เล่นล่าสุด")
     api_status: Optional[Dict[str, Any]] = Field(None, description="สถานะ API และ Key ที่ใช้งานอยู่")
+    narration: Optional[Dict[str, Any]] = Field(
+        None, description="ผลของผู้เล่าเรื่อง (AI เรียบเรียงข้อความ): ใช้หรือไม่ ผ่านการตรวจไหม และข้อความต้นฉบับจากเอนจิน")
     sequence_steps: Optional[List[Dict[str, Any]]] = Field(
         None, description="รายการขั้นตอนและผลลัพธ์ของแต่ละ step กรณีที่ command เป็น sequence"
     )

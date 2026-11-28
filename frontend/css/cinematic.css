@@ -1079,6 +1079,18 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
   .wordmark>span { font-size: 20px; letter-spacing: 2.5px; }
 }
 
+/* แถบด้านบนแบ่งสามช่อง ซ้าย กลาง ขวา ให้ชื่อเกมมีพื้นที่ของตัวเอง
+   เดิมชื่อเกมลอยอยู่กลางแถบ (position: absolute) จึงไม่จองที่ กลุ่มขวาที่กว้างเกินครึ่งจอจะยื่นเข้ามาทับ
+   ช่องข้างใช้ 1fr ที่ไม่หดต่ำกว่าเนื้อหา ถ้ากลุ่มขวากว้างขึ้น ชื่อเกมจะถูกดันไปทางซ้ายแทนการถูกทับ */
+@media (min-width: 1201px) {
+  .masthead { display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 24px; }
+  .masthead .header-left { grid-column: 1; justify-self: start; }
+  .masthead .wordmark { position: static; transform: none; grid-column: 2; }
+  .masthead .header-right { grid-column: 3; justify-self: end; margin-left: 0; }
+  /* ห้ามตัดบรรทัดในปุ่มและกล่องข้อมูล ไม่งั้นช่องขวาจะหดจนข้อความแตกเป็นสองบรรทัดแทนการดันชื่อเกม */
+  .masthead .header-right > * { white-space: nowrap; }
+}
+
 /* Keep the command input usable when the map and API status need another row. */
 @media (max-width: 1200px) {
   .command-dock {
@@ -1106,3 +1118,16 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
   .interaction-strip .chips-scroll, .interaction-strip #visibleObjects { min-width: 0; max-width: 100%; }
   .chat-input-bar { gap: 6px; }
 }
+
+/* แถบเคล็ดลับเหนือช่องพิมพ์ (ซ่อนเองหลังผู้เล่นส่งคำสั่ง 3 ครั้ง) */
+.play-tips{display:flex;align-items:flex-start;gap:10px;margin:0 0 8px;padding:8px 10px 8px 12px;border:1px solid #5a4c33;background:rgba(197,171,114,0.07);color:#d8cdb4;font-size:12.5px;line-height:1.6}
+.play-tips[hidden]{display:none}
+.play-tips>span{flex:1;min-width:0}
+.play-tips q{color:var(--gold);quotes:"“" "”"}
+.play-tips button{flex-shrink:0;border:0;background:none;color:#b9ab91;font-size:13px;line-height:1;padding:3px 4px;cursor:pointer}
+.play-tips button:hover,.play-tips button:focus-visible{color:var(--gold)}
+/* การ์ดบรีฟคดีในแท็บประวัติแสดงตัวอย่างประโยคด้วย */
+.hints-box{display:block;margin-top:12px;padding:10px 12px;border:1px solid #4a4130;background:rgba(197,171,114,0.06)}
+.hints-title{color:var(--gold);font-size:12.5px;margin-bottom:6px}
+.hints-list{display:grid;gap:4px;font-size:12.5px;line-height:1.6}
+.hints-list code{color:var(--gold);background:rgba(0,0,0,.25);padding:0 4px}

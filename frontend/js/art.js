@@ -22,28 +22,36 @@ const GameArt = (() => {
     'detail-patient-log':['liora_patient_log'], 'detail-pocket-watch':['pocket_watch'],
     'detail-burnt-paper':['burnt_folder_c'], 'detail-teacups':['second_teacup','tea_lozenge_trace'],
     'detail-wax':['wax_seal_imprint'], 'detail-cufflink-soot':['obsidian_cufflink','red_soot'],
-    'detail-dossier':['dossier_missing_file_c','judicial_transfer_order','mara_job_note','file_c_initials'],
+    'detail-dossier':['dossier_missing_file_c','judicial_transfer_order','file_c_initials'],
     'detail-dossier-closed':['dossier_bag','case_year_note'],
     'detail-wall-clock':['wall_clock'],
     'detail-medical-file':['secret_file'], 'medical-key-v2':['medical_key'],
     'scene-04-crime':['letter_opener', 'cassian_reed', 'cassian_body'],
     'scene-02-electrical':['electrical_room_door'],
     'detail-gideon':['gideon_lozenge_tin','gideon_signet_ring','gideon_missing_button','gideon_sleeve_soot'],
-    'detail-vincent':['wire_cutters','vincent_blood','vincent_ticket'],
+    // บันทึกงานของวินเซนต์อยู่ในกระเป๋าเสื้อโค้ตเขา ไม่ได้อยู่ในกระเป๋าสำนวน
+    'detail-vincent':['wire_cutters','vincent_blood','vincent_ticket','mara_job_note'],
     'scene-03-dining':['staff_key','liora_patient_witness','staff_impact_testimony','staff_service_record','staff_no_message','vincent_station_alibi'],
     'scene-05-lounge':['gideon_blackout_alibi','gideon_no_early_alibi','postponed_meeting_claim'],
     'scene-06-second-class':['vincent_body_testimony','vincent_blackout_confession','vincent_theft_motive'],
-    'scene-04-medical':['liora_time_estimate','liora_medical_access','liora_time_hesitation','medical_room_door']
+    // ขวด L-7 (คดี C) ยังไม่มีภาพของตัวเอง ใช้ภาพห้องแพทย์ที่เห็นตู้ยาแทนภาพห้องเกิดเหตุ
+    'scene-04-medical':['liora_time_estimate','liora_medical_access','liora_time_hesitation','medical_room_door','poison_vial']
   };
   Object.entries(groups).forEach(([asset,ids])=>ids.forEach(id=>evidence[id]=asset));
   let selected=null, location=null, shown=null;
   function source(asset){return `/game-art/${asset}.png`;}
+  // คดี A แฟ้ม C หายไปจากกระเป๋า คดี B และ C แฟ้ม C ยังอยู่ครบ จึงใช้ภาพกระเป๋าเปิดคนละภาพ
+  function openDossierAsset(state){
+    const caseId = state?.case_id || (typeof gameState !== 'undefined' && gameState?.case_id) || 'case_01_gideon';
+    return caseId === 'case_01_gideon' ? 'detail-dossier' : 'detail-dossier-file-c-present';
+  }
   function resolveEvidenceAsset(target, state){
     if (target === 'dossier_bag' || target === 'case_year_note') {
       const isUnlocked = state?.unlocked_objects?.includes('dossier_bag') ||
                          (typeof gameState !== 'undefined' && gameState?.unlocked_objects?.includes('dossier_bag'));
-      return isUnlocked ? 'detail-dossier' : 'detail-dossier-closed';
+      return isUnlocked ? openDossierAsset(state) : 'detail-dossier-closed';
     }
+    if (evidence[target] === 'detail-dossier') return openDossierAsset(state);
     return evidence[target];
   }
   function onResult(result){

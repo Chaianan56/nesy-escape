@@ -135,6 +135,9 @@ from app.neural.gemini_client import (
     llm_online,
 )
 from app.neural.typed_commands import interpret_game as interpret
+from app.neural.narrator import narrate_response, narrator_enabled
+from app.neural.typed_commands import is_plain_look_around
+from app.parser_log import log_if_missed
 
 
 # ============================================================
@@ -147,17 +150,22 @@ class ApiProviderRequest(BaseModel):
 
 @app.get("/api-provider")
 def api_provider(session: Session = Depends(session_for)):
-    from app.neural.openai_client import configured, groq_configured
-    return {"selected": session.api_provider,
-            "available": {"auto": True, "gemini": bool(_clients()),
-                          "openai": configured(fallback=False), "groq": groq_configured()}}
+    """บริการที่เลือกได้ตอนนี้ ตรวจคีย์กับผู้ให้บริการจริง (ไม่ใช้โควตา ผลจำไว้ 10 นาที)"""
+    from app.neural.gemini_client import provider_availability, refresh_key_checks
+    clients = _clients()
+    refresh_key_checks(clients)
+    available, reasons = provider_availability(clients)
+    if not available[session.api_provider]:
+        session.api_provider = "auto"   # บริการที่เลือกไว้ใช้ไม่ได้แล้ว กลับไปอัตโนมัติ
+    return {"selected": session.api_provider, "available": available, "reasons": reasons,
+            "api_status": get_api_status()}
 
 
 @app.post("/api-provider")
 def select_api_provider(req: ApiProviderRequest, session: Session = Depends(session_for)):
     options = api_provider(session)
     if not options["available"][req.provider]:
-        raise HTTPException(400, "ยังไม่ได้ตั้งค่าคีย์ API ของบริการนี้ใน .env")
+        raise HTTPException(400, options["reasons"].get(req.provider, "บริการนี้ใช้ไม่ได้ตอนนี้"))
     session.api_provider = req.provider
     return api_provider(session)
 
@@ -205,6 +213,8 @@ def scene(session: Session = Depends(session_for)):
     session.state = sync_clock(session.state)
     if engine.is_out_of_time(session.state):
         session.state = terminal_response(session.state, engine=engine).new_state
+    from app.neural.gemini_client import refresh_key_checks
+    refresh_key_checks()   # แถบสถานะ AI ตอนเปิดหน้าจะได้ไม่บอกว่ากำลังใช้คีย์ที่ใช้ไม่ได้ (ผลจำไว้ 10 นาที)
     return {
         "case_id": session.case_id,
         "case_info": CASE_METADATA.get(session.case_id, {}),
@@ -381,21 +391,17 @@ def journal(session: Session = Depends(session_for)):
         "max_submitted_evidence": w.get("max_submitted_evidence", 15),
         "submitted_evidence": session.submitted_evidence,
         "case_closed": bool(state.ending_id),
-        "background": [entry for entry in CASE_BACKGROUND
+        # เอกสารและบันทึกเบื้องหลังมาจากข้อมูลของคดีที่กำลังเล่น ส่งเฉพาะที่ผู้เล่นพบหลักฐานแล้ว
+        # (เดิมเขียนตายตัวตามคดี A จึงขัดกับคดี B และ C และหน้าเว็บมีเนื้อหาเอกสารทั้งหมดก่อนผู้เล่นพบ)
+        "documents": [doc for doc in w.get("documents", [])
+                      if any(e in state.discovered_evidence for e in doc["unlocked_by"])],
+        "background": [entry for entry in w.get("case_background", [])
                        if all(e in state.discovered_evidence for e in entry["requires_evidence"])],
         "pillar_labels": w.get("pillar_labels", {}),
         "profile": get_current_profile(state.session_id or "default", state),
     }
 
 
-CASE_BACKGROUND = [
-    {"title": "สำนวนเบลล์เวเธอร์ ปี 1923", "requires_evidence": ["dossier_missing_file_c"],
-     "text": "ปกสำนวนระบุเหตุรถไฟชนที่เบลล์เวเธอร์เมื่อสิบห้าปีก่อน คดีถูกปิดเป็นอุบัติเหตุ เอกสารแบ่งเป็นแฟ้ม A ถึง D แต่ช่อง C ว่างอยู่"},
-    {"title": "คำให้การที่ถูกตัดออกจากสำนวน", "requires_evidence": ["secret_file"],
-     "text": "เอเลียส เวนน์ บิดาของลิโอรา รอดชีวิตจากเหตุปี 1923 และให้การถึงคำเตือนก่อนปล่อยรถ คำให้การถูกตัดออกจากสำนวน เขาเสียชีวิตในปี 1931 ลิโอราเก็บสำเนาไว้เพื่อคืนความน่าเชื่อถือให้บิดา เอกสารนี้อธิบายอดีต ยังไม่ยืนยันว่าใครฆ่าแคสเซียนคืนนี้"},
-    {"title": "การรื้อคดีในปี 1938", "requires_evidence": ["judicial_transfer_order"],
-     "text": "แคสเซียนกำลังนำสำนวนเบลล์เวเธอร์ส่งให้หน่วยงานตุลาการ หนังสือนำส่งลงวันที่ 14 พฤศจิกายน 1938 เป็นการนำคดีที่ปิดไปแล้วกลับเข้าสู่การตรวจสอบ"},
-]
 
 
 @app.post("/hint")
@@ -428,6 +434,14 @@ def handle_command(req: CommandRequest, session: Session = Depends(session_for))
     engine = engine_for_session(session)
     req.state = session.state.model_copy(deep=True)
     result = _handle_command(req, engine=engine, provider=session.api_provider)
+    # เก็บประโยคที่ AI ตีความไม่ได้หรือถูกปฏิเสธ ไว้แก้ตัวแปลคำสั่งหลังให้คนอื่นลองเล่น (ดู app/parser_log.py)
+    log_if_missed(req.text, result, session.case_id, req.state.current_location)
+    # ผู้เล่าเรื่อง: ให้ AI เรียบเรียงข้อความที่ผู้เล่นเห็นใหม่ หลังกฎตัดสินเสร็จแล้ว
+    # แก้ได้แค่ข้อความ ผลตัดสิน สถานะ และสายเหตุผลยังมาจากกฎทั้งหมด (ดู app/neural/narrator.py)
+    # คำสั่งดูรอบๆ แบบตรงตัวไม่ต้องเรียบเรียง คำบรรยายห้องเขียนไว้ดีแล้ว และหน้าเว็บส่งคำสั่งนี้เอง
+    # ทุกครั้งที่ผู้เล่นกด "คลิกเพื่อไปต่อ" หลังตรวจหลักฐาน ถ้าเรียบเรียงทุกครั้งจะเปลืองโควตา AI ไปเปล่าๆ
+    if not result.service_error and narrator_enabled() and not is_plain_look_around(req.text):
+        narrate_response(result, req.text, engine.world, provider=session.api_provider)
     if result.decision.allowed and result.parsed.action == ActionType.INTERROGATE:
         result.narrative_scene = engine.dialogue_scene(result.parsed, req.state)
     result.conversation_summaries = conversation_summaries(engine.world, req.state, result.new_state)
