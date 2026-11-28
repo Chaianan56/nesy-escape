@@ -1,18 +1,21 @@
 # คู่มือเปิดให้ลองเล่น NeSy-Escape
 
 คู่มือนี้สำหรับเปิดเกมในเครื่องของเราที่งาน แล้วให้คนอื่นลองเล่นเองพร้อมกัน 2–3 คน
-เวอร์ชันนี้อยู่บน branch `claude/sawasdee-wc35zt` (คำขอรวมโค้ดหมายเลข 3) จนกว่าจะรวมเข้า main
+ใช้โค้ดจาก branch `main`
 
 ## ก่อนวันงาน
 
-1. ดึงโค้ดเวอร์ชันนี้มาไว้ในเครื่อง
+1. ดึงโค้ดล่าสุดจาก main มาไว้ในเครื่อง แล้วติดตั้งไลบรารีที่เพิ่มมา
 
    ```powershell
    cd C:\Users\MARU\nesy-escape
-   git fetch origin claude/sawasdee-wc35zt
-   git checkout claude/sawasdee-wc35zt
+   git checkout main
+   git pull
    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
+
+   ถ้า `git checkout` ไม่ยอมเพราะมีไฟล์ที่แก้ค้างไว้ ให้ดูรายชื่อด้วย `git status --short` ก่อน
+   ไฟล์ `.env` ไม่ถูกเก็บใน git จึงไม่หายและไม่ขวางการ checkout
 
 2. ใส่คีย์ Gemini ในไฟล์ `.env` ใส่ได้หลายคีย์โดยคั่นด้วยจุลภาค
 
