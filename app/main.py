@@ -150,17 +150,22 @@ class ApiProviderRequest(BaseModel):
 
 @app.get("/api-provider")
 def api_provider(session: Session = Depends(session_for)):
-    from app.neural.openai_client import configured, groq_configured
-    return {"selected": session.api_provider,
-            "available": {"auto": True, "gemini": bool(_clients()),
-                          "openai": configured(fallback=False), "groq": groq_configured()}}
+    """บริการที่เลือกได้ตอนนี้ ตรวจคีย์กับผู้ให้บริการจริง (ไม่ใช้โควตา ผลจำไว้ 10 นาที)"""
+    from app.neural.gemini_client import provider_availability, refresh_key_checks
+    clients = _clients()
+    refresh_key_checks(clients)
+    available, reasons = provider_availability(clients)
+    if not available[session.api_provider]:
+        session.api_provider = "auto"   # บริการที่เลือกไว้ใช้ไม่ได้แล้ว กลับไปอัตโนมัติ
+    return {"selected": session.api_provider, "available": available, "reasons": reasons,
+            "api_status": get_api_status()}
 
 
 @app.post("/api-provider")
 def select_api_provider(req: ApiProviderRequest, session: Session = Depends(session_for)):
     options = api_provider(session)
     if not options["available"][req.provider]:
-        raise HTTPException(400, "ยังไม่ได้ตั้งค่าคีย์ API ของบริการนี้ใน .env")
+        raise HTTPException(400, options["reasons"].get(req.provider, "บริการนี้ใช้ไม่ได้ตอนนี้"))
     session.api_provider = req.provider
     return api_provider(session)
 
@@ -208,6 +213,8 @@ def scene(session: Session = Depends(session_for)):
     session.state = sync_clock(session.state)
     if engine.is_out_of_time(session.state):
         session.state = terminal_response(session.state, engine=engine).new_state
+    from app.neural.gemini_client import refresh_key_checks
+    refresh_key_checks()   # แถบสถานะ AI ตอนเปิดหน้าจะได้ไม่บอกว่ากำลังใช้คีย์ที่ใช้ไม่ได้ (ผลจำไว้ 10 นาที)
     return {
         "case_id": session.case_id,
         "case_info": CASE_METADATA.get(session.case_id, {}),

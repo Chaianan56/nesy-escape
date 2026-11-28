@@ -409,7 +409,22 @@ function renderApiKeyPopupList(info) {
     return;
   }
 
-  listEl.innerHTML = info.keys.map(k => {
+  // แสดงเฉพาะคีย์ที่ใช้ได้ คีย์ผิดหรือโควตาวันนี้หมดนับไว้ในบรรทัดสรุปแทน
+  const usableKeys = info.keys.filter(k => k.usable !== false);
+  const hiddenKeys = info.keys.filter(k => k.usable === false);
+  if (usableKeys.length === 0) {
+    listEl.innerHTML = `
+      <div class="api-key-row is-error">
+        <div class="api-key-row-top">
+          <div class="api-key-row-left">
+            <span class="live-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #d8a18d; box-shadow: 0 0 6px #d8a18d;"></span>
+            <span class="api-key-name">ไม่มีคีย์ที่ใช้ได้</span>
+          </div>
+        </div>
+        <span class="api-key-desc">ยังเล่นได้ด้วยปุ่มใต้ภาพหรือคำสั่งตรง เช่น ตรวจนาฬิกาพกกลไก</span>
+      </div>
+    `;
+  } else listEl.innerHTML = usableKeys.map(k => {
     let rowClass = "api-key-row";
     let dotColor = "#68ba82";
     if (k.is_active) rowClass += " is-active";
@@ -423,7 +438,7 @@ function renderApiKeyPopupList(info) {
 
     const roleBadge = k.is_active
       ? `<span class="api-key-role-badge active">กำลังใช้งาน</span>`
-      : `<span class="api-key-role-badge standby">สำรอง</span>`;
+      : `<span class="api-key-role-badge standby">${escapeHtml(k.role || "สำรอง")}</span>`;
 
     const errorLine = k.error ? `<div style="font-size: 10.5px; color: #ffa08f; margin-top: 2px;">⚠️ ${escapeHtml(k.error.slice(0, 80))}</div>` : "";
 
@@ -443,7 +458,11 @@ function renderApiKeyPopupList(info) {
   }).join("");
 
   if (summaryEl) {
-    summaryEl.textContent = `มีทั้งหมด ${info.total_keys || info.keys.length} คีย์ • สลับคีย์อัตโนมัติเมื่อติดโควตาหรือขัดข้อง`;
+    let summary = `ใช้ได้ ${usableKeys.length} คีย์ • สลับคีย์อัตโนมัติเมื่อติดโควตาหรือขัดข้อง`;
+    if (hiddenKeys.length) {
+      summary += ` • ซ่อน ${hiddenKeys.map(k => `${k.label} (${k.message})`).join(', ')}`;
+    }
+    summaryEl.textContent = summary;
   }
 }
 
@@ -455,9 +474,13 @@ function renderProviderOptions() {
   for (const name of Object.keys(providerLabels)) {
     const button = document.getElementById(`provider-${name}`);
     if (!button) continue;
+    // กดได้เฉพาะบริการที่มีคีย์ใช้ได้จริง (เซิร์ฟเวอร์ตรวจกับผู้ให้บริการแล้ว) และบอกเหตุผลบนปุ่มเลย
+    if (!button.dataset.label) button.dataset.label = button.textContent;
+    const reason = providerOptions?.reasons?.[name];
     button.disabled = providerSelectionBusy || !providerOptions?.available?.[name];
     button.setAttribute('aria-pressed', String(providerOptions?.selected === name));
-    button.title = providerOptions?.available?.[name] ? '' : 'ยังไม่ได้ตั้งค่าคีย์ใน .env';
+    button.textContent = reason ? `${button.dataset.label} · ${reason}` : button.dataset.label;
+    button.title = reason || '';
   }
 }
 
@@ -467,15 +490,19 @@ async function loadProviderOptions(provider = null) {
   if (!message) return;
   providerSelectionBusy = true;
   renderProviderOptions();
-  message.textContent = provider ? 'กำลังเปลี่ยนบริการ…' : 'กำลังโหลดตัวเลือก…';
+  message.textContent = provider ? 'กำลังเปลี่ยนบริการ…' : 'กำลังตรวจคีย์…';
   try {
     const response = await fetch(`${API_BASE}/api-provider`, {
       method: provider ? 'POST' : 'GET',
       ...(provider ? {headers: {'Content-Type': 'application/json'}, body: JSON.stringify({provider})} : {}),
       signal: AbortSignal.timeout(60000),
     });
-    if (!response.ok) throw new Error('บันทึกตัวเลือกไม่สำเร็จ กรุณาลองใหม่');
+    if (!response.ok) {
+      const detail = (await response.json().catch(() => ({}))).detail;
+      throw new Error(typeof detail === 'string' ? detail : 'บันทึกตัวเลือกไม่สำเร็จ กรุณาลองใหม่');
+    }
     providerOptions = await response.json();
+    if (providerOptions.api_status) updateApiStatus(providerOptions.api_status);
     message.textContent = `เลือก: ${providerLabels[providerOptions.selected]} · ใช้กับคำสั่งถัดไปที่ต้องเรียก AI`;
   } catch (error) {
     message.textContent = error.message || 'ติดต่อเซิร์ฟเวอร์ไม่ได้';

@@ -30,7 +30,7 @@ from app.schemas import ActionType, GameState, ParsedCommand
 # นำเข้า Prompt Builder จาก prompts.py
 from app.neural.prompts import build_interpret_system_prompt
 from app.neural.repair import repair_parsed_command
-from app.neural import openai_client
+from app.neural import key_check, openai_client
 
 # โหลดตัวแปรสภาพแวดล้อมจาก .env
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
@@ -89,6 +89,84 @@ def recent_quota_trouble(minute_window: float = 120, day_window: float = 1800) -
     return False
 
 
+KEY_PROBLEM_MESSAGES = {
+    "invalid": "คีย์ผิดหรือหมดอายุ",
+    "daily_quota": "โควตาวันนี้หมดแล้ว",
+    "unreachable": "ติดต่อผู้ให้บริการไม่ได้",
+}
+
+
+def key_problem(idx: int, client) -> Optional[str]:
+    """เหตุที่คีย์นี้ใช้ไม่ได้ตอนนี้ ("invalid", "daily_quota", "unreachable") หรือ None ถ้าใช้ได้
+
+    ติดโควตารายนาทีไม่นับ เพราะกลับมาใช้ได้ในไม่กี่วินาที
+    """
+    status = _key_statuses.get(idx, {})
+    if status.get("state") == "invalid" or key_check.gemini_valid(client) is False:
+        return "invalid"
+    if (status.get("state") == "quota_exceeded" and status.get("per_day") and status.get("since")
+            and time.time() < key_check.daily_quota_resets_at(status["since"])):
+        return "daily_quota"
+    if key_check.unreachable("gemini", client):
+        return "unreachable"
+    return None
+
+
+def usable_clients(clients: Optional[list] = None) -> list[tuple[int, object]]:
+    """[(หมายเลขคีย์, ไคลเอนต์)] ของคีย์ที่ใช้ได้ ถ้าทุกคีย์มีปัญหาคืนทุกคีย์ ลองดูดีกว่าไม่ลองเลย"""
+    clients = _clients() if clients is None else clients
+    every = list(enumerate(clients, 1))
+    return [(i, c) for i, c in every if key_problem(i, c) is None] or every
+
+
+def refresh_key_checks(clients: Optional[list] = None, force: bool = False) -> None:
+    key_check.refresh(_clients() if clients is None else clients, DEFAULT_MODEL, force=force)
+
+
+def provider_availability(clients: Optional[list] = None) -> tuple[dict, dict]:
+    """บริการไหนเลือกได้ตอนนี้ และเหตุผลของบริการที่เลือกไม่ได้"""
+    clients = _clients() if clients is None else clients
+    reasons: dict[str, str] = {}
+    problems = [key_problem(i, c) for i, c in enumerate(clients, 1)]
+    if not clients:
+        reasons["gemini"] = "ยังไม่ได้ใส่คีย์ใน .env"
+    elif all(problems):
+        reasons["gemini"] = {frozenset({"daily_quota"}): "โควตาวันนี้หมดทุกคีย์",
+                             frozenset({"unreachable"}): KEY_PROBLEM_MESSAGES["unreachable"]
+                             }.get(frozenset(problems), "ไม่มีคีย์ที่ใช้ได้")
+    for provider, configured in (("openai", openai_client.configured(fallback=False)),
+                                 ("groq", openai_client.groq_configured())):
+        if not configured:
+            reasons[provider] = "ยังไม่ได้ใส่คีย์ใน .env"
+        elif key_check.other_valid(provider) is False:
+            reasons[provider] = KEY_PROBLEM_MESSAGES["invalid"]
+        elif key_check.unreachable(provider):
+            reasons[provider] = KEY_PROBLEM_MESSAGES["unreachable"]
+    available = {"auto": True, **{p: p not in reasons for p in ("gemini", "openai", "groq")}}
+    return available, reasons
+
+
+def _other_usable(provider: str) -> bool:
+    """ยังไม่ได้ตรวจนับว่าใช้ได้ ตรวจแล้วต้องไม่โดนปฏิเสธคีย์และต้องติดต่อได้"""
+    return key_check.other_valid(provider) is not False and not key_check.unreachable(provider)
+
+
+def _other_provider_rows() -> list[dict]:
+    """แถว Groq / GPT ในรายการคีย์ (เฉพาะที่ตั้งไว้)"""
+    rows = []
+    for provider, label, configured in (("groq", "Groq", openai_client.groq_configured()),
+                                        ("openai", "GPT", openai_client.configured(fallback=False))):
+        if not configured:
+            continue
+        problem = ("invalid" if key_check.other_valid(provider) is False
+                   else "unreachable" if key_check.unreachable(provider) else None)
+        rows.append({"index": 0, "provider": provider, "label": label, "is_active": False,
+                     "role": "บริการสำรอง", "state": problem or "ready",
+                     "message": KEY_PROBLEM_MESSAGES[problem] if problem else "พร้อมใช้งาน",
+                     "error": None, "usable": problem is None})
+    return rows
+
+
 def get_api_status() -> dict:
     """คืนสถานะการเชื่อมต่อ API, หมายเลข Key ปัจจุบัน และรายการสถานะของแต่ละ Key"""
     clients = _clients()
@@ -117,19 +195,31 @@ def get_api_status() -> dict:
             "keys": [],
         }
 
+    global _active_key_index
+    problems = {idx: key_problem(idx, client) for idx, client in enumerate(clients, 1)}
+    usable = [idx for idx, problem in problems.items() if problem is None]
+    if usable and _active_key_index not in usable:
+        _active_key_index = usable[0]   # อย่าแสดงคีย์ที่ใช้ไม่ได้ว่ากำลังใช้งาน
     keys_list = []
     for idx in range(1, total + 1):
         st = _key_statuses.get(idx, {"state": "ready", "message": "พร้อมใช้งาน", "error": None})
-        is_active = (idx == _active_key_index)
+        problem = problems[idx]
+        is_active = (idx == _active_key_index) and problem is None
         keys_list.append({
             "index": idx,
+            "provider": "gemini",
             "label": f"Key {idx}",
             "is_active": is_active,
             "role": "กำลังใช้งาน" if is_active else "สำรอง",
-            "state": st.get("state", "ready"),
-            "message": st.get("message", "พร้อมใช้งาน"),
-            "error": st.get("error"),
+            "state": problem or st.get("state", "ready"),
+            "message": KEY_PROBLEM_MESSAGES[problem] if problem else st.get("message", "พร้อมใช้งาน"),
+            "error": None if problem == "invalid" else st.get("error"),
+            "usable": problem is None,
         })
+    keys_list += _other_provider_rows()
+    if not usable and not any(row["usable"] for row in keys_list):
+        return {"status": "offline", "online": False, "active_key": 0, "total_keys": total,
+                "key_label": "ไม่มีคีย์ที่ใช้ได้", "message": "ไม่มีคีย์ที่ใช้ได้", "keys": keys_list}
 
     key_label = f"Key {_active_key_index}"
     if _last_api_status is not None:
@@ -242,8 +332,10 @@ def interpret(text: str, state: GameState, prune: bool = True,
     elif provider == "openai" and not openai_client.configured(fallback=False):
         raise NeuralNotConfigured("ยังไม่ได้ตั้งค่า OPENAI_API_KEY")
     candidates = [provider] if provider != "auto" else (
-        (["groq"] if openai_client.groq_configured() else [])
-        + (["openai"] if openai_client.configured() else []))
+        (["groq"] if openai_client.groq_configured() and _other_usable("groq") else [])
+        + (["openai"] if openai_client.configured() and _other_usable("openai") else []))
+    if not candidates:
+        raise NeuralNotConfigured("ไม่มีบริการ AI สำรองที่ใช้ได้")
     from app.cases import get_engine
     world = get_engine(state.case_id).world
     system = build_interpret_system_prompt(world, state=state, user_text=text,
@@ -322,13 +414,13 @@ def _interpret_gemini(
     last_error: Optional[Exception] = None
     deadline = time.monotonic() + 20
 
-    start_idx = (_active_key_index - 1) % len(clients) if len(clients) > 0 else 0
-    ordered_clients = clients[start_idx:] + clients[:start_idx]
+    # ข้ามคีย์ที่รู้แล้วว่าใช้ไม่ได้ (คีย์ผิด หรือโควตาวันนี้หมด)
+    candidates = usable_clients(clients)
+    start = next((n for n, (idx, _) in enumerate(candidates) if idx == _active_key_index), 0)
+    ordered_clients = candidates[start:] + candidates[:start]
 
-    for client in ordered_clients:
-        current_key_idx = clients.index(client) + 1
+    for current_key_idx, client in ordered_clients:
         _active_key_index = current_key_idx
-        has_backup = (len(ordered_clients) > 1 and client != ordered_clients[-1])
 
         # หากมีคีย์สำรองอยู่และเกิดข้อผิดพลาด ให้สลับคีย์ทันทีเพื่อไม่ให้เสียเวลา deadline
         # หากเป็นคีย์เดียวที่เหลืออยู่ ให้ลองซ้ำได้ 1 ครั้ง
@@ -445,6 +537,13 @@ def _interpret_gemini(
                         else:
                             logger.info("[Gemini Retry] Key %d เกิดข้อผิดพลาดชั่วคราว (%s) กำลังลองซ้ำอีก 1 ครั้ง...", current_key_idx, e)
                         continue
+                elif key_check.is_key_rejection(e):
+                    key_check.mark_gemini_invalid(client)
+                    _key_statuses[current_key_idx] = {
+                        "state": "invalid",
+                        "message": KEY_PROBLEM_MESSAGES["invalid"],
+                        "error": None,
+                    }
                 else:
                     _key_statuses[current_key_idx] = {
                         "state": "error",

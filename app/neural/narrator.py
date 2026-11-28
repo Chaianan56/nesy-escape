@@ -217,12 +217,12 @@ def validate_narration(source: str, narration: str, player_text: str, world: dic
 # ============================================================
 
 def _call_gemini(system: str, content: str) -> Tuple[str, str]:
-    from app.neural.gemini_client import DEFAULT_MODEL, NeuralNotConfigured, _clients, types
-    clients = _clients()
+    from app.neural.gemini_client import DEFAULT_MODEL, NeuralNotConfigured, types, usable_clients
+    clients = usable_clients()   # ข้ามคีย์ผิดและคีย์ที่โควตาวันนี้หมด
     if not clients:
         raise NeuralNotConfigured("no Gemini key")
     last: Optional[Exception] = None
-    for client in clients:
+    for _, client in clients:
         try:
             response = client.models.generate_content(
                 model=DEFAULT_MODEL,
