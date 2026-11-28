@@ -77,6 +77,9 @@ MISREADS = [
      dict(action="examine", target="cassian_reed"), ("examine", "mara_job_note")),
     ("case_03_liora", 36, "คราบเลือดบนแขนเสื้อวินเซนต์เป็นยังไง",
      dict(action="interrogate", target="vincent_gray", topic="arrival"), ("examine", "vincent_blood")),
+    # "คำให้การ" เป็นคำนาม ไม่ได้แปลว่ากำลังถามลิโอรา (พบในรอบเล่นจริงหลังแก้ครั้งแรก)
+    ("case_02_vincent", 17, "ขอดูแฟ้มคำให้การของเอเลียสในห้องแพทย์หน่อย",
+     dict(action="interrogate", target="dr_liora_venn", topic="examination"), ("examine", "secret_file")),
 ]
 
 
@@ -111,6 +114,14 @@ def test_asking_a_person_about_an_object_stays_a_question():
                            raw_text="ถามวินเซนต์เรื่องคราบเลือดบนแขนเสื้อวินเซนต์", confidence=0.9)
     fixed, _ = repair("case_03_liora", 36, parsed)
     assert (fixed.action, fixed.target) == (ActionType.INTERROGATE, "vincent_gray")
+
+
+def test_asking_someone_to_check_an_object_stays_a_question():
+    """"ให้พนักงานช่วยตรวจ..." คือขอให้คนช่วย ต้องคงเป็นการสอบปากคำ"""
+    parsed = ParsedCommand(action=ActionType.INTERROGATE, target="car_attendant", topic="station",
+                           raw_text="ให้พนักงานช่วยตรวจใบรับรองตั๋วของวินเซนต์หน่อย", confidence=0.9)
+    fixed, _ = repair("case_02_vincent", 41, parsed)
+    assert (fixed.action, fixed.target) == (ActionType.INTERROGATE, "car_attendant")
 
 
 def test_vague_wording_does_not_override_the_llm():

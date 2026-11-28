@@ -30,6 +30,22 @@ _UNIQUE_MARGIN = 3        # และตรงกว่าตัวเลือ�
 _DESC_WEIGHT = 0.7        # คำบรรยายนับน้อยกว่าชื่อ ใช้เมื่อผู้เล่นเรียกของจากลักษณะ
 _DESC_LEAD = 40
 _TALK_WORDS = ("ถาม", "คุย", "สอบปากคำ", "ซัก", "ให้การ", "บอกมา", "talk", "ask", "interrogate", "speak")
+# คำนามที่มีคำว่าคุย/ให้การอยู่ข้างใน แต่ไม่ได้แปลว่ากำลังถามใคร เช่น "แฟ้มคำให้การ"
+_TALK_NOUNS = ("คำให้การ",)
+# ขึ้นต้นประโยคด้วยคำเหล่านี้ แปลว่าผู้เล่นอยากดูหรืออ่านของ ไม่ได้ถามคน
+_LOOK_STARTS = ("ขอดู", "ขอตรวจ", "ขออ่าน", "ขอเปิด", "ดู", "ตรวจ", "อ่าน", "เปิด", "ส่อง", "สำรวจ",
+                "examine", "look", "read", "check", "inspect")
+
+
+def _is_talking(raw: str) -> bool:
+    text = raw
+    for noun in _TALK_NOUNS:
+        text = text.replace(noun, " ")
+    return any(w in text for w in _TALK_WORDS)
+
+
+def _starts_with_look(raw: str) -> bool:
+    return raw.strip().lower().startswith(_LOOK_STARTS)
 
 
 def _match(text: str, phrase: str) -> Tuple[int, set]:
@@ -122,7 +138,7 @@ def wording_target_fix(parsed: ParsedCommand, world_data: Dict[str, Any], state:
         return None
     if action not in (ActionType.EXAMINE, ActionType.UNKNOWN, ActionType.INTERROGATE, ActionType.SEQUENCE):
         return None
-    if action == ActionType.INTERROGATE and any(w in raw for w in _TALK_WORDS):
+    if action == ActionType.INTERROGATE and _is_talking(raw):
         return None
     engine = _engine_for(world_data, state)
     if engine is None:
@@ -167,8 +183,8 @@ def wording_target_fix(parsed: ParsedCommand, world_data: Dict[str, Any], state:
     current = scores[target][0] if target in scores else 0.0
     if best < _SWAP_MIN or best - current < _SWAP_MARGIN or best - second < _UNIQUE_MARGIN:
         return None
-    if action == ActionType.INTERROGATE and coverage < 0.8:
-        return None                                # ถามคนอยู่ ต้องเอ่ยชื่อของแทบครบถึงจะเปลี่ยนเป็นตรวจของ
+    if action == ActionType.INTERROGATE and coverage < 0.8 and not _starts_with_look(raw):
+        return None                                # ถามคนอยู่ ต้องเอ่ยชื่อของแทบครบ หรือขึ้นต้นว่าขอดู/ตรวจ ถึงจะเปลี่ยนเป็นตรวจของ
     return ({"action": ActionType.EXAMINE, "target": oid, "topic": None, "alternatives": [], "sequence": False},
             f"Wording names '{oid}' ({_name_core(objects[oid])}) more clearly than "
             f"'{target}' ({best:.0f} vs {current:.0f} matched characters)")
