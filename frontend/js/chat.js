@@ -60,6 +60,11 @@ if (typeof window !== "undefined") window.updateCaseEdition = updateCaseEdition;
 
 let latestProfile = null;
 
+// "นักวิเคราะห์พิสูจน์หลักฐาน (The Forensic Analyst)" -> "นักวิเคราะห์พิสูจน์หลักฐาน"
+function shortArchetypeName(name) {
+  return (name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
 function updateProfilerHUD(profile) {
   if (!profile) return;
   latestProfile = profile;
@@ -67,7 +72,8 @@ function updateProfilerHUD(profile) {
   const icon = document.getElementById("profilerIcon");
   const label = document.getElementById("profilerText");
   if (icon) icon.textContent = profile.archetype_badge || "⚖️";
-  if (label) label.textContent = profile.archetype_name_th || "นักสืบสายสมดุล";
+  // แถบด้านบนแสดงแค่ชื่อไทย ชื่ออังกฤษในวงเล็บยาวจนดันไปทับชื่อเกม จึงย้ายไปอยู่ในข้อความตอนชี้เมาส์ (title)
+  if (label) label.textContent = shortArchetypeName(profile.archetype_name_th) || "นักสืบสายสมดุล";
   if (pill) {
     const dimensions = profile.dimensions || {};
     pill.title = `${profile.archetype_name_th || "นักสืบสายสมดุล"} · ความรอบคอบ ${Math.round((dimensions.methodical_score || 0) * 100)}% · ความเคารพกฎ ${Math.round((dimensions.caution_score ?? 1) * 100)}%`;

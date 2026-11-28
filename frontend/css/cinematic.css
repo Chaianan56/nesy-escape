@@ -1079,6 +1079,18 @@ button.archive-image-slot:focus-visible{outline:2px solid #e5c27d;outline-offset
   .wordmark>span { font-size: 20px; letter-spacing: 2.5px; }
 }
 
+/* แถบด้านบนแบ่งสามช่อง ซ้าย กลาง ขวา ให้ชื่อเกมมีพื้นที่ของตัวเอง
+   เดิมชื่อเกมลอยอยู่กลางแถบ (position: absolute) จึงไม่จองที่ กลุ่มขวาที่กว้างเกินครึ่งจอจะยื่นเข้ามาทับ
+   ช่องข้างใช้ 1fr ที่ไม่หดต่ำกว่าเนื้อหา ถ้ากลุ่มขวากว้างขึ้น ชื่อเกมจะถูกดันไปทางซ้ายแทนการถูกทับ */
+@media (min-width: 1201px) {
+  .masthead { display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 24px; }
+  .masthead .header-left { grid-column: 1; justify-self: start; }
+  .masthead .wordmark { position: static; transform: none; grid-column: 2; }
+  .masthead .header-right { grid-column: 3; justify-self: end; margin-left: 0; }
+  /* ห้ามตัดบรรทัดในปุ่มและกล่องข้อมูล ไม่งั้นช่องขวาจะหดจนข้อความแตกเป็นสองบรรทัดแทนการดันชื่อเกม */
+  .masthead .header-right > * { white-space: nowrap; }
+}
+
 /* Keep the command input usable when the map and API status need another row. */
 @media (max-width: 1200px) {
   .command-dock {
